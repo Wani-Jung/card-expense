@@ -43,10 +43,23 @@ bool hasCardApproval(String text, String cardDigits) {
 
 /// [cardDigits] 승인 문자만 읽는다. 아니면 null. 광고·안내 문자도 여기서 걸러진다.
 ///
+/// [requireCard] 가 false 면 카드번호 대신 "승인"/"취소" 만 본다.
+/// 알림 제목의 발신번호로 이미 걸러진 문자를 읽을 때 쓴다.
+///
 /// 문자에는 연도가 없으므로 [receivedAt](문자 받은 시각) 기준으로 정한다.
 /// 받은 시각보다 하루 넘게 미래가 되면 작년 문자로 본다. (12월 문자를 1월에 불러올 때)
-ParsedSms? parseSms(String text, {required String cardDigits, DateTime? receivedAt}) {
-  if (!hasCardApproval(text, cardDigits)) return null;
+ParsedSms? parseSms(
+  String text, {
+  required String cardDigits,
+  DateTime? receivedAt,
+  bool requireCard = true,
+}) {
+  if (requireCard) {
+    if (!hasCardApproval(text, cardDigits)) return null;
+  } else {
+    final c = text.replaceAll(_spaces, '');
+    if (!c.contains('승인') && !c.contains('취소')) return null;
+  }
 
   final amountM = _amountRe.firstMatch(text);
   final dtM = _dateTimeRe.firstMatch(text);
@@ -79,6 +92,17 @@ ParsedSms? parseSms(String text, {required String cardDigits, DateTime? received
     isCancel: text.replaceAll(_spaces, '').contains('취소'),
     raw: text.trim(),
   );
+}
+
+/// 여러 문자를 한꺼번에 붙여넣거나 공유받았을 때 [Web발신] 단위로 나눈다.
+/// [Web발신] 이 없으면 통째로 한 건.
+List<String> splitMessages(String text) {
+  final parts = text
+      .split('[Web발신]')
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+  return parts.isEmpty ? [] : parts;
 }
 
 /// 전화번호를 비교용으로 정리한다. 숫자만 남기고 국가번호 82, 앞자리 0 을 뗀다.

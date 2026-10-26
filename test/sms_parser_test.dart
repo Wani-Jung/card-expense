@@ -50,6 +50,33 @@ void main() {
     expect(parseSms(sms, cardDigits: '0000', receivedAt: received)?.amount, 3000);
   });
 
+  test('여러 문자를 한꺼번에 붙여넣으면 [Web발신] 단위로 나눈다', () {
+    const pasted = '[Web발신]\nNH기업0000승인\n공용카드\n96,000원 체크\n07/28 16:26\n(주)월산주유소\n'
+        '[Web발신]\nNH기업0000승인\n공용카드\n12,000원 체크\n07/29 12:01\n김밥천국\n'
+        '[Web발신]\n(광고) NH농협카드 이벤트 안내';
+    final parts = splitMessages(pasted);
+    expect(parts.length, 3);
+    final parsed = parts
+        .map((m) => parseSms(m, cardDigits: '0000', receivedAt: received.add(const Duration(days: 2))))
+        .whereType<ParsedSms>()
+        .toList();
+    expect(parsed.map((p) => p.amount), [96000, 12000]);
+    expect(parsed.map((p) => p.merchant), ['(주)월산주유소', '김밥천국']);
+  });
+
+  test('[Web발신] 없이 한 건만 붙여넣어도 그대로 한 건', () {
+    expect(splitMessages('NH기업0000승인 96,000원 07/28 16:26 주유소'), hasLength(1));
+    expect(splitMessages('   '), isEmpty);
+  });
+
+  test('알림 제목으로 걸러진 문자는 카드번호 없이도 승인+금액으로 읽는다', () {
+    const body = '승인 공용카드 8,800원 07/28 13:10 편의점';
+    expect(parseSms(body, cardDigits: '0000', receivedAt: received), isNull);
+    expect(parseSms(body, cardDigits: '0000', receivedAt: received, requireCard: false)?.amount, 8800);
+    expect(parseSms('안내 8,800원 07/28 13:10', cardDigits: '0000', receivedAt: received, requireCard: false),
+        isNull);
+  });
+
   group('발신번호 매칭', () {
     test('하이픈 유무 상관없이 숫자로 비교', () {
       expect(senderMatches('15881600', '1588-1600'), isTrue);

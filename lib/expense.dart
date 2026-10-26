@@ -68,7 +68,6 @@ class Store {
   static const _kItems = 'expenses_v1';
   static const _kDigits = 'card_digits';
   static const _kSender = 'sender_number';
-  static const _kAutoImported = 'auto_import_done';
 
   final SharedPreferences _prefs;
   Store._(this._prefs);
@@ -78,16 +77,10 @@ class Store {
   String? get cardDigits => _prefs.getString(_kDigits);
   String? get senderNumber => _prefs.getString(_kSender);
 
-  /// 카드번호·발신번호 저장. 하나라도 바뀌면 1년치 자동 불러오기를 다시 하게 한다.
   Future<void> setSettings(String digits, String sender) async {
-    if (digits != cardDigits || sender != senderNumber) await _prefs.remove(_kAutoImported);
     await _prefs.setString(_kDigits, digits);
     await _prefs.setString(_kSender, sender);
   }
-
-  /// 현재 설정으로 1년치 자동 불러오기를 했는지.
-  bool get autoImported => _prefs.getBool(_kAutoImported) ?? false;
-  Future<void> setAutoImported() => _prefs.setBool(_kAutoImported, true);
 
   List<Expense> loadItems() {
     final s = _prefs.getString(_kItems);

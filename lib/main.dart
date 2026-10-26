@@ -157,7 +157,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final List<Expense> _items = widget.store.loadItems();
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   PermStatus _perms = const PermStatus();
-  bool _importing = false;
 
   @override
   void initState() {
@@ -165,18 +164,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     Native.setHandler((method) async {
       if (method == 'onNewSms') await _drain();
+      if (method == 'onShared') await _takeShared();
       if (method == 'permissionsChanged') await _refreshPerms();
     });
     // 네이티브 저장소가 비어 있을 수 있으니 시작할 때마다 맞춰 둔다.
     Native.setSettings(widget.digits, widget.sender);
     _onResume();
-  }
-
-  @override
-  void didUpdateWidget(HomeScreen old) {
-    super.didUpdateWidget(old);
-    // 설정이 바뀌면 store 의 자동 불러오기 표시가 지워져 있으므로 다시 불러온다.
-    if (old.digits != widget.digits || old.sender != widget.sender) _maybeAutoImport();
   }
 
   @override
@@ -192,6 +185,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _onResume() async {
     await _drain();
+    await _takeShared();
     await _refreshPerms();
     await Native.cancelNotifications();
   }
@@ -199,27 +193,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _refreshPerms() async {
     final p = await Native.permissionStatus();
     if (mounted) setState(() => _perms = p);
-    await _maybeAutoImport();
   }
 
-  /// 문자 권한이 처음 허용됐거나 설정이 바뀐 뒤면 1년치를 한 번 불러온다.
-  Future<void> _maybeAutoImport() async {
-    if (!_perms.sms || widget.store.autoImported || _importing) return;
-    await _importInbox();
-    await widget.store.setAutoImported();
-  }
-
+  /// 알림 감지가 쌓아 둔 문자. 네이티브에서 발신번호/카드번호로 이미 걸렀으므로 카드번호는 다시 보지 않는다.
   Future<void> _drain() async {
     final raws = await Native.drainInbox();
-    if (raws.isNotEmpty) await _ingest(raws);
+    if (raws.isNotEmpty) await _ingest(raws, requireCard: false);
+  }
+
+  Future<void> _takeShared() async {
+    final texts = await Native.takeShared();
+    if (texts.isNotEmpty) await _addTexts(texts, '공유받은');
   }
 
   /// 새 문자를 내역에 넣는다. 이미 있는 건은 건너뛴다. 추가된 건수를 돌려준다.
-  Future<int> _ingest(List<RawSms> raws) async {
+  Future<int> _ingest(List<RawSms> raws, {bool requireCard = true}) async {
     final ids = _items.map((e) => e.id).toSet();
     var added = 0;
     for (final r in raws) {
-      final p = parseSms(r.body, cardDigits: widget.digits, receivedAt: r.receivedAt);
+      final p = parseSms(r.body,
+          cardDigits: widget.digits, receivedAt: r.receivedAt, requireCard: requireCard);
       if (p == null || ids.contains(p.id)) continue;
       final e = Expense.fromParsed(p);
       if (e.isCancel) {
@@ -242,6 +235,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return added;
   }
 
+  /// 붙여넣기·공유로 받은 텍스트를 [Web발신] 단위로 나눠 넣고 결과를 알려준다.
+  Future<void> _addTexts(List<String> texts, String source) async {
+    final now = DateTime.now();
+    final messages = texts.expand(splitMessages).toList();
+    final ok = messages
+        .where((m) => parseSms(m, cardDigits: widget.digits, receivedAt: now) != null)
+        .map((m) => RawSms(m, now))
+        .toList();
+    final added = await _ingest(ok);
+    final dup = ok.length - added;
+    final failed = messages.length - ok.length;
+    if (ok.isEmpty) {
+      _toast('카드번호 ${widget.digits} 승인 문자를 찾지 못했어요');
+      return;
+    }
+    _toast([
+      '$source 문자 $added건 추가',
+      if (dup > 0) '중복 $dup건',
+      if (failed > 0) '승인 문자 아님 $failed건',
+    ].join(' · '));
+  }
+
   Future<void> _setCategory(Expense e, String? cat) async {
     setState(() => e.category = cat);
     await widget.store.saveItems(_items);
@@ -261,47 +276,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // ---------------- 메뉴 동작 ----------------
 
-  Future<void> _importInbox() async {
-    if (_importing) return;
-    _importing = true;
-    _toast('최근 1년 문자를 불러오는 중…');
-    try {
-      final scan = await Native.readSmsInbox(365);
-      final cardMatched = scan.items
-          .where((r) => parseSms(r.body, cardDigits: widget.digits, receivedAt: r.receivedAt) != null)
-          .length;
-      final n = await _ingest(scan.items);
-      if (n > 0) {
-        _toast('$n건 불러왔어요. 분류 대기 목록에서 골라주세요');
-      } else {
-        await _showScanResult(scan, cardMatched);
-      }
-    } on PlatformException catch (e) {
-      _toast(e.code == 'NO_PERMISSION' ? '문자 권한을 먼저 허용해주세요' : '불러오기 실패: ${e.message}');
-    } finally {
-      _importing = false;
-    }
-  }
-
-  /// 0건일 때 어디서 걸렸는지 보여준다.
-  Future<void> _showScanResult(InboxScan scan, int cardMatched) async {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('새로 불러온 문자가 없어요'),
-        content: Text(
-          'SMS ${scan.smsScanned}건 · MMS ${scan.mmsScanned}건 검사\n'
-          '발신번호(${widget.sender}) 일치 ${scan.items.length}건\n'
-          '카드번호(${widget.digits}) 일치 $cardMatched건\n\n'
-          '${cardMatched > 0 ? '모두 이미 들어와 있는 내역이에요.' : '설정의 카드번호·발신번호를 확인해주세요.'}',
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
-      ),
-    );
-  }
-
   Future<void> _paste() async {
     final ctrl = TextEditingController();
     final clip = await Clipboard.getData(Clipboard.kTextPlain);
@@ -313,9 +287,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         title: const Text('문자 직접 붙여넣기'),
         content: TextField(
           controller: ctrl,
-          maxLines: 8,
+          maxLines: 10,
           minLines: 4,
-          decoration: const InputDecoration(border: OutlineInputBorder(), hintText: '승인 문자 내용을 붙여넣으세요'),
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: '승인 문자를 붙여넣으세요. 여러 건을 한꺼번에 넣어도 돼요.',
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
@@ -324,12 +301,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
     if (text == null || text.trim().isEmpty) return;
-    if (parseSms(text, cardDigits: widget.digits) == null) {
-      _toast('카드번호 ${widget.digits} 승인 문자로 읽을 수 없어요');
-      return;
-    }
-    final n = await _ingest([RawSms(text, DateTime.now())]);
-    _toast(n == 0 ? '이미 있는 내역이에요' : '추가했어요. 분류해주세요');
+    await _addTexts([text], '붙여넣은');
   }
 
   Future<void> _copyMonth() async {
@@ -368,8 +340,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           PopupMenuButton<String>(
             onSelected: (v) {
               switch (v) {
-                case 'import':
-                  _importInbox();
                 case 'paste':
                   _paste();
                 case 'copy':
@@ -381,7 +351,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               }
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'import', child: Text('문자함에서 최근 1년 불러오기')),
               PopupMenuItem(value: 'paste', child: Text('문자 직접 붙여넣기')),
               PopupMenuItem(value: 'copy', child: Text('이번 달 내역 복사 (정산용)')),
               PopupMenuItem(value: 'listener', child: Text('알림 접근 설정 열기')),
@@ -532,12 +501,12 @@ class _PermissionBanner extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('문자 자동 감지를 위해 아래 권한을 켜주세요',
+            const Text('승인 문자 자동 감지를 위해 아래를 켜주세요',
                 style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('지난 문자는 메시지 앱에서 문자 선택 → 공유 → 법카 정산',
+                style: TextStyle(fontSize: 12, color: Colors.black54)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 4, children: [
-              if (!perms.sms)
-                FilledButton.tonal(onPressed: Native.requestSmsPermission, child: const Text('문자 권한')),
               if (!perms.notification)
                 FilledButton.tonal(onPressed: Native.requestNotificationPermission, child: const Text('알림 권한')),
               if (!perms.listener)

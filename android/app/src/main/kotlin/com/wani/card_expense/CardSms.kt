@@ -6,7 +6,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -14,7 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 문자 리시버와 알림 리스너가 같이 쓰는 공용 처리부.
+ * 알림 리스너가 잡은 승인 문자를 처리하는 곳.
  *
  * 앱이 꺼져 있어도 동작해야 하므로 Flutter 쪽 저장소를 쓰지 않고
  * 네이티브 SharedPreferences 에 "받은 편지함(inbox)"을 쌓아 둔다.
@@ -28,7 +27,6 @@ object CardSms {
     private const val KEY_SEEN = "seen"
     private const val MAX_SEEN = 300
     private const val CHANNEL_ID = "card_approval"
-    private const val MMS_FROM = 137 // content://mms/{id}/addr 의 type: 보낸 사람
 
     // 앱이 떠 있을 때 MainActivity 가 채워 둔다. 새 문자가 오면 바로 화면을 갱신한다.
     var onNew: (() -> Unit)? = null
@@ -70,8 +68,6 @@ object CardSms {
         return a.endsWith(b) || b.endsWith(a)
     }
 
-    fun senderMatches(ctx: Context, address: String?) = senderMatches(address, sender(ctx))
-
     /** 같은 승인 건을 문자/알림 양쪽에서 잡아도 한 번만 처리하기 위한 키. 금액·일시를 못 읽으면 null. */
     private fun dedupeKey(text: String): String? {
         val amount = amountRe.find(text)?.groupValues?.get(1)?.replace(",", "") ?: return null
@@ -89,12 +85,15 @@ object CardSms {
     }
 
     /**
-     * 카드번호 승인 문자면 inbox 에 쌓고 알림을 띄운다.
-     * 발신번호 확인은 부르는 쪽 몫이다. (SMS 리시버는 확인, 알림 감지는 번호를 몰라 생략)
+     * 승인 문자면 inbox 에 쌓고 알림을 띄운다.
+     * 알림 제목(보낸 사람)이 설정한 발신번호이거나, 본문에 카드번호+승인이 있으면 대상이다.
+     * 어느 쪽이든 승인/취소 + 금액 + 일시는 있어야 한다.
      */
     @Synchronized
-    fun handle(ctx: Context, body: String, timestamp: Long) {
-        if (!hasCardApproval(body, digits(ctx))) return
+    fun handle(ctx: Context, body: String, timestamp: Long, sender: String?) {
+        val c = compact(body)
+        if (!c.contains("승인") && !c.contains("취소")) return
+        if (!senderMatches(sender, sender(ctx)) && !hasCardApproval(body, digits(ctx))) return
         val key = dedupeKey(body) ?: return
 
         val p = prefs(ctx)
@@ -124,89 +123,6 @@ object CardSms {
         }
         p.edit().putString(KEY_INBOX, "[]").commit()
         return out
-    }
-
-    /**
-     * 문자함에서 최근 days 일 동안 발신번호가 일치하는 문자를 읽는다. READ_SMS 권한 필요.
-     * [Web발신] 장문(LMS)은 MMS 테이블에 저장되므로 SMS·MMS 를 둘 다 본다.
-     * 카드번호 확인은 Dart 쪽 parseSms 가 한다. (건수 통계를 내기 위해)
-     */
-    fun readInbox(ctx: Context, days: Int): Map<String, Any> {
-        val sender = sender(ctx)
-        val sinceMs = System.currentTimeMillis() - days * 24L * 60 * 60 * 1000
-        val items = ArrayList<Map<String, Any>>()
-        val cr = ctx.contentResolver
-
-        var smsScanned = 0
-        cr.query(
-            Uri.parse("content://sms"),
-            arrayOf("address", "body", "date"),
-            "date >= ?",
-            arrayOf(sinceMs.toString()),
-            "date ASC",
-        )?.use { c ->
-            while (c.moveToNext()) {
-                smsScanned++
-                if (!senderMatches(c.getString(0), sender)) continue
-                val body = c.getString(1) ?: continue
-                items.add(mapOf("body" to body, "ts" to c.getLong(2)))
-            }
-        }
-
-        var mmsScanned = 0
-        cr.query(
-            Uri.parse("content://mms"),
-            arrayOf("_id", "date"),
-            "date >= ?",
-            arrayOf((sinceMs / 1000).toString()), // MMS date 는 초 단위
-            "date ASC",
-        )?.use { c ->
-            while (c.moveToNext()) {
-                mmsScanned++
-                val id = c.getLong(0)
-                if (!senderMatches(mmsFrom(ctx, id), sender)) continue
-                val body = mmsText(ctx, id)
-                if (body.isEmpty()) continue
-                items.add(mapOf("body" to body, "ts" to c.getLong(1) * 1000))
-            }
-        }
-
-        return mapOf("items" to items, "smsScanned" to smsScanned, "mmsScanned" to mmsScanned)
-    }
-
-    private fun mmsFrom(ctx: Context, id: Long): String? =
-        ctx.contentResolver.query(
-            Uri.parse("content://mms/$id/addr"),
-            arrayOf("address"),
-            "type = $MMS_FROM",
-            null,
-            null,
-        )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-
-    private fun mmsText(ctx: Context, id: Long): String {
-        val sb = StringBuilder()
-        ctx.contentResolver.query(
-            Uri.parse("content://mms/part"),
-            arrayOf("_id", "ct", "text"),
-            "mid = ?",
-            arrayOf(id.toString()),
-            null,
-        )?.use { c ->
-            while (c.moveToNext()) {
-                if (c.getString(1) != "text/plain") continue
-                val text = c.getString(2) ?: try {
-                    ctx.contentResolver.openInputStream(Uri.parse("content://mms/part/${c.getLong(0)}"))
-                        ?.use { it.readBytes().toString(Charsets.UTF_8) }
-                } catch (_: Exception) {
-                    null
-                }
-                if (text != null) {
-                    if (sb.isNotEmpty()) sb.append('\n')
-                    sb.append(text)
-                }
-            }
-        }
-        return sb.toString()
     }
 
     private fun formatWon(text: String): String {
