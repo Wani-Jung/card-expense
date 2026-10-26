@@ -15,6 +15,8 @@ void main() async {
   runApp(CardExpenseApp(store: store));
 }
 
+const kDefaultSender = '1588-1600';
+
 class CardExpenseApp extends StatefulWidget {
   final Store store;
   const CardExpenseApp({super.key, required this.store});
@@ -25,11 +27,15 @@ class CardExpenseApp extends StatefulWidget {
 
 class _CardExpenseAppState extends State<CardExpenseApp> {
   late String? _digits = widget.store.cardDigits;
+  late String? _sender = widget.store.senderNumber;
 
-  Future<void> _saveDigits(String d) async {
-    await widget.store.setCardDigits(d);
-    await Native.setCardDigits(d);
-    setState(() => _digits = d);
+  Future<void> _saveSettings(String digits, String sender) async {
+    await widget.store.setSettings(digits, sender);
+    await Native.setSettings(digits, sender);
+    setState(() {
+      _digits = digits;
+      _sender = sender;
+    });
   }
 
   @override
@@ -38,73 +44,94 @@ class _CardExpenseAppState extends State<CardExpenseApp> {
       title: '법카 정산',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: kCarColor, useMaterial3: true),
-      home: _digits == null
-          ? DigitsScreen(onSaved: _saveDigits)
-          : HomeScreen(store: widget.store, digits: _digits!, onChangeDigits: _saveDigits),
+      // v1.0.0 에서 올라온 경우 카드번호만 있으므로 발신번호까지 받는다.
+      home: _digits == null || _sender == null
+          ? SettingsScreen(initialDigits: _digits, onSaved: _saveSettings)
+          : HomeScreen(
+              store: widget.store,
+              digits: _digits!,
+              sender: _sender!,
+              onSaveSettings: _saveSettings,
+            ),
     );
   }
 }
 
 // ------------------------------------------------------------------
-// 카드번호 네자리 입력
+// 설정: 카드번호 네자리 + 발신번호
 // ------------------------------------------------------------------
-class DigitsScreen extends StatefulWidget {
-  final Future<void> Function(String) onSaved;
-  final String? initial;
-  const DigitsScreen({super.key, required this.onSaved, this.initial});
+class SettingsScreen extends StatefulWidget {
+  final Future<void> Function(String digits, String sender) onSaved;
+  final String? initialDigits;
+  final String? initialSender;
+  const SettingsScreen({super.key, required this.onSaved, this.initialDigits, this.initialSender});
 
   @override
-  State<DigitsScreen> createState() => _DigitsScreenState();
+  State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _DigitsScreenState extends State<DigitsScreen> {
-  late final _ctrl = TextEditingController(text: widget.initial ?? '');
+class _SettingsScreenState extends State<SettingsScreen> {
+  late final _digits = TextEditingController(text: widget.initialDigits ?? '');
+  late final _sender = TextEditingController(text: widget.initialSender ?? kDefaultSender);
 
-  bool get _valid => RegExp(r'^\d{4}$').hasMatch(_ctrl.text);
+  bool get _valid =>
+      RegExp(r'^\d{4}$').hasMatch(_digits.text) && normalizeNumber(_sender.text).length >= 7;
 
   @override
   Widget build(BuildContext context) {
+    const label = TextStyle(fontSize: 17, fontWeight: FontWeight.bold);
     return Scaffold(
-      appBar: AppBar(title: const Text('카드번호 설정')),
-      body: Padding(
+      appBar: AppBar(title: const Text('설정')),
+      body: ListView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('수신 문자에 적힌 카드번호 네자리를 입력해주세요',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('예) "NH기업0000승인" 이면 0000', style: TextStyle(color: Colors.black54)),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _ctrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              maxLength: 4,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: const TextStyle(fontSize: 32, letterSpacing: 12),
-              textAlign: TextAlign.center,
-              decoration: const InputDecoration(border: OutlineInputBorder(), prefixText: 'NH기업 '),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-              onPressed: _valid
-                  ? () async {
-                      final nav = Navigator.of(context);
-                      await widget.onSaved(_ctrl.text);
-                      if (nav.canPop()) nav.pop();
-                    }
-                  : null,
-              child: const Text('저장', style: TextStyle(fontSize: 18)),
-            ),
-          ],
-        ),
+        children: [
+          const Text('수신 문자에 적힌 카드번호 네자리를 입력해주세요', style: label),
+          const SizedBox(height: 4),
+          const Text('예) "NH기업0000승인" 이면 0000', style: TextStyle(color: Colors.black54)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _digits,
+            autofocus: widget.initialDigits == null,
+            keyboardType: TextInputType.number,
+            maxLength: 4,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: const TextStyle(fontSize: 28, letterSpacing: 10),
+            textAlign: TextAlign.center,
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 16),
+          const Text('카드 승인 문자를 보내는 번호를 입력해주세요', style: label),
+          const SizedBox(height: 4),
+          const Text('NH농협카드는 보통 1588-1600 이에요', style: TextStyle(color: Colors.black54)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _sender,
+            keyboardType: TextInputType.phone,
+            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\- ]'))],
+            style: const TextStyle(fontSize: 24),
+            textAlign: TextAlign.center,
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+            onPressed: _valid
+                ? () async {
+                    final nav = Navigator.of(context);
+                    await widget.onSaved(_digits.text, _sender.text.trim());
+                    if (nav.canPop()) nav.pop();
+                  }
+                : null,
+            child: const Text('저장', style: TextStyle(fontSize: 18)),
+          ),
+        ],
       ),
     );
   }
 }
+
 
 // ------------------------------------------------------------------
 // 메인 화면
@@ -112,8 +139,15 @@ class _DigitsScreenState extends State<DigitsScreen> {
 class HomeScreen extends StatefulWidget {
   final Store store;
   final String digits;
-  final Future<void> Function(String) onChangeDigits;
-  const HomeScreen({super.key, required this.store, required this.digits, required this.onChangeDigits});
+  final String sender;
+  final Future<void> Function(String digits, String sender) onSaveSettings;
+  const HomeScreen({
+    super.key,
+    required this.store,
+    required this.digits,
+    required this.sender,
+    required this.onSaveSettings,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -123,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final List<Expense> _items = widget.store.loadItems();
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   PermStatus _perms = const PermStatus();
+  bool _importing = false;
 
   @override
   void initState() {
@@ -133,8 +168,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (method == 'permissionsChanged') await _refreshPerms();
     });
     // 네이티브 저장소가 비어 있을 수 있으니 시작할 때마다 맞춰 둔다.
-    Native.setCardDigits(widget.digits);
+    Native.setSettings(widget.digits, widget.sender);
     _onResume();
+  }
+
+  @override
+  void didUpdateWidget(HomeScreen old) {
+    super.didUpdateWidget(old);
+    // 설정이 바뀌면 store 의 자동 불러오기 표시가 지워져 있으므로 다시 불러온다.
+    if (old.digits != widget.digits || old.sender != widget.sender) _maybeAutoImport();
   }
 
   @override
@@ -157,6 +199,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _refreshPerms() async {
     final p = await Native.permissionStatus();
     if (mounted) setState(() => _perms = p);
+    await _maybeAutoImport();
+  }
+
+  /// 문자 권한이 처음 허용됐거나 설정이 바뀐 뒤면 1년치를 한 번 불러온다.
+  Future<void> _maybeAutoImport() async {
+    if (!_perms.sms || widget.store.autoImported || _importing) return;
+    await _importInbox();
+    await widget.store.setAutoImported();
   }
 
   Future<void> _drain() async {
@@ -212,20 +262,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ---------------- 메뉴 동작 ----------------
 
   Future<void> _importInbox() async {
+    if (_importing) return;
+    _importing = true;
+    _toast('최근 1년 문자를 불러오는 중…');
     try {
-      final raws = await Native.readSmsInbox(120);
-      final n = await _ingest(raws);
-      _toast(n == 0 ? '새로 불러온 문자가 없어요 (문자함에서 ${raws.length}건 확인)' : '$n건 불러왔어요');
+      final scan = await Native.readSmsInbox(365);
+      final cardMatched = scan.items
+          .where((r) => parseSms(r.body, cardDigits: widget.digits, receivedAt: r.receivedAt) != null)
+          .length;
+      final n = await _ingest(scan.items);
+      if (n > 0) {
+        _toast('$n건 불러왔어요. 분류 대기 목록에서 골라주세요');
+      } else {
+        await _showScanResult(scan, cardMatched);
+      }
     } on PlatformException catch (e) {
       _toast(e.code == 'NO_PERMISSION' ? '문자 권한을 먼저 허용해주세요' : '불러오기 실패: ${e.message}');
-      await _refreshPerms();
+    } finally {
+      _importing = false;
     }
+  }
+
+  /// 0건일 때 어디서 걸렸는지 보여준다.
+  Future<void> _showScanResult(InboxScan scan, int cardMatched) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('새로 불러온 문자가 없어요'),
+        content: Text(
+          'SMS ${scan.smsScanned}건 · MMS ${scan.mmsScanned}건 검사\n'
+          '발신번호(${widget.sender}) 일치 ${scan.items.length}건\n'
+          '카드번호(${widget.digits}) 일치 $cardMatched건\n\n'
+          '${cardMatched > 0 ? '모두 이미 들어와 있는 내역이에요.' : '설정의 카드번호·발신번호를 확인해주세요.'}',
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
+      ),
+    );
   }
 
   Future<void> _paste() async {
     final ctrl = TextEditingController();
     final clip = await Clipboard.getData(Clipboard.kTextPlain);
-    if (clip?.text?.contains('NH기업') ?? false) ctrl.text = clip!.text!;
+    if (clip?.text?.contains(widget.digits) ?? false) ctrl.text = clip!.text!;
     if (!mounted) return;
     final text = await showDialog<String>(
       context: context,
@@ -245,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
     if (text == null || text.trim().isEmpty) return;
     if (parseSms(text, cardDigits: widget.digits) == null) {
-      _toast('NH기업${widget.digits} 승인 문자로 읽을 수 없어요');
+      _toast('카드번호 ${widget.digits} 승인 문자로 읽을 수 없어요');
       return;
     }
     final n = await _ingest([RawSms(text, DateTime.now())]);
@@ -257,9 +337,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _toast('${_month.year}년 ${_month.month}월 내역을 복사했어요');
   }
 
-  void _changeDigits() {
+  void _openSettings() {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => DigitsScreen(initial: widget.digits, onSaved: widget.onChangeDigits),
+      builder: (_) => SettingsScreen(
+        initialDigits: widget.digits,
+        initialSender: widget.sender,
+        onSaved: widget.onSaveSettings,
+      ),
     ));
   }
 
@@ -279,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('법카 정산 · NH기업${widget.digits}'),
+        title: Text('법카 정산 · ${widget.digits}'),
         actions: [
           PopupMenuButton<String>(
             onSelected: (v) {
@@ -292,16 +376,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   _copyMonth();
                 case 'listener':
                   Native.openNotificationAccessSettings();
-                case 'digits':
-                  _changeDigits();
+                case 'settings':
+                  _openSettings();
               }
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'import', child: Text('문자함에서 최근 120일 불러오기')),
+              PopupMenuItem(value: 'import', child: Text('문자함에서 최근 1년 불러오기')),
               PopupMenuItem(value: 'paste', child: Text('문자 직접 붙여넣기')),
               PopupMenuItem(value: 'copy', child: Text('이번 달 내역 복사 (정산용)')),
               PopupMenuItem(value: 'listener', child: Text('알림 접근 설정 열기')),
-              PopupMenuItem(value: 'digits', child: Text('카드번호 변경')),
+              PopupMenuItem(value: 'settings', child: Text('설정 (카드번호·발신번호)')),
             ],
           ),
         ],

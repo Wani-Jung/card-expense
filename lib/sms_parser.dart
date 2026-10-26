@@ -1,4 +1,4 @@
-/// NH기업카드 승인 문자 파서.
+/// 카드 승인 문자 파서.
 ///
 /// 예)
 ///   [Web발신]
@@ -9,6 +9,7 @@
 ///   (주)월산주유소
 ///
 /// 줄바꿈 없이 한 줄로 와도 같은 결과가 나와야 한다.
+/// 발신번호 확인은 [senderMatches] 로 따로 한다. (알림은 번호 대신 연락처 이름이 와서 못 쓰는 경우가 많다)
 class ParsedSms {
   final int amount;
   final DateTime dateTime;
@@ -32,14 +33,20 @@ class ParsedSms {
 final _amountRe = RegExp(r'(\d{1,3}(?:,\d{3})+|\d+)\s*원');
 final _dateTimeRe = RegExp(r'(\d{1,2})/(\d{1,2})\s*(\d{1,2}):(\d{2})');
 final _spaces = RegExp(r'\s+');
+final _nonDigits = RegExp(r'\D');
 
-/// [cardDigits] 가 들어간 "NH기업xxxx" 문자만 읽는다. 아니면 null.
+/// 본문에 "카드번호4자리+승인"(또는 승인취소/취소)이 있는지. 예: NH기업0000승인
+bool hasCardApproval(String text, String cardDigits) {
+  final c = text.replaceAll(_spaces, '');
+  return cardDigits.isNotEmpty && (c.contains('$cardDigits승인') || c.contains('$cardDigits취소'));
+}
+
+/// [cardDigits] 승인 문자만 읽는다. 아니면 null. 광고·안내 문자도 여기서 걸러진다.
 ///
 /// 문자에는 연도가 없으므로 [receivedAt](문자 받은 시각) 기준으로 정한다.
 /// 받은 시각보다 하루 넘게 미래가 되면 작년 문자로 본다. (12월 문자를 1월에 불러올 때)
 ParsedSms? parseSms(String text, {required String cardDigits, DateTime? receivedAt}) {
-  final compact = text.replaceAll(_spaces, '');
-  if (cardDigits.isEmpty || !compact.contains('NH기업$cardDigits')) return null;
+  if (!hasCardApproval(text, cardDigits)) return null;
 
   final amountM = _amountRe.firstMatch(text);
   final dtM = _dateTimeRe.firstMatch(text);
@@ -50,7 +57,7 @@ ParsedSms? parseSms(String text, {required String cardDigits, DateTime? received
   final d = int.parse(dtM.group(2)!);
   final h = int.parse(dtM.group(3)!);
   final mi = int.parse(dtM.group(4)!);
-  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null;
+  if (amount <= 0 || mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null;
 
   final ref = receivedAt ?? DateTime.now();
   var dt = DateTime(ref.year, mo, d, h, mi);
@@ -69,7 +76,23 @@ ParsedSms? parseSms(String text, {required String cardDigits, DateTime? received
     amount: amount,
     dateTime: dt,
     merchant: merchant,
-    isCancel: compact.contains('취소'),
+    isCancel: text.replaceAll(_spaces, '').contains('취소'),
     raw: text.trim(),
   );
+}
+
+/// 전화번호를 비교용으로 정리한다. 숫자만 남기고 국가번호 82, 앞자리 0 을 뗀다.
+String normalizeNumber(String s) {
+  var d = s.replaceAll(_nonDigits, '');
+  if (d.startsWith('82') && d.length >= 10) d = d.substring(2);
+  return d.replaceFirst(RegExp(r'^0+'), '');
+}
+
+/// 발신번호 일치 여부. +82·0 같은 접두어가 붙어 있어도 맞도록 끝자리로 비교한다.
+bool senderMatches(String? address, String configured) {
+  if (address == null) return false;
+  final a = normalizeNumber(address);
+  final b = normalizeNumber(configured);
+  if (a.length < 7 || b.length < 7) return false;
+  return a.endsWith(b) || b.endsWith(a);
 }

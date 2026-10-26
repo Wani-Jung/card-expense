@@ -67,6 +67,8 @@ class Expense {
 class Store {
   static const _kItems = 'expenses_v1';
   static const _kDigits = 'card_digits';
+  static const _kSender = 'sender_number';
+  static const _kAutoImported = 'auto_import_done';
 
   final SharedPreferences _prefs;
   Store._(this._prefs);
@@ -74,7 +76,18 @@ class Store {
   static Future<Store> open() async => Store._(await SharedPreferences.getInstance());
 
   String? get cardDigits => _prefs.getString(_kDigits);
-  Future<void> setCardDigits(String v) => _prefs.setString(_kDigits, v);
+  String? get senderNumber => _prefs.getString(_kSender);
+
+  /// 카드번호·발신번호 저장. 하나라도 바뀌면 1년치 자동 불러오기를 다시 하게 한다.
+  Future<void> setSettings(String digits, String sender) async {
+    if (digits != cardDigits || sender != senderNumber) await _prefs.remove(_kAutoImported);
+    await _prefs.setString(_kDigits, digits);
+    await _prefs.setString(_kSender, sender);
+  }
+
+  /// 현재 설정으로 1년치 자동 불러오기를 했는지.
+  bool get autoImported => _prefs.getBool(_kAutoImported) ?? false;
+  Future<void> setAutoImported() => _prefs.setBool(_kAutoImported, true);
 
   List<Expense> loadItems() {
     final s = _prefs.getString(_kItems);
@@ -108,7 +121,7 @@ String fmtDateTime(DateTime d) =>
 String settlementText(List<Expense> items, DateTime month, String digits) {
   final inMonth = items.where((e) => e.inMonth(month)).toList()
     ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
-  final b = StringBuffer('[${month.year}년 ${month.month}월 법카 정산] NH기업$digits\n');
+  final b = StringBuffer('[${month.year}년 ${month.month}월 법카 정산] 카드 $digits\n');
   var total = 0;
   for (final (cat, label) in [(kCar, '차량비'), (kOps, '운영비')]) {
     final list = inMonth.where((e) => e.category == cat).toList();

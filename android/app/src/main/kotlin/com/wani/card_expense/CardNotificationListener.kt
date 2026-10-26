@@ -8,6 +8,8 @@ import android.service.notification.StatusBarNotification
 /**
  * 메시지 앱 알림 감지. 갤럭시에서 RCS/LMS 로 오는 문자는 SMS_RECEIVED 가 안 오기 때문에
  * 알림 내용으로 한 번 더 잡는다. 중복은 CardSms.handle 에서 걸러진다.
+ * 알림에는 번호 대신 연락처 이름("NH농협카드")이 오는 경우가 많아 발신번호는 보지 않고
+ * 본문 카드번호 + 금액만으로 판정한다.
  */
 class CardNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {

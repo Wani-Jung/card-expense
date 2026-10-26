@@ -38,6 +38,37 @@ void main() {
     expect(parseSms('안녕하세요', cardDigits: '0000', receivedAt: received), isNull);
   });
 
+  test('같은 발신번호의 광고·안내 문자는 무시', () {
+    const ad = '[Web발신]\n(광고)NH농협카드 10월 이벤트! 5만원 이상 결제 시 캐시백 10/01 00:00';
+    const notice = '[Web발신]\nNH기업0000 결제예정금액 1,234,000원 안내 (11/10 결제)';
+    expect(parseSms(ad, cardDigits: '0000', receivedAt: received), isNull);
+    expect(parseSms(notice, cardDigits: '0000', receivedAt: received), isNull);
+  });
+
+  test('카드명이 달라도 카드번호+승인이면 읽는다', () {
+    const sms = 'NH농협0000승인 공용카드 3,000원 체크 07/28 09:00 편의점';
+    expect(parseSms(sms, cardDigits: '0000', receivedAt: received)?.amount, 3000);
+  });
+
+  group('발신번호 매칭', () {
+    test('하이픈 유무 상관없이 숫자로 비교', () {
+      expect(senderMatches('15881600', '1588-1600'), isTrue);
+      expect(senderMatches('1588-1600', '15881600'), isTrue);
+    });
+    test('+82, 0 접두어가 붙어도 끝자리 일치', () {
+      expect(senderMatches('+8215881600', '1588-1600'), isTrue);
+      expect(senderMatches('+82 1588-1600', '1588-1600'), isTrue);
+      expect(senderMatches('015881600', '1588-1600'), isTrue);
+      expect(senderMatches('+821012345678', '010-1234-5678'), isTrue);
+    });
+    test('다른 번호·빈 값은 불일치', () {
+      expect(senderMatches('15881688', '1588-1600'), isFalse);
+      expect(senderMatches('NH농협카드', '1588-1600'), isFalse);
+      expect(senderMatches(null, '1588-1600'), isFalse);
+      expect(senderMatches('1600', '1588-1600'), isFalse);
+    });
+  });
+
   test('12월 문자를 1월에 불러오면 작년으로', () {
     const sms = 'NH기업0000승인\n공용카드\n1,250,000원 체크\n12/30 09:05\n○○상사';
     final p = parseSms(sms, cardDigits: '0000', receivedAt: DateTime(2027, 1, 3))!;

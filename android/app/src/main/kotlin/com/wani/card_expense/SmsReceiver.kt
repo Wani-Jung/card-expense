@@ -11,6 +11,7 @@ class SmsReceiver : BroadcastReceiver() {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
         val parts = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         if (parts.isEmpty()) return
+        if (!CardSms.senderMatches(context, parts[0].originatingAddress)) return
         // 긴 문자는 여러 조각으로 오므로 이어 붙인다.
         val body = parts.joinToString("") { it.messageBody ?: "" }
         CardSms.handle(context, body, parts[0].timestampMillis)

@@ -24,13 +24,13 @@ class MainActivity : FlutterActivity() {
 
         ch.setMethodCallHandler { call, result ->
             when (call.method) {
-                "setCardDigits" -> {
-                    CardSms.setDigits(this, call.argument<String>("digits"))
+                "setSettings" -> {
+                    CardSms.setSettings(this, call.argument<String>("digits"), call.argument<String>("sender"))
                     result.success(null)
                 }
                 "drainInbox" -> result.success(CardSms.drain(this))
                 "readSmsInbox" -> {
-                    val days = call.argument<Int>("days") ?: 120
+                    val days = call.argument<Int>("days") ?: 365
                     thread {
                         try {
                             val list = CardSms.readInbox(this, days)
