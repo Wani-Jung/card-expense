@@ -93,6 +93,25 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
+                "diagnoseStores" -> thread {
+                    val list = try {
+                        Flavor.diagnoseStores(this)
+                    } catch (e: Exception) {
+                        null
+                    }
+                    runOnUiThread { result.success(list) }
+                }
+                "sliceImage" -> {
+                    val path = call.argument<String>("path")!!
+                    thread {
+                        try {
+                            val slices = ImageSlicer.slice(path, cacheDir)
+                            runOnUiThread { result.success(slices) }
+                        } catch (e: Exception) {
+                            runOnUiThread { result.error("FAILED", e.message, null) }
+                        }
+                    }
+                }
                 "requestNotificationPermission" -> {
                     if (Build.VERSION.SDK_INT >= 33) {
                         requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 2)

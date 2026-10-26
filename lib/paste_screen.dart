@@ -2,19 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'expense.dart';
-import 'native.dart';
+import 'ingest.dart';
 import 'sms_parser.dart';
+
+/// 붙여넣기 결과. Home 이 [report] 의 새 내역을 넣고, [revive] 면 무시했던 문자도 분류 대기로 돌린다.
+class PasteResult {
+  final IngestReport report;
+  final bool revive;
+  const PasteResult(this.report, this.revive);
+}
 
 /// 문자 붙여넣기 (여러 건 가능).
 /// 입력칸은 항상 빈칸으로 열고, 클립보드에 카드 승인 문자가 있으면 위에 미리보기로 보여준다.
 class PasteScreen extends StatefulWidget {
   final String digits;
-  final Set<String> existingIds;
 
-  /// 문자들을 내역에 넣고 실제로 추가된 건수를 돌려준다.
-  final Future<int> Function(List<RawSms>) onAdd;
+  /// 붙여넣은 텍스트를 한 건씩 나눠 새 내역/중복/무시했던 문자/승인 문자 아님으로 분류한다.
+  final IngestReport Function(String text) classify;
 
-  const PasteScreen({super.key, required this.digits, required this.existingIds, required this.onAdd});
+  const PasteScreen({super.key, required this.digits, required this.classify});
 
   @override
   State<PasteScreen> createState() => _PasteScreenState();
@@ -45,57 +51,53 @@ class _PasteScreenState extends State<PasteScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _checkClipboard();
   }
 
-  List<(String, ParsedSms)> _analyze(String text) {
-    final now = DateTime.now();
-    return [
-      for (final m in splitMessages(text))
-        if (parseSms(m, cardDigits: widget.digits, receivedAt: now) case final p?) (m, p),
-    ];
-  }
-
   Future<void> _checkClipboard() async {
     final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
-    final found = text == null ? <(String, ParsedSms)>[] : _analyze(text);
+    final now = DateTime.now();
+    final found = [
+      if (text != null)
+        for (final m in splitMessages(text)) ?parseSms(m, cardDigits: widget.digits, receivedAt: now),
+    ];
     if (!mounted) return;
     setState(() {
       _clipText = found.isEmpty ? null : text;
-      _clipFound = found.map((f) => f.$2).toList();
+      _clipFound = found;
     });
   }
 
   Future<void> _submit(String text) async {
-    final found = _analyze(text);
-    final messenger = ScaffoldMessenger.of(context);
-    if (found.isEmpty) {
-      messenger.showSnackBar(SnackBar(content: Text('카드번호 ${widget.digits} 승인 문자를 찾지 못했어요')));
+    final r = widget.classify(text);
+    if (r.fresh.isEmpty && r.ignoredHits.isEmpty) {
+      // 넣을 게 없으면 확인 없이 결과(중복·승인 문자 아님 내용)만 보여준다
+      Navigator.pop(context, PasteResult(r, false));
       return;
     }
-    final seen = {...widget.existingIds};
-    final fresh = <(String, ParsedSms)>[];
-    for (final f in found) {
-      if (seen.add(f.$2.id)) fresh.add(f);
-    }
-    final dup = found.length - fresh.length;
-    if (fresh.isEmpty) {
-      messenger.showSnackBar(SnackBar(content: Text('${found.length}건 모두 이미 들어와 있어요')));
-      return;
-    }
+    var revive = false;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('분류 대기에 넣을까요?'),
-        content: Text('${found.length}건 중 새 내역 ${fresh.length}건'
-            '${dup > 0 ? ', 중복 $dup건' : ''}'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text('${fresh.length}건 넣기')),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('분류 대기에 넣을까요?'),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${r.total}건 중 새 내역 ${r.fresh.length}건, 중복 ${r.dup}건'
+                '${r.ignoredHits.isNotEmpty ? ', 무시했던 문자 ${r.ignoredHits.length}건' : ''}'
+                '${r.rejected.isNotEmpty ? ', 승인 문자 아님 ${r.rejected.length}건' : ''}'),
+            if (r.ignoredHits.isNotEmpty)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: revive,
+                onChanged: (v) => setLocal(() => revive = v ?? false),
+                title: Text('무시했던 문자 ${r.ignoredHits.length}건도 다시 분류 대기로'),
+              ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('넣기')),
+          ],
+        ),
       ),
     );
-    if (ok != true) return;
-    final now = DateTime.now();
-    final added = await widget.onAdd([for (final f in fresh) RawSms(f.$1, now)]);
-    if (mounted) Navigator.pop(context, added);
+    if (ok == true && mounted) Navigator.pop(context, PasteResult(r, revive));
   }
 
   @override

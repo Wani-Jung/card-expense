@@ -22,6 +22,11 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - `lib/budget.dart` — 월별 수립(원 단위 저장, 화면은 만원), 운영비 수립 = 합계 − 차량비, 초과 판정, 직전 달 수립 이월
 - `lib/update_check.dart` — GitHub `releases/latest` 조회, 버전 비교, 판별 APK 링크
 - `lib/paste_screen.dart` — 문자 붙여넣기(클립보드 미리보기, 여러 건, 새/중복 건수 확인)
+- `lib/ingest.dart` — 들어온 문자 분류: 새 내역 / 진짜 중복(분류·대기 중) / 무시했던 문자(되살리기 가능) / 승인 문자 아님. 붙여넣기·공유·불러오기·캡처 공통
+- `lib/ocr_parse.dart`, `lib/ocr_screen.dart` — 문자 캡처 OCR (두 판 공통). 사진 선택기(저장소 권한 없음) → 긴 이미지는 `ImageSlicer.kt` 가 겹치게 잘라서 → ML Kit 한국어 → RCS 화면 글자 제거·숫자 오인식 보정 → 확인 화면. 이미지는 인식 후 바로 삭제
+  - ML Kit 한국어 모델은 `android/app/build.gradle.kts` dependencies 에 직접 넣고, 안 쓰는 언어 클래스는 `proguard-rules.pro` 에서 dontwarn
+- `lib/diagnose_screen.dart` — (전용판) '문자 저장소 진단'. SMS/MMS + 삼성 RCS 후보 URI 접근 여부. 열리는 RCS 저장소는 1년치 불러오기에 포함
+- 무시한 내역은 지우지 않고 보관 (메인 맨 아래 접이식 섹션, 길게 눌러 완전 삭제). 분류·무시하면 5초 [되돌리기]
 - `lib/native.dart` — `card_expense/native` MethodChannel 래퍼
 - `lib/main.dart` — 화면 (설정, 분류 대기, 월별 수립/사용 표, 내역)
 - `android/.../CardSms.kt` — 알림 리스너·SMS 리시버 공용 처리: 판정, 중복 방지(금액+일시+취소 키), 네이티브 inbox 적재, 알림 표시
@@ -29,7 +34,7 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 지난 문자: 두 판 모두 메시지 앱 공유(ACTION_SEND/SEND_MULTIPLE → `takeShared`)·붙여넣기. 전용판은 추가로 SMS+MMS 1년치 조회(MMS date 는 초 단위, 발신번호는 addr type=137, 본문은 part ct=text/plain)
 
 앱이 꺼져 있을 때 들어온 문자는 네이티브 inbox 에 쌓였다가 앱이 켜지면 `drainInbox` 로 Dart 저장소로 옮겨진다.
-테스트: `test/sms_parser_test.dart`, `test/budget_update_test.dart`
+테스트: `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`
 
 ## 빌드 / 배포
 - `flutter test`, `flutter build apk --release --flavor public` / `--flavor full`

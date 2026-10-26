@@ -4,9 +4,12 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'budget.dart';
+import 'diagnose_screen.dart';
 import 'expense.dart';
 import 'flavor.dart';
+import 'ingest.dart';
 import 'native.dart';
+import 'ocr_screen.dart';
 import 'paste_screen.dart';
 import 'sms_parser.dart';
 import 'update_check.dart';
@@ -233,14 +236,84 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (texts.isNotEmpty) await _addTexts(texts, '공유받은');
   }
 
-  /// 새 문자를 내역에 넣는다. 이미 있는 건은 건너뛴다. 추가된 건수를 돌려준다.
-  Future<int> _ingest(List<RawSms> raws, {bool requireCard = true}) async {
+  Map<String, Expense> get _byId => {for (final e in _items) e.id: e};
+
+  IngestReport _classifyRaw(List<RawSms> raws, {bool requireCard = true}) =>
+      classifyMessages(raws, digits: widget.digits, existing: _byId, requireCard: requireCard);
+
+  /// 알림 감지 등에서 조용히 들어온 문자. 새 내역만 넣는다.
+  Future<int> _ingest(List<RawSms> raws, {bool requireCard = true}) =>
+      _addParsed(_classifyRaw(raws, requireCard: requireCard).fresh);
+
+  /// 무시했던 내역을 다시 분류 대기로.
+  Future<void> _revive(Iterable<String> ids) async {
+    final byId = _byId;
+    for (final id in ids) {
+      final e = byId[id];
+      if (e != null && e.category == kIgnored) e.category = null;
+    }
+    await widget.store.saveItems(_items);
+    if (mounted) setState(() {});
+  }
+
+  /// 결과 알림. 되살릴 문자나 '승인 문자 아님' 조각이 있으면 창으로, 아니면 스낵바로.
+  Future<void> _showResult(String source, IngestReport r, int added, {bool revived = false}) async {
+    if (!mounted) return;
+    final summary = r.summary(added: added, revived: revived);
+    final canRevive = r.ignoredHits.isNotEmpty && !revived;
+    if (!canRevive && r.rejected.isEmpty) {
+      _toast('$source · $summary');
+      return;
+    }
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    final revive = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$source 결과'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(shrinkWrap: true, children: [
+            Text(summary),
+            if (r.rejected.isNotEmpty)
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: Text('승인 문자 아님 ${r.rejected.length}건 내용 보기', style: const TextStyle(fontSize: 14)),
+                children: [
+                  for (final t in r.rejected.take(50))
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.all(8),
+                      color: const Color(0xFFF2F2F2),
+                      child: SelectableText(t, style: const TextStyle(fontSize: 12)),
+                    ),
+                  if (r.rejected.length > 50) Text('외 ${r.rejected.length - 50}건'),
+                ],
+              ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('닫기')),
+          if (canRevive)
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('무시했던 ${r.ignoredHits.length}건 다시 분류 대기로'),
+            ),
+        ],
+      ),
+    );
+    if (revive == true) {
+      await _revive(r.ignoredHits.map((p) => p.id));
+      _toast('${r.ignoredHits.length}건을 분류 대기로 되돌렸어요');
+    }
+  }
+
+  /// 파싱된 문자를 내역에 넣는다. 이미 있는 id 는 건너뛴다. 추가된 건수를 돌려준다.
+  Future<int> _addParsed(List<ParsedSms> list) async {
     final ids = _items.map((e) => e.id).toSet();
     var added = 0;
-    for (final r in raws) {
-      final p = parseSms(r.body,
-          cardDigits: widget.digits, receivedAt: r.receivedAt, requireCard: requireCard);
-      if (p == null || ids.contains(p.id)) continue;
+    for (final p in list) {
+      if (ids.contains(p.id)) continue;
       final e = Expense.fromParsed(p);
       if (e.isCancel) {
         // 같은 가맹점·금액의 분류된 승인 건이 있으면 같은 분류로 자동 처리
@@ -264,29 +337,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// 공유로 받은 텍스트를 한 건씩 나눠 넣고 결과를 알려준다.
   Future<void> _addTexts(List<String> texts, String source) async {
-    final now = DateTime.now();
-    final messages = texts.expand(splitMessages).toList();
-    final ok = messages
-        .where((m) => parseSms(m, cardDigits: widget.digits, receivedAt: now) != null)
-        .map((m) => RawSms(m, now))
-        .toList();
-    final added = await _ingest(ok);
-    final dup = ok.length - added;
-    final failed = messages.length - ok.length;
-    if (ok.isEmpty) {
-      _toast('카드번호 ${widget.digits} 승인 문자를 찾지 못했어요');
-      return;
-    }
-    _toast([
-      '$source 문자 $added건 추가',
-      if (dup > 0) '중복 $dup건',
-      if (failed > 0) '승인 문자 아님 $failed건',
-    ].join(' · '));
+    final r = _classifyRaw(splitToRaw(texts, DateTime.now()));
+    final added = await _addParsed(r.fresh);
+    await _showResult('$source 문자', r, added);
   }
 
   Future<void> _setCategory(Expense e, String? cat) async {
     setState(() => e.category = cat);
     await widget.store.saveItems(_items);
+  }
+
+  /// 분류·무시·대기로 되돌리기. 잘못 눌러도 바로 복구할 수 있게 5초 동안 [되돌리기]를 띄운다.
+  Future<void> _classify(Expense e, String? cat) async {
+    final prev = e.category;
+    if (prev == cat) return;
+    await _setCategory(e, cat);
+    if (!mounted) return;
+    final what = switch (cat) {
+      kCar => '차량비로 분류했어요',
+      kOps => '운영비로 분류했어요',
+      kIgnored => '무시했어요',
+      _ => '분류 대기로 되돌렸어요',
+    };
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text('${e.merchant.isEmpty ? won(e.signedAmount) : e.merchant} · $what'),
+        duration: const Duration(seconds: 5),
+        persist: false,
+        action: SnackBarAction(label: '되돌리기', onPressed: () => _setCategory(e, prev)),
+      ));
   }
 
   Future<void> _delete(Expense e) async {
@@ -320,14 +400,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _toast('최근 1년 문자를 불러오는 중…');
     try {
       final scan = await Native.readSmsInbox(365);
-      final cardMatched = scan.items
-          .where((r) => parseSms(r.body, cardDigits: widget.digits, receivedAt: r.receivedAt) != null)
-          .length;
-      final n = await _ingest(scan.items);
-      if (n > 0) {
-        _toast('$n건 불러왔어요. 분류 대기 목록에서 골라주세요');
+      final r = _classifyRaw(scan.items);
+      final added = await _addParsed(r.fresh);
+      if (r.fresh.isEmpty && r.ignoredHits.isEmpty) {
+        await _showScanResult(scan, r.fresh.length + r.dup + r.ignoredHits.length);
       } else {
-        await _showScanResult(scan, cardMatched);
+        await _showResult('지난 문자 불러오기', r, added);
       }
     } on PlatformException catch (e) {
       _toast(e.code == 'NO_PERMISSION' ? '문자 권한을 먼저 허용해주세요' : '불러오기 실패: ${e.message}');
@@ -345,10 +423,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (ctx) => AlertDialog(
         title: const Text('새로 불러온 문자가 없어요'),
         content: Text(
-          'SMS ${scan.smsScanned}건 · MMS ${scan.mmsScanned}건 검사\n'
-          '발신번호(${widget.sender}) 일치 ${scan.items.length}건\n'
+          'SMS ${scan.smsScanned}건 · MMS ${scan.mmsScanned}건'
+          '${scan.otherScanned > 0 ? ' · 기타 저장소 ${scan.otherScanned}건' : ''} 검사\n'
+          '발신번호(${widget.sender}) 일치 ${scan.senderMatched}건\n'
           '카드번호(${widget.digits}) 일치 $cardMatched건\n\n'
-          '${cardMatched > 0 ? '모두 이미 들어와 있는 내역이에요.' : '설정의 카드번호·발신번호를 확인해주세요.'}',
+          '${cardMatched > 0 ? '모두 이미 들어와 있는 내역이에요.' : '카드 문자가 RCS(알림 · 확인된 발신번호)로 왔다면 문자 저장소에 없을 수 있어요. '
+              '메뉴의 \'문자 캡처화면 업로드\'로 넣어주세요. (\'문자 저장소 진단\'으로 확인 가능)'}',
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
       ),
@@ -398,14 +478,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ---------------- 메뉴 동작 ----------------
 
   Future<void> _openPaste() async {
-    final added = await Navigator.of(context).push<int>(MaterialPageRoute(
+    final res = await Navigator.of(context).push<PasteResult>(MaterialPageRoute(
       builder: (_) => PasteScreen(
         digits: widget.digits,
-        existingIds: _items.map((e) => e.id).toSet(),
-        onAdd: _ingest,
+        classify: (text) => _classifyRaw(splitToRaw([text], DateTime.now())),
       ),
     ));
-    if (added != null && added > 0) _toast('$added건 추가했어요. 분류해주세요');
+    if (res == null) return;
+    final added = await _addParsed(res.report.fresh);
+    if (res.revive) await _revive(res.report.ignoredHits.map((p) => p.id));
+    await _showResult('붙여넣은 문자', res.report, added, revived: res.revive);
+  }
+
+  Future<void> _openOcr() async {
+    final res = await Navigator.of(context).push<OcrResult>(MaterialPageRoute(
+      builder: (_) => OcrScreen(digits: widget.digits, existing: _byId),
+    ));
+    if (res == null) return;
+    final added = await _addParsed(res.add);
+    if (res.revive.isNotEmpty) await _revive(res.revive);
+    _toast([
+      '캡처에서 $added건 추가',
+      if (res.revive.isNotEmpty) '무시했던 문자 ${res.revive.length}건 되살림',
+    ].join(' · '));
+  }
+
+  /// 무시한 내역 완전 삭제 (길게 눌렀을 때만).
+  Future<void> _deleteForever(Expense e) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('완전 삭제할까요?'),
+        content: Text('${e.merchant} ${won(e.signedAmount)}\n같은 문자를 다시 넣으면 새 내역으로 들어와요.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('완전 삭제')),
+        ],
+      ),
+    );
+    if (ok == true) await _delete(e);
   }
 
   Future<void> _copyMonth() async {
@@ -464,13 +575,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final pending = _items.where((e) => e.category == null).toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
-    final monthItems = _items.where((e) => e.inMonth(_month) && e.category != null).toList()
-      ..sort((a, b) {
-        // 무시한 건은 맨 아래로
-        final ia = a.category == kIgnored ? 1 : 0, ib = b.category == kIgnored ? 1 : 0;
-        if (ia != ib) return ia - ib;
-        return b.dateTime.compareTo(a.dateTime);
-      });
+    final monthItems = _items
+        .where((e) => e.inMonth(_month) && (e.category == kCar || e.category == kOps))
+        .toList()
+      ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+    final ignored = _items.where((e) => e.category == kIgnored).toList()
+      ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
 
     return Scaffold(
       appBar: AppBar(
@@ -481,8 +591,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               switch (v) {
                 case 'paste':
                   _openPaste();
+                case 'ocr':
+                  _openOcr();
                 case 'import':
                   _importInbox();
+                case 'diagnose':
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiagnoseScreen()));
                 case 'copy':
                   _copyMonth();
                 case 'listener':
@@ -495,7 +609,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'paste', child: Text('문자 붙여넣기 (여러 건 가능)')),
+              const PopupMenuItem(value: 'ocr', child: Text('문자 캡처화면 업로드')),
               if (isFullEdition) const PopupMenuItem(value: 'import', child: Text('지난 문자 1년치 불러오기')),
+              if (isFullEdition) const PopupMenuItem(value: 'diagnose', child: Text('문자 저장소 진단')),
               const PopupMenuItem(value: 'copy', child: Text('이번 달 내역 복사 (정산용)')),
               const PopupMenuItem(value: 'listener', child: Text('알림 접근 설정 열기')),
               const PopupMenuItem(value: 'update', child: Text('업데이트 확인')),
@@ -515,9 +631,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               for (final e in pending)
                 _PendingCard(
                   e: e,
-                  onCar: () => _setCategory(e, kCar),
-                  onOps: () => _setCategory(e, kOps),
-                  onIgnore: () => _setCategory(e, kIgnored),
+                  onCar: () => _classify(e, kCar),
+                  onOps: () => _classify(e, kOps),
+                  onIgnore: () => _classify(e, kIgnored),
                 ),
               const SizedBox(height: 12),
             ],
@@ -541,6 +657,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: Center(child: Text('이 달 분류된 내역이 없어요', style: TextStyle(color: Colors.black45))),
               ),
             for (final e in monthItems) _ExpenseTile(e: e, onTap: () => _editSheet(e)),
+            if (ignored.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _IgnoredSection(
+                items: ignored,
+                onCar: (e) => _classify(e, kCar),
+                onOps: (e) => _classify(e, kOps),
+                onPending: (e) => _classify(e, null),
+                onDeleteForever: _deleteForever,
+              ),
+            ],
           ],
         ),
       ),
@@ -573,7 +699,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     fg: Colors.white,
                     onPressed: () {
                       Navigator.pop(ctx);
-                      _setCategory(e, kCar);
+                      _classify(e, kCar);
                     },
                   ),
                 ),
@@ -585,7 +711,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     fg: kOpsText,
                     onPressed: () {
                       Navigator.pop(ctx);
-                      _setCategory(e, kOps);
+                      _classify(e, kOps);
                     },
                   ),
                 ),
@@ -596,7 +722,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 label: const Text('대기로 되돌리기'),
                 onPressed: () {
                   Navigator.pop(ctx);
-                  _setCategory(e, null);
+                  _classify(e, null);
                 },
               ),
               TextButton.icon(
@@ -862,6 +988,83 @@ class _BudgetTable extends StatelessWidget {
             child: Text('차량비 수립이 합계 수립보다 커요', style: TextStyle(fontSize: 12, color: kOverText)),
           ),
       ],
+    );
+  }
+}
+
+/// 맨 아래 '무시한 내역 (N건)'. 기본은 접힘. 지우지 않고 보관하다가 되살리거나 길게 눌러 완전 삭제.
+class _IgnoredSection extends StatelessWidget {
+  final List<Expense> items;
+  final void Function(Expense) onCar, onOps, onPending, onDeleteForever;
+  const _IgnoredSection({
+    required this.items,
+    required this.onCar,
+    required this.onOps,
+    required this.onPending,
+    required this.onDeleteForever,
+  });
+
+  Widget _small(String label, Color bg, Color fg, VoidCallback onPressed) => SizedBox(
+        height: 30,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: bg,
+            foregroundColor: fg,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            minimumSize: const Size(0, 30),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+          onPressed: onPressed,
+          child: Text(label),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFFFAFAFA),
+      child: ExpansionTile(
+        title: Text('무시한 내역 (${items.length}건)', style: const TextStyle(color: Colors.black54)),
+        subtitle: const Text('길게 누르면 완전 삭제', style: TextStyle(fontSize: 11, color: Colors.black38)),
+        children: [
+          for (final e in items)
+            InkWell(
+              onLongPress: () => onDeleteForever(e),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 12, 6),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(
+                      child: Text(
+                        '${fmtDateTime(e.dateTime)} · ${e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    Text(won(e.signedAmount), style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Wrap(spacing: 6, children: [
+                    _small('차량비', kCarColor, Colors.white, () => onCar(e)),
+                    _small('운영비', kOpsColor, kOpsText, () => onOps(e)),
+                    SizedBox(
+                      height: 30,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          minimumSize: const Size(0, 30),
+                          textStyle: const TextStyle(fontSize: 12),
+                        ),
+                        onPressed: () => onPending(e),
+                        child: const Text('대기로 되돌리기'),
+                      ),
+                    ),
+                  ]),
+                ]),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

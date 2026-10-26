@@ -59,6 +59,7 @@ android {
 
     buildTypes {
         release {
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (releaseStoreFile != null) {
                 signingConfigs.getByName("release")
             } else {
@@ -76,4 +77,9 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // 문자 캡처 OCR: google_mlkit_text_recognition 플러그인은 한국어 모델을 compileOnly 로만 둔다. 기기 안에서 인식.
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
 }
