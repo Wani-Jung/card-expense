@@ -94,15 +94,29 @@ ParsedSms? parseSms(
   );
 }
 
-/// 여러 문자를 한꺼번에 붙여넣거나 공유받았을 때 [Web발신] 단위로 나눈다.
-/// [Web발신] 이 없으면 통째로 한 건.
+final _cardApprovalRe = RegExp(r'[가-힣A-Za-z]+\d{4}(?:승인|취소)');
+
+/// 여러 문자를 한꺼번에 붙여넣거나 공유받았을 때 한 건씩 나눈다.
+/// [Web발신] 단위로 먼저 나누고, 한 조각에 "카드명+네자리+승인"이 여러 번 있으면 그 앞에서 다시 나눈다.
+/// (메시지 앱에서 여러 개를 복사하면 [Web발신] 없이 이어 붙는 경우가 있다)
 List<String> splitMessages(String text) {
-  final parts = text
-      .split('[Web발신]')
-      .map((s) => s.trim())
-      .where((s) => s.isNotEmpty)
-      .toList();
-  return parts.isEmpty ? [] : parts;
+  final out = <String>[];
+  for (final chunk in text.split('[Web발신]')) {
+    final c = chunk.trim();
+    if (c.isEmpty) continue;
+    final starts = _cardApprovalRe.allMatches(c).map((m) => m.start).toList();
+    if (starts.length < 2) {
+      out.add(c);
+      continue;
+    }
+    for (var i = 0; i < starts.length; i++) {
+      final from = i == 0 ? 0 : starts[i]; // 첫 승인 앞부분은 첫 건에 붙인다
+      final to = i + 1 < starts.length ? starts[i + 1] : c.length;
+      final part = c.substring(from, to).trim();
+      if (part.isNotEmpty) out.add(part);
+    }
+  }
+  return out;
 }
 
 /// 전화번호를 비교용으로 정리한다. 숫자만 남기고 국가번호 82, 앞자리 0 을 뗀다.

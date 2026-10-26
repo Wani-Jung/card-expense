@@ -37,6 +37,15 @@ android {
         versionName = flutter.versionName
     }
 
+    // 두 판: public(일반판, 문자 권한 없음) / full(전용판, 문자 권한 + 지난 문자 불러오기).
+    // 같은 applicationId·서명키라 서로 덮어 설치해도 데이터가 유지된다.
+    // 문자 권한·리시버는 src/full/ 에만 둔다. public 에는 절대 넣지 말 것.
+    flavorDimensions += "edition"
+    productFlavors {
+        create("public") { dimension = "edition" }
+        create("full") { dimension = "edition" }
+    }
+
     signingConfigs {
         if (releaseStoreFile != null) {
             create("release") {

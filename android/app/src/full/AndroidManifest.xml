@@ -1,0 +1,17 @@
+<!-- 전용판(full) 전용. 문자 권한과 SMS 리시버는 여기에만 둔다. public 판에는 절대 넣지 말 것. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
+    <application>
+        <receiver
+            android:name=".SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

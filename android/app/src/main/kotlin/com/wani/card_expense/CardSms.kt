@@ -13,7 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 알림 리스너가 잡은 승인 문자를 처리하는 곳.
+ * 알림 리스너(두 판 공통)와 SMS 리시버(전용판)가 잡은 승인 문자를 처리하는 곳.
  *
  * 앱이 꺼져 있어도 동작해야 하므로 Flutter 쪽 저장소를 쓰지 않고
  * 네이티브 SharedPreferences 에 "받은 편지함(inbox)"을 쌓아 둔다.
@@ -46,7 +46,7 @@ object CardSms {
     private fun compact(text: String) = text.replace(Regex("""\s+"""), "")
 
     /** 본문에 "카드번호4자리+승인"(또는 취소)이 있는지. (Dart hasCardApproval 과 같게) */
-    private fun hasCardApproval(text: String, digits: String?): Boolean {
+    fun hasCardApproval(text: String, digits: String?): Boolean {
         if (digits.isNullOrEmpty()) return false
         val c = compact(text)
         return c.contains("${digits}승인") || c.contains("${digits}취소")
@@ -134,7 +134,7 @@ object CardSms {
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "법카 승인 문자", NotificationManager.IMPORTANCE_HIGH)
+                NotificationChannel(CHANNEL_ID, "카드 승인 문자", NotificationManager.IMPORTANCE_HIGH)
             )
         }
         val open = Intent(ctx, MainActivity::class.java).apply {
@@ -143,7 +143,7 @@ object CardSms {
         val pi = PendingIntent.getActivity(
             ctx, 0, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val kind = if (compact(body).contains("취소")) "법카 승인취소" else "법카 승인"
+        val kind = if (compact(body).contains("취소")) "카드 승인취소" else "카드 승인"
         val shop = merchant(body).ifEmpty { "가맹점 미상" }
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(ctx, CHANNEL_ID)

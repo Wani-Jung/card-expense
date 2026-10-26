@@ -39,7 +39,8 @@ jobs:
       - run: flutter pub get
       - run: flutter test
 
-      - name: Build APK
+      # 두 판을 빌드한다. public(일반판) → app-release.apk, full(전용판, 문자 권한) → app-full-release.apk
+      - name: Build APKs
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -50,19 +51,30 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             ARGS="$ARGS --build-name=${GITHUB_REF_NAME#v}"
           fi
-          flutter build apk --release $ARGS
+          flutter build apk --release --flavor public $ARGS
+          flutter build apk --release --flavor full $ARGS
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-public-release.apk dist/app-release.apk
+          cp build/app/outputs/flutter-apk/app-full-release.apk dist/app-full-release.apk
 
-      # v* 태그: 정식 릴리스 (releases/latest/download/app-release.apk 가 이걸 가리킴)
+      # 일반판에 문자 권한이 섞이면 Play Protect 가 설치를 막는다. 섞였으면 배포하지 않는다.
+      - name: Check public APK has no SMS permission
+        run: |
+          AAPT=$(ls "$ANDROID_HOME"/build-tools/*/aapt | sort -V | tail -1)
+          if "$AAPT" dump permissions dist/app-release.apk | grep -E "RECEIVE_SMS|READ_SMS"; then
+            echo "::error::일반판(public) APK 에 문자 권한이 들어 있습니다"; exit 1
+          fi
+
+      # v* 태그: 정식 릴리스 (releases/latest/download/app-release.apk·app-full-release.apk 가 이걸 가리킴)
       - name: Release (tag)
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          APK=build/app/outputs/flutter-apk/app-release.apk
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$APK" --clobber
+            gh release upload "$GITHUB_REF_NAME" dist/*.apk --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$APK" --title "$GITHUB_REF_NAME" --generate-notes --latest
+            gh release create "$GITHUB_REF_NAME" dist/*.apk --title "$GITHUB_REF_NAME" --generate-notes --latest
           fi
 
       # main push: 'dev' 프리릴리스를 최신 커밋으로 갈아끼운다.
@@ -72,7 +84,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete dev --yes --cleanup-tag >/dev/null 2>&1 || true
-          gh release create dev build/app/outputs/flutter-apk/app-release.apk \
+          gh release create dev dist/*.apk \
             --prerelease --target "$GITHUB_SHA" \
             --title "개발 빌드 (main ${GITHUB_SHA::7})" \
             --notes "main 최신 커밋 빌드입니다. 정식 버전은 v* 릴리스를 받으세요."

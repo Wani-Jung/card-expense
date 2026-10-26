@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import 'budget.dart';
 import 'expense.dart';
+import 'flavor.dart';
 import 'native.dart';
+import 'paste_screen.dart';
 import 'sms_parser.dart';
+import 'update_check.dart';
 
 const kCarColor = Color(0xFF2E7D32);
 const kOpsColor = Color(0xFFFFC107);
 const kOpsText = Color(0xFF4E2A00); // 노랑 위에서 잘 읽히는 진한 갈색
+const kOverBg = Color(0xFFFFEBEE);
+const kOverText = Color(0xFFC62828);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,7 +49,7 @@ class _CardExpenseAppState extends State<CardExpenseApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '법카 정산',
+      title: kAppName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: kCarColor, useMaterial3: true),
       // v1.0.0 에서 올라온 경우 카드번호만 있으므로 발신번호까지 받는다.
@@ -126,12 +134,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 : null,
             child: const Text('저장', style: TextStyle(fontSize: 18)),
           ),
+          const SizedBox(height: 32),
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (_, snap) => Text(
+              '$kAppName ${snap.hasData ? 'v${snap.data!.version}' : ''} · $editionLabel',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.black45),
+            ),
+          ),
         ],
       ),
     );
   }
 }
-
 
 // ------------------------------------------------------------------
 // 메인 화면
@@ -155,8 +171,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final List<Expense> _items = widget.store.loadItems();
+  late final Budgets _budgets = widget.store.loadBudgets();
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   PermStatus _perms = const PermStatus();
+  bool _importing = false;
 
   @override
   void initState() {
@@ -170,6 +188,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 네이티브 저장소가 비어 있을 수 있으니 시작할 때마다 맞춰 둔다.
     Native.setSettings(widget.digits, widget.sender);
     _onResume();
+    _checkUpdate(manual: false);
+  }
+
+  @override
+  void didUpdateWidget(HomeScreen old) {
+    super.didUpdateWidget(old);
+    // (전용판) 설정이 바뀌면 자동 불러오기 표시가 지워져 있으므로 다시 불러온다.
+    if (old.digits != widget.digits || old.sender != widget.sender) _maybeAutoImport();
   }
 
   @override
@@ -193,9 +219,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _refreshPerms() async {
     final p = await Native.permissionStatus();
     if (mounted) setState(() => _perms = p);
+    await _maybeAutoImport();
   }
 
-  /// 알림 감지가 쌓아 둔 문자. 네이티브에서 발신번호/카드번호로 이미 걸렀으므로 카드번호는 다시 보지 않는다.
+  /// 알림 감지·SMS 리시버가 쌓아 둔 문자. 네이티브에서 이미 걸렀으므로 카드번호는 다시 보지 않는다.
   Future<void> _drain() async {
     final raws = await Native.drainInbox();
     if (raws.isNotEmpty) await _ingest(raws, requireCard: false);
@@ -235,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return added;
   }
 
-  /// 붙여넣기·공유로 받은 텍스트를 [Web발신] 단위로 나눠 넣고 결과를 알려준다.
+  /// 공유로 받은 텍스트를 한 건씩 나눠 넣고 결과를 알려준다.
   Future<void> _addTexts(List<String> texts, String source) async {
     final now = DateTime.now();
     final messages = texts.expand(splitMessages).toList();
@@ -274,38 +301,116 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ..showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  // ---------------- 메뉴 동작 ----------------
+  // ---------------- (전용판) 지난 문자 1년치 불러오기 ----------------
 
-  Future<void> _paste() async {
-    final ctrl = TextEditingController();
-    final clip = await Clipboard.getData(Clipboard.kTextPlain);
-    if (clip?.text?.contains(widget.digits) ?? false) ctrl.text = clip!.text!;
+  /// 문자 권한이 처음 허용됐거나 설정이 바뀐 뒤면 1년치를 한 번 불러온다.
+  Future<void> _maybeAutoImport() async {
+    if (!isFullEdition || _perms.sms != true || widget.store.autoImported || _importing) return;
+    await _importInbox();
+    await widget.store.setAutoImported();
+  }
+
+  Future<void> _importInbox() async {
+    if (_importing) return;
+    if (_perms.sms != true) {
+      await Native.requestSmsPermission();
+      return; // 허용되면 permissionsChanged → 자동 불러오기
+    }
+    _importing = true;
+    _toast('최근 1년 문자를 불러오는 중…');
+    try {
+      final scan = await Native.readSmsInbox(365);
+      final cardMatched = scan.items
+          .where((r) => parseSms(r.body, cardDigits: widget.digits, receivedAt: r.receivedAt) != null)
+          .length;
+      final n = await _ingest(scan.items);
+      if (n > 0) {
+        _toast('$n건 불러왔어요. 분류 대기 목록에서 골라주세요');
+      } else {
+        await _showScanResult(scan, cardMatched);
+      }
+    } on PlatformException catch (e) {
+      _toast(e.code == 'NO_PERMISSION' ? '문자 권한을 먼저 허용해주세요' : '불러오기 실패: ${e.message}');
+    } finally {
+      _importing = false;
+    }
+  }
+
+  /// 0건일 때 어디서 걸렸는지 보여준다.
+  Future<void> _showScanResult(InboxScan scan, int cardMatched) async {
     if (!mounted) return;
-    final text = await showDialog<String>(
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('문자 직접 붙여넣기'),
-        content: TextField(
-          controller: ctrl,
-          maxLines: 10,
-          minLines: 4,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: '승인 문자를 붙여넣으세요. 여러 건을 한꺼번에 넣어도 돼요.',
-          ),
+        title: const Text('새로 불러온 문자가 없어요'),
+        content: Text(
+          'SMS ${scan.smsScanned}건 · MMS ${scan.mmsScanned}건 검사\n'
+          '발신번호(${widget.sender}) 일치 ${scan.items.length}건\n'
+          '카드번호(${widget.digits}) 일치 $cardMatched건\n\n'
+          '${cardMatched > 0 ? '모두 이미 들어와 있는 내역이에요.' : '설정의 카드번호·발신번호를 확인해주세요.'}',
         ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
+      ),
+    );
+  }
+
+  // ---------------- 업데이트 확인 ----------------
+
+  /// 자동 확인은 하루 한 번, 실패하면 조용히 넘어간다. '나중에' 누른 버전은 자동으로는 다시 안 띄운다.
+  Future<void> _checkUpdate({required bool manual}) async {
+    final store = widget.store;
+    if (!manual) {
+      final last = store.updateCheckedAt;
+      if (last != null && DateTime.now().difference(last) < const Duration(hours: 20)) return;
+      await store.setUpdateCheckedAt(DateTime.now());
+    }
+    final current = (await PackageInfo.fromPlatform()).version;
+    final latest = await fetchLatestTag();
+    if (!mounted) return;
+    if (latest == null) {
+      if (manual) _toast('업데이트 정보를 확인하지 못했어요. 인터넷 연결을 확인해주세요');
+      return;
+    }
+    if (!isNewerVersion(latest, current)) {
+      if (manual) _toast('최신 버전이에요 (v$current · $editionLabel)');
+      return;
+    }
+    if (!manual && store.updateSkippedTag == latest) return;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('새 버전 $latest가 있어요'),
+        content: Text('지금 버전 v$current · $editionLabel\n[업데이트]를 누르면 브라우저에서 APK를 받아요.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('추가')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('나중에')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('업데이트')),
         ],
       ),
     );
-    if (text == null || text.trim().isEmpty) return;
-    await _addTexts([text], '붙여넣은');
+    if (go == true) {
+      await launchUrl(Uri.parse(latestApkUrl), mode: LaunchMode.externalApplication);
+    } else if (go == false) {
+      await store.setUpdateSkippedTag(latest);
+    }
+  }
+
+  // ---------------- 메뉴 동작 ----------------
+
+  Future<void> _openPaste() async {
+    final added = await Navigator.of(context).push<int>(MaterialPageRoute(
+      builder: (_) => PasteScreen(
+        digits: widget.digits,
+        existingIds: _items.map((e) => e.id).toSet(),
+        onAdd: _ingest,
+      ),
+    ));
+    if (added != null && added > 0) _toast('$added건 추가했어요. 분류해주세요');
   }
 
   Future<void> _copyMonth() async {
-    await Clipboard.setData(ClipboardData(text: settlementText(_items, _month, widget.digits)));
+    final text = settlementText(_items, _month, widget.digits, _budgets.forMonth(_month));
+    await Clipboard.setData(ClipboardData(text: text));
     _toast('${_month.year}년 ${_month.month}월 내역을 복사했어요');
   }
 
@@ -317,6 +422,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onSaved: widget.onSaveSettings,
       ),
     ));
+  }
+
+  /// 수립 입력 (만원 단위, 소수점 가능). 빈칸으로 저장하면 지운다.
+  Future<void> _editBudget(String label, int? current, void Function(int?) apply) async {
+    final ctrl = TextEditingController(text: current == null ? '' : manwon(current));
+    final input = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${_month.month}월 $label 수립'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+          decoration: const InputDecoration(
+            suffixText: '만원',
+            helperText: '예) 34.25 → 342,500원 · 비우면 지워져요',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('저장')),
+        ],
+      ),
+    );
+    if (input == null) return;
+    try {
+      final won = parseManwon(input);
+      setState(() => apply(won));
+      await widget.store.saveBudgets(_budgets);
+    } on FormatException catch (e) {
+      _toast(e.message);
+    }
   }
 
   // ---------------- 화면 ----------------
@@ -335,26 +474,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('법카 정산 · ${widget.digits}'),
+        title: Text('$kAppName · ${widget.digits}'),
         actions: [
           PopupMenuButton<String>(
             onSelected: (v) {
               switch (v) {
                 case 'paste':
-                  _paste();
+                  _openPaste();
+                case 'import':
+                  _importInbox();
                 case 'copy':
                   _copyMonth();
                 case 'listener':
                   Native.openNotificationAccessSettings();
+                case 'update':
+                  _checkUpdate(manual: true);
                 case 'settings':
                   _openSettings();
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'paste', child: Text('문자 직접 붙여넣기')),
-              PopupMenuItem(value: 'copy', child: Text('이번 달 내역 복사 (정산용)')),
-              PopupMenuItem(value: 'listener', child: Text('알림 접근 설정 열기')),
-              PopupMenuItem(value: 'settings', child: Text('설정 (카드번호·발신번호)')),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'paste', child: Text('문자 붙여넣기 (여러 건 가능)')),
+              if (isFullEdition) const PopupMenuItem(value: 'import', child: Text('지난 문자 1년치 불러오기')),
+              const PopupMenuItem(value: 'copy', child: Text('이번 달 내역 복사 (정산용)')),
+              const PopupMenuItem(value: 'listener', child: Text('알림 접근 설정 열기')),
+              const PopupMenuItem(value: 'update', child: Text('업데이트 확인')),
+              const PopupMenuItem(value: 'settings', child: Text('설정 (카드번호·발신번호)')),
             ],
           ),
         ],
@@ -381,7 +526,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               onPrev: () => setState(() => _month = DateTime(_month.year, _month.month - 1)),
               onNext: () => setState(() => _month = DateTime(_month.year, _month.month + 1)),
             ),
-            _Summary(items: monthItems),
+            _BudgetTable(
+              budget: _budgets.forMonth(_month),
+              usage: MonthUsage.of(monthItems, _month),
+              onEditTotal: () => _editBudget(
+                  '합계', _budgets.forMonth(_month).total, (w) => _budgets.setTotal(_month, w)),
+              onEditCar: () => _editBudget(
+                  '차량비', _budgets.forMonth(_month).car, (w) => _budgets.setCar(_month, w)),
+            ),
             const SizedBox(height: 8),
             if (monthItems.isEmpty)
               const Padding(
@@ -503,10 +655,12 @@ class _PermissionBanner extends StatelessWidget {
           children: [
             const Text('승인 문자 자동 감지를 위해 아래를 켜주세요',
                 style: TextStyle(fontWeight: FontWeight.bold)),
-            const Text('지난 문자는 메시지 앱에서 문자 선택 → 공유 → 법카 정산',
+            const Text('지난 문자는 메시지 앱에서 문자 선택 → 공유 → $kAppName',
                 style: TextStyle(fontSize: 12, color: Colors.black54)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 4, children: [
+              if (perms.sms == false)
+                FilledButton.tonal(onPressed: Native.requestSmsPermission, child: const Text('문자 권한')),
               if (!perms.notification)
                 FilledButton.tonal(onPressed: Native.requestNotificationPermission, child: const Text('알림 권한')),
               if (!perms.listener)
@@ -616,50 +770,99 @@ class _MonthHeader extends StatelessWidget {
       );
 }
 
-class _Summary extends StatelessWidget {
-  final List<Expense> items;
-  const _Summary({required this.items});
+/// 수립/사용 표 (단위: 만원). 합계·차량비 수립은 터치해서 입력, 운영비 수립은 자동 계산.
+class _BudgetTable extends StatelessWidget {
+  final MonthBudget budget;
+  final MonthUsage usage;
+  final VoidCallback onEditTotal, onEditCar;
+  const _BudgetTable({
+    required this.budget,
+    required this.usage,
+    required this.onEditTotal,
+    required this.onEditCar,
+  });
+
+  static const _headerBg = Color(0xFFF2F2F2);
+
+  Widget _cell(String text,
+      {Color? bg, Color? fg, bool bold = false, VoidCallback? onTap, bool editable = false}) {
+    final child = Container(
+      color: bg,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      alignment: Alignment.center,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(text,
+                  style: TextStyle(
+                      fontSize: 16, color: fg, fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
+            ),
+          ),
+          if (editable) ...[
+            const SizedBox(width: 4),
+            const Icon(Icons.edit, size: 14, color: Colors.black38),
+          ],
+        ],
+      ),
+    );
+    return onTap == null ? child : InkWell(onTap: onTap, child: child);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final car = items.where((e) => e.category == kCar).toList();
-    final ops = items.where((e) => e.category == kOps).toList();
-    int sum(List<Expense> l) => l.fold(0, (s, e) => s + e.signedAmount);
-    Widget box(String label, List<Expense> l, Color bg, Color fg) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$label ${l.length}건', style: TextStyle(color: fg, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                FittedBox(
-                  child: Text(won(sum(l)),
-                      style: TextStyle(color: fg, fontSize: 22, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
+    final totalOver = isOverBudget(usage.total, budget.total);
+    final carOver = isOverBudget(usage.car, budget.car);
+    Widget used(int won, bool over) =>
+        _cell(manwon(won), bg: over ? kOverBg : null, fg: over ? kOverText : null, bold: over);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 4, right: 2),
+          child: Text('(단위: 만원)', style: TextStyle(fontSize: 12, color: Colors.black54)),
+        ),
+        Table(
+          border: TableBorder.all(color: Colors.black26, borderRadius: BorderRadius.circular(6)),
+          columnWidths: const {0: FlexColumnWidth(1.0), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.2)},
+          defaultVerticalAlignment: TableCellVerticalAlignment.fill,
+          children: [
+            TableRow(children: [
+              _cell('', bg: _headerBg),
+              _cell('수립', bg: _headerBg, bold: true),
+              _cell('사용', bg: _headerBg, bold: true),
+            ]),
+            TableRow(children: [
+              _cell('합계', bg: _headerBg, bold: true),
+              _cell(manwonOrDash(budget.total), onTap: onEditTotal, editable: true),
+              used(usage.total, totalOver),
+            ]),
+            TableRow(children: [
+              _cell('차량비', bg: const Color(0xFFE8F5E9), fg: kCarColor, bold: true),
+              _cell(manwonOrDash(budget.car), onTap: onEditCar, editable: true),
+              used(usage.car, carOver),
+            ]),
+            TableRow(children: [
+              _cell('운영비', bg: const Color(0xFFFFF8E1), fg: kOpsText, bold: true),
+              // 자동 계산. 음수면 입력 오류(차량비 수립 > 합계 수립)
+              _cell(manwonOrDash(budget.ops),
+                  bg: budget.opsInvalid ? kOverBg : null,
+                  fg: budget.opsInvalid ? kOverText : Colors.black54,
+                  bold: budget.opsInvalid),
+              used(usage.ops, false), // 운영비는 초과 표시 안 함
+            ]),
+          ],
+        ),
+        if (budget.opsInvalid)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text('차량비 수립이 합계 수립보다 커요', style: TextStyle(fontSize: 12, color: kOverText)),
           ),
-        );
-    return Column(children: [
-      Row(children: [
-        box('차량비', car, kCarColor, Colors.white),
-        const SizedBox(width: 8),
-        box('운영비', ops, kOpsColor, kOpsText),
-      ]),
-      const SizedBox(height: 8),
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(border: Border.all(color: Colors.black26), borderRadius: BorderRadius.circular(6)),
-        child: Row(children: [
-          const Text('전체 합계', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const Spacer(),
-          Text(won(sum(car) + sum(ops)), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        ]),
-      ),
-    ]);
+      ],
+    );
   }
 }
 

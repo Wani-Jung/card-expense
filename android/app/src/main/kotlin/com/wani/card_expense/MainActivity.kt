@@ -3,6 +3,7 @@ package com.wani.card_expense
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -10,6 +11,7 @@ import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import kotlin.concurrent.thread
 
 class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
@@ -58,12 +60,39 @@ class MainActivity : FlutterActivity() {
                     result.success(ArrayList(shared))
                     shared.clear()
                 }
-                "permissionStatus" -> result.success(
-                    mapOf(
+                "permissionStatus" -> {
+                    val status = mutableMapOf(
                         "notification" to notificationsAllowed(),
                         "listener" to listenerEnabled(),
                     )
-                )
+                    // 문자 권한은 전용판에만 있다. 일반판은 키 자체를 넣지 않는다.
+                    if (Flavor.smsPermissions.isNotEmpty()) {
+                        status["sms"] = Flavor.smsPermissions.all {
+                            checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+                        }
+                    }
+                    result.success(status)
+                }
+                "requestSmsPermission" -> {
+                    if (Flavor.smsPermissions.isNotEmpty()) requestPermissions(Flavor.smsPermissions, 1)
+                    result.success(null)
+                }
+                "readSmsInbox" -> {
+                    val days = call.argument<Int>("days") ?: 365
+                    thread {
+                        try {
+                            val map = Flavor.readInbox(this, days)
+                            runOnUiThread {
+                                if (map == null) result.error("UNSUPPORTED", "일반판에는 없는 기능", null)
+                                else result.success(map)
+                            }
+                        } catch (e: SecurityException) {
+                            runOnUiThread { result.error("NO_PERMISSION", e.message, null) }
+                        } catch (e: Exception) {
+                            runOnUiThread { result.error("FAILED", e.message, null) }
+                        }
+                    }
+                }
                 "requestNotificationPermission" -> {
                     if (Build.VERSION.SDK_INT >= 33) {
                         requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 2)

@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'budget.dart';
+import 'flavor.dart';
 import 'sms_parser.dart';
 
 /// 분류: null 이면 분류 대기.
@@ -68,6 +70,10 @@ class Store {
   static const _kItems = 'expenses_v1';
   static const _kDigits = 'card_digits';
   static const _kSender = 'sender_number';
+  static const _kBudgets = 'budgets_v1';
+  static const _kAutoImported = 'auto_import_done';
+  static const _kUpdateChecked = 'update_checked_at';
+  static const _kUpdateSkipped = 'update_skipped_tag';
 
   final SharedPreferences _prefs;
   Store._(this._prefs);
@@ -77,10 +83,35 @@ class Store {
   String? get cardDigits => _prefs.getString(_kDigits);
   String? get senderNumber => _prefs.getString(_kSender);
 
+  /// 카드번호·발신번호 저장. 하나라도 바뀌면 (전용판) 1년치 자동 불러오기를 다시 하게 한다.
   Future<void> setSettings(String digits, String sender) async {
+    if (digits != cardDigits || sender != senderNumber) await _prefs.remove(_kAutoImported);
     await _prefs.setString(_kDigits, digits);
     await _prefs.setString(_kSender, sender);
   }
+
+  /// (전용판) 현재 설정으로 1년치 자동 불러오기를 했는지.
+  bool get autoImported => _prefs.getBool(_kAutoImported) ?? false;
+  Future<void> setAutoImported() => _prefs.setBool(_kAutoImported, true);
+
+  Budgets loadBudgets() {
+    final s = _prefs.getString(_kBudgets);
+    return s == null ? Budgets({}) : Budgets.fromJson(jsonDecode(s) as Map<String, dynamic>);
+  }
+
+  Future<void> saveBudgets(Budgets b) => _prefs.setString(_kBudgets, jsonEncode(b.toJson()));
+
+  /// 업데이트 자동 확인은 하루 한 번.
+  DateTime? get updateCheckedAt {
+    final ms = _prefs.getInt(_kUpdateChecked);
+    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  Future<void> setUpdateCheckedAt(DateTime t) => _prefs.setInt(_kUpdateChecked, t.millisecondsSinceEpoch);
+
+  /// '나중에'를 누른 버전. 자동 확인에서는 다시 띄우지 않는다.
+  String? get updateSkippedTag => _prefs.getString(_kUpdateSkipped);
+  Future<void> setUpdateSkippedTag(String tag) => _prefs.setString(_kUpdateSkipped, tag);
 
   List<Expense> loadItems() {
     final s = _prefs.getString(_kItems);
@@ -110,11 +141,21 @@ String two(int n) => n.toString().padLeft(2, '0');
 String fmtDateTime(DateTime d) =>
     '${d.year}.${two(d.month)}.${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
 
-/// 정산용 텍스트. 화면에서 보고 있는 달 기준.
-String settlementText(List<Expense> items, DateTime month, String digits) {
+/// 정산용 텍스트. 화면에서 보고 있는 달 기준. 맨 위에 수립/사용 표를 붙인다.
+String settlementText(List<Expense> items, DateTime month, String digits,
+    [MonthBudget budget = const MonthBudget()]) {
   final inMonth = items.where((e) => e.inMonth(month)).toList()
     ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
-  final b = StringBuffer('[${month.year}년 ${month.month}월 법카 정산] 카드 $digits\n');
+  final b = StringBuffer('[${month.year}년 ${month.month}월 $kAppName] 카드 $digits\n');
+  final usage = MonthUsage.of(inMonth, month);
+  // 메신저에 붙여넣으면 칸이 안 맞으므로 줄 단위로 쓴다.
+  String row(String label, int? plan, int used) =>
+      ' $label: 수립 ${manwonOrDash(plan)} / 사용 ${manwon(used)}';
+  b.writeln();
+  b.writeln('■ 수립/사용 (단위: 만원)');
+  b.writeln(row('합계', budget.total, usage.total));
+  b.writeln(row('차량비', budget.car, usage.car));
+  b.writeln(row('운영비', budget.ops, usage.ops));
   var total = 0;
   for (final (cat, label) in [(kCar, '차량비'), (kOps, '운영비')]) {
     final list = inMonth.where((e) => e.category == cat).toList();
