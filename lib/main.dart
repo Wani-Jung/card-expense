@@ -23,6 +23,7 @@ const kOverText = Color(0xFFC62828);
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final store = await Store.open();
+  await store.migrate();
   runApp(CardExpenseApp(store: store));
 }
 
@@ -910,28 +911,17 @@ class _BudgetTable extends StatelessWidget {
 
   static const _headerBg = Color(0xFFF2F2F2);
 
-  Widget _cell(String text,
-      {Color? bg, Color? fg, bool bold = false, VoidCallback? onTap, bool editable = false}) {
+  /// 표 칸. 높이를 고정해 둬야 행이 접히지 않는다. 수립 칸은 [onTap] 으로 터치 입력.
+  Widget _cell(String text, {Color? bg, Color? fg, bool bold = false, VoidCallback? onTap}) {
     final child = Container(
       color: bg,
+      constraints: const BoxConstraints(minHeight: 48),
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       alignment: Alignment.center,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(text,
-                  style: TextStyle(
-                      fontSize: 16, color: fg, fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
-            ),
-          ),
-          if (editable) ...[
-            const SizedBox(width: 4),
-            const Icon(Icons.edit, size: 14, color: Colors.black38),
-          ],
-        ],
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(text,
+            style: TextStyle(fontSize: 16, color: fg, fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
       ),
     );
     return onTap == null ? child : InkWell(onTap: onTap, child: child);
@@ -954,7 +944,7 @@ class _BudgetTable extends StatelessWidget {
         Table(
           border: TableBorder.all(color: Colors.black26, borderRadius: BorderRadius.circular(6)),
           columnWidths: const {0: FlexColumnWidth(1.0), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.2)},
-          defaultVerticalAlignment: TableCellVerticalAlignment.fill,
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
             TableRow(children: [
               _cell('', bg: _headerBg),
@@ -963,12 +953,12 @@ class _BudgetTable extends StatelessWidget {
             ]),
             TableRow(children: [
               _cell('합계', bg: _headerBg, bold: true),
-              _cell(manwonOrDash(budget.total), onTap: onEditTotal, editable: true),
+              _cell(manwonOrDash(budget.total), onTap: onEditTotal),
               used(usage.total, totalOver),
             ]),
             TableRow(children: [
               _cell('차량비', bg: const Color(0xFFE8F5E9), fg: kCarColor, bold: true),
-              _cell(manwonOrDash(budget.car), onTap: onEditCar, editable: true),
+              _cell(manwonOrDash(budget.car), onTap: onEditCar),
               used(usage.car, carOver),
             ]),
             TableRow(children: [

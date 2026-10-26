@@ -66,6 +66,34 @@ class Expense {
       );
 }
 
+/// v1.5.1 1회 정리: RCS JSON 본문 때문에 가맹점에 붙은 "\r\n", "}}}} 같은 찌꺼기를 지우고
+/// 본문을 실제 텍스트로 바꾼다. 분류(차량비·운영비·대기·무시)는 그대로 둔다.
+/// 정리 후 같은 승인 건(같은 id)이 둘 이상이면 하나만 남긴다 (분류된 것 > 대기 > 무시 순).
+List<Expense> cleanupStoredItems(List<Expense> items) {
+  int rank(String? c) => c == kCar || c == kOps ? 0 : (c == null ? 1 : 2);
+  final byId = <String, Expense>{};
+  for (final e in items) {
+    // JSON·리터럴 줄바꿈이 든 본문만 다시 읽는다. 나머지는 가맹점만 정리
+    // (캡처 확인 화면에서 손으로 고친 금액·날짜를 덮어쓰지 않도록).
+    final dirty = e.raw.trimLeft().startsWith('{') || e.raw.contains(r'\n') || e.raw.contains(r'\r');
+    final raw = dirty ? normalizeBody(e.raw) : e.raw;
+    // 원래 시각을 기준으로 다시 읽어서 연도는 그대로 유지한다
+    final p = dirty ? parseSms(raw, cardDigits: '', receivedAt: e.dateTime, requireCard: false) : null;
+    final fixed = Expense(
+      id: p?.id ?? e.id,
+      amount: p?.amount ?? e.amount,
+      dateTime: p?.dateTime ?? e.dateTime,
+      merchant: p?.merchant ?? cleanMerchant(e.merchant),
+      isCancel: p?.isCancel ?? e.isCancel,
+      raw: raw,
+      category: e.category,
+    );
+    final prev = byId[fixed.id];
+    if (prev == null || rank(fixed.category) < rank(prev.category)) byId[fixed.id] = fixed;
+  }
+  return byId.values.toList();
+}
+
 class Store {
   static const _kItems = 'expenses_v1';
   static const _kDigits = 'card_digits';
@@ -113,12 +141,22 @@ class Store {
   String? get updateSkippedTag => _prefs.getString(_kUpdateSkipped);
   Future<void> setUpdateSkippedTag(String tag) => _prefs.setString(_kUpdateSkipped, tag);
 
+  static const _kCleanedV1 = 'merchant_cleanup_v1';
+
   List<Expense> loadItems() {
     final s = _prefs.getString(_kItems);
     if (s == null) return [];
     return (jsonDecode(s) as List)
         .map((e) => Expense.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// 앱 시작 시 1회: 저장된 내역의 가맹점·본문 찌꺼기 정리 ([cleanupStoredItems]).
+  Future<void> migrate() async {
+    if (_prefs.getBool(_kCleanedV1) ?? false) return;
+    final items = loadItems();
+    if (items.isNotEmpty) await saveItems(cleanupStoredItems(items));
+    await _prefs.setBool(_kCleanedV1, true);
   }
 
   Future<void> saveItems(List<Expense> items) =>
