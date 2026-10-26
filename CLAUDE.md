@@ -22,3 +22,10 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 ## Play Protect
 사이드로드 APK 가 RECEIVE_SMS/READ_SMS 를 요청하면 구글 사기 방지 기능이 설치를 막아서 v1.2.0 부터 문자 권한을 쓰지 않는다.
 지난 문자는 메시지 앱 공유(ACTION_SEND/SEND_MULTIPLE text/plain → MainActivity `takeShared`) 또는 붙여넣기로 받고, `splitMessages()` 로 [Web발신] 단위로 나눈다.
+
+## 설치 방식 (고정)
+- 폰 설치는 항상 GitHub Release 링크로만 한다. adb/USB 설치는 제안하지도 말 것.
+- 고정 링크: `https://github.com/<계정>/card-expense/releases/latest/download/app-release.apk`
+
+## 대기 중인 작업
+`NEXT.md`에 다음 요청 때 같이 처리할 일이 쌓여 있다. 새 요청을 받으면 NEXT.md 항목도 함께 처리하고, 끝난 항목은 지운다.
