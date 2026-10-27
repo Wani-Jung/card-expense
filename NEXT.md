@@ -43,4 +43,10 @@
     MainActivity `diagnoseStores`, full/public `Flavor.diagnoseStores` 전부 삭제. 섹션에 남는 항목이 없으면 섹션 제목도 삭제
   - 1년치 불러오기 안의 RCS 저장소 조회(`scanOther`)는 진단이 아니라 불러오기 기능이라 유지 (따로 말씀 있으면 그때 제거)
   - CLAUDE.md 에서 진단 관련 설명도 정리
+- [ ] 설정 화면 맨 아래 제작자 표시 (사진 그대로) — `lib/main.dart` SettingsScreen 하단
+  - 지금 한 줄('공감카드 관리 v1.6.0 · 일반판')을 아래 두 줄로 교체, 가운데 정렬
+    - 1줄: `제작자: wani` — 굵게, 조금 크게(17px 정도), 진한 글자(#1F1F1F 톤)
+    - 2줄: `v1.7.0` — 실제 앱 버전(PackageInfo), 작게(13px 정도), 회색(#5F6368)
+  - 일반판/전용판 표시는 여기서 빠지므로 메뉴 '앱 정보'에서 보이게 (없으면 거기에 추가). CLAUDE.md 설명도 맞게 수정
+  - 하단 잘림 방지 패딩 적용 대상에 포함
 - [ ] 위 작업 끝나면 flutter test → 버전 올려 배포 → 두 고정 링크(app-release.apk, app-full-release.apk) 받아지는지 확인
