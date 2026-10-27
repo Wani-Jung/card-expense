@@ -198,8 +198,11 @@ String settlementText(List<Expense> items, DateTime month, String digits,
   final b = StringBuffer('[${month.year}년 ${month.month}월 $kAppName] 카드 $digits\n');
   final usage = MonthUsage.of(inMonth, month);
   // 메신저에 붙여넣으면 칸이 안 맞으므로 줄 단위로 쓴다.
-  String row(String label, int? plan, int used) =>
-      ' $label: 수립 ${manwonOrDash(plan)} / 사용 ${manwon(used)}';
+  String row(String label, int? plan, int used) {
+    final rem = remaining(plan, used);
+    final last = rem != null && rem < 0 ? remainingText(rem) : '잔여 ${remainingText(rem)}';
+    return ' $label: 수립 ${manwonOrDash(plan)} / 사용 ${manwon(used)} / $last';
+  }
   b.writeln();
   b.writeln('■ 수립/사용 (단위: 만원)');
   b.writeln(row('합계', budget.total, usage.total));

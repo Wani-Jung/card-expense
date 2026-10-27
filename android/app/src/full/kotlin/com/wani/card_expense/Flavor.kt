@@ -114,41 +114,6 @@ object Flavor {
     /** 날짜 컬럼이 초 단위면 밀리초로. (2001년 이후 밀리초 값은 1e12 이상) */
     private fun toMillis(v: Long) = if (v in 1 until 100_000_000_000L) v * 1000 else v
 
-    /** 메뉴 '문자 저장소 진단': 저장소마다 접근 가능 여부·행 수·컬럼·카드번호 일치 건수. */
-    fun diagnoseStores(ctx: Context): List<Map<String, Any?>> {
-        val digits = CardSms.digits(ctx)
-        val uris = listOf("content://sms", "content://mms") + OTHER_STORES
-        return uris.map { uri ->
-            try {
-                val cursor = ctx.contentResolver.query(Uri.parse(uri), null, null, null, null)
-                if (cursor == null) {
-                    mapOf("uri" to uri, "ok" to false, "error" to "null cursor (제공자 없음)")
-                } else cursor.use { c ->
-                    val bodyIdx = BODY_COLUMNS.map { c.getColumnIndex(it) }.firstOrNull { it >= 0 }
-                    var matched = 0
-                    if (bodyIdx != null) {
-                        var n = 0
-                        while (c.moveToNext() && n < MAX_ROWS) {
-                            n++
-                            val body = try { c.getString(bodyIdx) } catch (_: Exception) { null } ?: continue
-                            if (CardSms.hasCardApproval(body, digits)) matched++
-                        }
-                    }
-                    mapOf(
-                        "uri" to uri,
-                        "ok" to true,
-                        "count" to c.count,
-                        "columns" to c.columnNames.toList(),
-                        "bodyColumn" to bodyIdx?.let { c.getColumnName(it) },
-                        "cardMatched" to matched,
-                    )
-                }
-            } catch (e: Exception) {
-                mapOf("uri" to uri, "ok" to false, "error" to "${e.javaClass.simpleName}: ${e.message}")
-            }
-        }
-    }
-
     private fun mmsFrom(ctx: Context, id: Long): String? =
         ctx.contentResolver.query(
             Uri.parse("content://mms/$id/addr"),

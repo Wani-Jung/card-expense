@@ -4,9 +4,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'budget.dart';
-import 'diagnose_screen.dart';
 import 'expense.dart';
 import 'flavor.dart';
+import 'ignored_screen.dart';
 import 'ingest.dart';
 import 'menu_screen.dart';
 import 'native.dart';
@@ -22,6 +22,67 @@ const kOpsColor = Color(0xFFFFC107);
 const kOpsText = Color(0xFF4E2A00); // 노랑 위에서 잘 읽히는 진한 갈색
 const kOverBg = Color(0xFFFFEBEE);
 const kOverText = Color(0xFFC62828);
+const kGold = Color(0xFFF0A500); // 앱 아이콘 골드 (포인트 컬러)
+const kGoldText = Color(0xFF3E2700); // 골드 위 글자
+const kGoldLight = Color(0xFFFFF8E6); // 잔여 열 등 아주 옅은 골드
+const kText = Color(0xFF1F1F1F);
+const kSubText = Color(0xFF5F6368);
+const kLine = Color(0xFFE0E0E0);
+const kSubBg = Color(0xFFF5F5F5);
+
+/// 구글 캘린더처럼 하얗고 깨끗한 무채색 테마. 색은 차량비/운영비 버튼과 골드 포인트에만.
+ThemeData buildTheme() {
+  const scheme = ColorScheme.light(
+    primary: kGold,
+    onPrimary: kGoldText,
+    primaryContainer: kGoldLight,
+    onPrimaryContainer: kGoldText,
+    secondary: kSubText,
+    onSecondary: Colors.white,
+    secondaryContainer: Color(0xFFF1F3F4),
+    onSecondaryContainer: kText,
+    surface: Colors.white,
+    onSurface: kText,
+    onSurfaceVariant: kSubText,
+    surfaceContainerLowest: Colors.white,
+    surfaceContainerLow: Colors.white,
+    surfaceContainer: Colors.white,
+    surfaceContainerHigh: Colors.white,
+    surfaceContainerHighest: kSubBg,
+    surfaceTint: Colors.transparent,
+    outline: Color(0xFFBDBDBD),
+    outlineVariant: kLine,
+    error: kOverText,
+  );
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: Colors.white,
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Colors.white,
+      foregroundColor: kText,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      systemOverlayStyle: SystemUiOverlayStyle.dark,
+    ),
+    cardTheme: CardThemeData(
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: kLine),
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+    dialogTheme: const DialogThemeData(backgroundColor: Colors.white, surfaceTintColor: Colors.transparent),
+    bottomSheetTheme:
+        const BottomSheetThemeData(backgroundColor: Colors.white, surfaceTintColor: Colors.transparent),
+    dividerTheme: const DividerThemeData(color: kLine),
+    // 흰 배경 위 골드 글자는 흐려서 글자 버튼은 진한 골드로
+    textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: const Color(0xFF8D6200))),
+  );
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,7 +119,7 @@ class _CardExpenseAppState extends State<CardExpenseApp> {
     return MaterialApp(
       title: kAppName,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: kCarColor, useMaterial3: true),
+      theme: buildTheme(),
       // v1.0.0 에서 올라온 경우 카드번호만 있으므로 발신번호까지 받는다.
       home: _digits == null || _sender == null
           ? SettingsScreen(initialDigits: _digits, onSaved: _saveSettings)
@@ -98,7 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.viewPaddingOf(context).bottom + 24),
         children: [
           const Text('수신 문자에 적힌 카드번호 네자리를 입력해주세요', style: label),
           const SizedBox(height: 4),
@@ -144,11 +205,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 32),
           FutureBuilder<PackageInfo>(
             future: PackageInfo.fromPlatform(),
-            builder: (_, snap) => Text(
-              '$kAppName ${snap.hasData ? 'v${snap.data!.version}' : ''} · $editionLabel',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.black45),
-            ),
+            builder: (_, snap) => Column(children: [
+              const Text('제작자: wani',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: kText)),
+              const SizedBox(height: 2),
+              Text(snap.hasData ? 'v${snap.data!.version}' : '',
+                  style: const TextStyle(fontSize: 13, color: kSubText)),
+            ]),
           ),
         ],
       ),
@@ -288,7 +351,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 6),
                       padding: const EdgeInsets.all(8),
-                      color: const Color(0xFFF2F2F2),
+                      color: kSubBg,
                       child: SelectableText(t, style: const TextStyle(fontSize: 12)),
                     ),
                   if (r.rejected.length > 50) Text('외 ${r.rejected.length - 50}건'),
@@ -558,10 +621,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onSettings: _openSettings,
         onListener: Native.openNotificationAccessSettings,
         onUpdate: () => _checkUpdate(manual: true),
-        onDiagnose: () =>
-            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiagnoseScreen())),
+        ignoredCount: () => _items.where((e) => e.category == kIgnored).length,
+        onIgnored: _openIgnored,
       ),
     ));
+  }
+
+  /// 메뉴 > 무시한 내역. 되살리면 메인 목록에도 바로 반영된다.
+  Future<void> _openIgnored() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => IgnoredScreen(
+        items: _items,
+        recommend: _vendors.recommend,
+        onChange: (e, cat) async {
+          setState(() => e.category = cat);
+          await widget.store.saveItems(_items);
+          // 메인에서 고를 때처럼 그 가맹점을 등록 업체로 기억
+          if ((cat == kCar || cat == kOps) && e.merchant.trim().isNotEmpty) {
+            _vendors.learn(e.merchant, cat!);
+            await widget.store.saveVendors(_vendors);
+          }
+        },
+        carButton: (rec, onPressed) => _CategoryButton.of(kCar, rec, onPressed, small: true),
+        opsButton: (rec, onPressed) => _CategoryButton.of(kOps, rec, onPressed, small: true),
+      ),
+    ));
+    if (mounted) setState(() {});
   }
 
   void _openVendors() {
@@ -636,8 +721,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .where((e) => e.inMonth(_month) && (e.category == kCar || e.category == kOps))
         .toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
-    final ignored = _items.where((e) => e.category == kIgnored).toList()
-      ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
 
     return Scaffold(
       appBar: AppBar(
@@ -657,7 +740,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       body: RefreshIndicator(
         onRefresh: _onResume,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 32),
+          padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.viewPaddingOf(context).bottom + 24),
           children: [
             if (!_perms.allOk) _PermissionBanner(perms: _perms),
             if (pending.isNotEmpty) ...[
@@ -692,16 +775,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: Center(child: Text('이 달 분류된 내역이 없어요', style: TextStyle(color: Colors.black45))),
               ),
             for (final e in monthItems) _ExpenseTile(e: e, onTap: () => _editSheet(e)),
-            if (ignored.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _IgnoredSection(
-                items: ignored,
-                recommend: _vendors.recommend,
-                onCar: (e) => _classify(e, kCar),
-                onOps: (e) => _classify(e, kOps),
-                onPending: (e) => _classify(e, null),
-              ),
-            ],
           ],
         ),
       ),
@@ -808,7 +881,7 @@ class _PermissionBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: const Color(0xFFFFF3E0),
+      color: kGoldLight,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -921,7 +994,7 @@ class _RawBox extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: double.infinity,
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: const Color(0xFFF2F2F2), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: kSubBg, borderRadius: BorderRadius.circular(6)),
         child: Text(raw, style: const TextStyle(fontSize: 12, color: Colors.black54)),
       );
 }
@@ -992,7 +1065,7 @@ class _MonthHeader extends StatelessWidget {
       );
 }
 
-/// 수립/사용 표 (단위: 만원). 합계·차량비 수립은 터치해서 입력, 운영비 수립은 자동 계산.
+/// 수립/사용/잔여 표 (단위: 만원). 합계·차량비 수립은 터치해서 입력(연필 표시), 운영비 수립은 자동 계산.
 class _BudgetTable extends StatelessWidget {
   final MonthBudget budget;
   final MonthUsage usage;
@@ -1004,11 +1077,13 @@ class _BudgetTable extends StatelessWidget {
     required this.onEditCar,
   });
 
-  static const _headerBg = Color(0xFFF2F2F2);
+  static const _carTitleBg = Color(0xFFF4FAF4);
+  static const _opsTitleBg = Color(0xFFFFFCF2);
 
   /// 표 칸. 높이를 고정해 둬야 행이 접히지 않는다. 수립 칸은 [onTap] 으로 터치 입력.
-  Widget _cell(String text, {Color? bg, Color? fg, bool bold = false, VoidCallback? onTap}) {
-    final child = Container(
+  Widget _cell(String text,
+      {Color? bg, Color? fg, bool bold = false, double size = 16, VoidCallback? onTap}) {
+    Widget child = Container(
       color: bg,
       constraints: const BoxConstraints(minHeight: 48),
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
@@ -1016,54 +1091,82 @@ class _BudgetTable extends StatelessWidget {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Text(text,
-            style: TextStyle(fontSize: 16, color: fg, fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
+            style: TextStyle(fontSize: size, color: fg, fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
       ),
     );
-    return onTap == null ? child : InkWell(onTap: onTap, child: child);
+    if (onTap == null) return child;
+    // 숫자는 가운데 그대로, 연필은 칸 오른쪽 아래 구석에 겹쳐 둔다.
+    child = Stack(children: [
+      child,
+      const Positioned(right: 3, bottom: 3, child: Icon(Icons.edit, size: 13, color: Colors.black38)),
+    ]);
+    return InkWell(onTap: onTap, child: child);
+  }
+
+  /// 잔여 칸. 가장 눈에 띄게. 초과면 [strong] 일 때만 빨갛게, 아니면 회색 글자만.
+  Widget _remain(int? plan, int used, {required bool strong}) {
+    final rem = remaining(plan, used);
+    final over = rem != null && rem < 0;
+    return _cell(
+      remainingText(rem),
+      bg: over && strong ? kOverBg : kGoldLight,
+      fg: over ? (strong ? kOverText : kSubText) : kText,
+      bold: true,
+      size: 18,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final totalOver = isOverBudget(usage.total, budget.total);
     final carOver = isOverBudget(usage.car, budget.car);
-    Widget used(int won, bool over) =>
-        _cell(manwon(won), bg: over ? kOverBg : null, fg: over ? kOverText : null, bold: over);
+    // 잔여 칸이 바로 옆에서 초과를 크게 보여 주므로 사용 칸은 글씨색만
+    Widget used(int won, bool over) => _cell(manwon(won), fg: over ? kOverText : null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         const Padding(
           padding: EdgeInsets.only(bottom: 4, right: 2),
-          child: Text('(단위: 만원)', style: TextStyle(fontSize: 12, color: Colors.black54)),
+          child: Text('(단위: 만원)', style: TextStyle(fontSize: 12, color: kSubText)),
         ),
         Table(
-          border: TableBorder.all(color: Colors.black26, borderRadius: BorderRadius.circular(6)),
-          columnWidths: const {0: FlexColumnWidth(1.0), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.2)},
+          border: TableBorder.all(color: kLine, borderRadius: BorderRadius.circular(6)),
+          columnWidths: const {
+            0: FlexColumnWidth(1.0),
+            1: FlexColumnWidth(1.1),
+            2: FlexColumnWidth(1.1),
+            3: FlexColumnWidth(1.4),
+          },
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
             TableRow(children: [
-              _cell('', bg: _headerBg),
-              _cell('수립', bg: _headerBg, bold: true),
-              _cell('사용', bg: _headerBg, bold: true),
+              _cell('', bg: kSubBg),
+              _cell('수립', bg: kSubBg, bold: true),
+              _cell('사용', bg: kSubBg, bold: true),
+              _cell('잔여', bg: kGoldLight, bold: true),
             ]),
             TableRow(children: [
-              _cell('합계', bg: _headerBg, bold: true),
+              _cell('합계', bg: kSubBg, bold: true),
               _cell(manwonOrDash(budget.total), onTap: onEditTotal),
               used(usage.total, totalOver),
+              _remain(budget.total, usage.total, strong: true),
             ]),
             TableRow(children: [
-              _cell('차량비', bg: const Color(0xFFE8F5E9), fg: kCarColor, bold: true),
+              _cell('차량비', bg: _carTitleBg, fg: kCarColor, bold: true),
               _cell(manwonOrDash(budget.car), onTap: onEditCar),
               used(usage.car, carOver),
+              _remain(budget.car, usage.car, strong: true),
             ]),
             TableRow(children: [
-              _cell('운영비', bg: const Color(0xFFFFF8E1), fg: kOpsText, bold: true),
+              _cell('운영비', bg: _opsTitleBg, fg: kOpsText, bold: true),
               // 자동 계산. 음수면 입력 오류(차량비 수립 > 합계 수립)
               _cell(manwonOrDash(budget.ops),
                   bg: budget.opsInvalid ? kOverBg : null,
-                  fg: budget.opsInvalid ? kOverText : Colors.black54,
+                  fg: budget.opsInvalid ? kOverText : kSubText,
                   bold: budget.opsInvalid),
               used(usage.ops, false), // 운영비는 초과 표시 안 함
+              _remain(budget.opsInvalid ? null : budget.ops, usage.ops, strong: false),
             ]),
           ],
         ),
@@ -1073,67 +1176,6 @@ class _BudgetTable extends StatelessWidget {
             child: Text('차량비 수립이 합계 수립보다 커요', style: TextStyle(fontSize: 12, color: kOverText)),
           ),
       ],
-    );
-  }
-}
-
-/// 맨 아래 '무시한 내역 (N건)'. 기본은 접힘. 지우지 않고 보관하다가 되살린다.
-class _IgnoredSection extends StatelessWidget {
-  final List<Expense> items;
-  final Recommendation? Function(String merchant) recommend;
-  final void Function(Expense) onCar, onOps, onPending;
-  const _IgnoredSection({
-    required this.items,
-    required this.recommend,
-    required this.onCar,
-    required this.onOps,
-    required this.onPending,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFFFAFAFA),
-      child: ExpansionTile(
-        title: Text('무시한 내역 (${items.length}건)', style: const TextStyle(color: Colors.black54)),
-        children: [
-          for (final e in items)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 12, 8),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(
-                    child: Text(
-                      '${fmtDateTime(e.dateTime)} · ${e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant}',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ),
-                  Text(won(e.signedAmount), style: const TextStyle(fontWeight: FontWeight.bold)),
-                ]),
-                const SizedBox(height: 8),
-                Builder(builder: (_) {
-                  final rec = recommend(e.merchant);
-                  return Wrap(spacing: 6, runSpacing: 10, children: [
-                    _CategoryButton.of(kCar, rec, () => onCar(e), small: true),
-                    _CategoryButton.of(kOps, rec, () => onOps(e), small: true),
-                    SizedBox(
-                      height: 30,
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          minimumSize: const Size(0, 30),
-                          textStyle: const TextStyle(fontSize: 12),
-                        ),
-                        onPressed: () => onPending(e),
-                        child: const Text('대기로 되돌리기'),
-                      ),
-                    ),
-                  ]);
-                }),
-              ]),
-            ),
-        ],
-      ),
     );
   }
 }

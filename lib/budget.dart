@@ -81,3 +81,9 @@ int? parseManwon(String input) {
 
 /// 사용이 수립을 넘었는지. 수립이 비어 있으면 판정하지 않는다.
 bool isOverBudget(int used, int? budget) => budget != null && used > budget;
+
+/// 잔여 = 수립 − 사용 (원). 수립이 비면 null.
+int? remaining(int? plan, int used) => plan == null ? null : plan - used;
+
+/// 잔여 표기 (만원). 비면 '-', 마이너스면 부호 대신 '초과 3.50'.
+String remainingText(int? rem) => rem == null ? '-' : (rem < 0 ? '초과 ${manwon(-rem)}' : manwon(rem));

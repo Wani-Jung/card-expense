@@ -112,9 +112,9 @@ void main() {
     final t = settlementText([_e(342500, kCar, DateTime(2026, 7, 2))], m, '0000',
         const MonthBudget(total: 500000, car: 300000));
     expect(t, contains('수립/사용 (단위: 만원)'));
-    expect(t, contains('합계: 수립 50.00 / 사용 34.25'));
-    expect(t, contains('차량비: 수립 30.00 / 사용 34.25'));
-    expect(t, contains('운영비: 수립 20.00 / 사용 0.00'));
+    expect(t, contains('합계: 수립 50.00 / 사용 34.25 / 잔여 15.75'));
+    expect(t, contains('차량비: 수립 30.00 / 사용 34.25 / 초과 4.25'));
+    expect(t, contains('운영비: 수립 20.00 / 사용 0.00 / 잔여 20.00'));
   });
 
   group('업데이트 버전 비교', () {
@@ -154,6 +154,26 @@ void main() {
       const pasted = '[Web발신]\nNH기업0000승인 5,000원 07/28 09:00 편의점\n'
           '[Web발신]\nNH기업0000승인 6,000원 07/28 10:00 빵집 NH기업0000승인 7,000원 07/28 11:00 꽃집';
       expect(splitMessages(pasted), hasLength(3));
+    });
+  });
+
+  group('잔여·초과', () {
+    test('잔여 = 수립 − 사용, 수립이 비면 null', () {
+      expect(remaining(500000, 342500), 157500);
+      expect(remaining(null, 342500), isNull);
+      expect(remaining(300000, 342500), -42500);
+    });
+
+    test('표기: 비면 -, 마이너스면 초과', () {
+      expect(remainingText(null), '-');
+      expect(remainingText(157500), '15.75');
+      expect(remainingText(0), '0.00');
+      expect(remainingText(-35000), '초과 3.50');
+    });
+
+    test('정산 텍스트: 수립이 없으면 잔여 -', () {
+      final t = settlementText([_e(10000, kOps, DateTime(2026, 7, 2))], DateTime(2026, 7), '0000');
+      expect(t, contains('운영비: 수립 - / 사용 1.00 / 잔여 -'));
     });
   });
 }

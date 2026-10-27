@@ -89,14 +89,6 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
-                "diagnoseStores" -> thread {
-                    val list = try {
-                        Flavor.diagnoseStores(this)
-                    } catch (e: Exception) {
-                        null
-                    }
-                    runOnUiThread { result.success(list) }
-                }
                 "sliceImage" -> {
                     val path = call.argument<String>("path")!!
                     thread {

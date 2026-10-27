@@ -7,6 +7,4 @@ object Flavor {
     val smsPermissions: Array<String> = emptyArray()
 
     fun readInbox(ctx: Context, days: Int): Map<String, Any>? = null
-
-    fun diagnoseStores(ctx: Context): List<Map<String, Any?>>? = null
 }

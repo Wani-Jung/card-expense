@@ -20,30 +20,6 @@ class InboxScan {
   int get senderMatched => items.length - otherMatched;
 }
 
-/// (전용판) 메뉴 '문자 저장소 진단' 한 줄.
-class StoreDiagnosis {
-  final String uri;
-  final bool ok;
-  final int? count;
-  final List<String> columns;
-  final String? bodyColumn;
-  final int? cardMatched;
-  final String? error;
-  StoreDiagnosis.fromMap(Map m)
-      : uri = m['uri'] as String,
-        ok = m['ok'] == true,
-        count = (m['count'] as num?)?.toInt(),
-        columns = ((m['columns'] as List?) ?? []).cast<String>(),
-        bodyColumn = m['bodyColumn'] as String?,
-        cardMatched = (m['cardMatched'] as num?)?.toInt(),
-        error = m['error'] as String?;
-
-  String get summary => ok
-      ? '$uri\n  접근 가능 · ${count ?? 0}행 · 본문 컬럼 ${bodyColumn ?? '없음'} · 카드번호 일치 ${cardMatched ?? 0}건\n'
-          '  컬럼: ${columns.join(', ')}'
-      : '$uri\n  막힘 · $error';
-}
-
 class PermStatus {
   /// 알림 접근(메시지 앱 알림 읽기). 이 앱은 상태바 알림을 띄우지 않으므로 알림 표시 권한은 없다.
   final bool listener;
@@ -90,12 +66,6 @@ class Native {
       (m['otherScanned'] as num?)?.toInt() ?? 0,
       (m['otherMatched'] as num?)?.toInt() ?? 0,
     );
-  }
-
-  /// (전용판) 문자 저장소 진단. 일반판이거나 실패하면 null.
-  static Future<List<StoreDiagnosis>?> diagnoseStores() async {
-    final list = await _ch.invokeListMethod<Map>('diagnoseStores');
-    return list?.map(StoreDiagnosis.fromMap).toList();
   }
 
   /// 세로로 긴 캡처를 겹치게 잘라 캐시에 쓴 경로들. 짧으면 원본 경로 하나.
