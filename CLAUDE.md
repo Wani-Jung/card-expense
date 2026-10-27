@@ -1,7 +1,7 @@
-# 공감카드 정산 (card_expense)
+# 공감카드 관리 (card_expense)
 
 NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류하고 월별 수립/사용을 관리하는 안드로이드 전용 Flutter 앱. 서버 없음, 저장은 기기 로컬.
-사용자에게 보이는 이름은 '공감카드 정산'. applicationId(`com.wani.card_expense`)·패키지명·저장소 이름은 바꾸지 말 것 (덮어쓰기 설치·데이터 유지가 깨짐).
+사용자에게 보이는 이름은 '공감카드 관리' (`kAppName`, AndroidManifest label). applicationId(`com.wani.card_expense`)·패키지명·저장소 이름은 바꾸지 말 것 (덮어쓰기 설치·데이터 유지가 깨짐).
 
 ## 두 판 (Android product flavor `edition`)
 | 판 | flavor | Release 파일 | 문자 권한 |
@@ -25,8 +25,14 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - `lib/ingest.dart` — 들어온 문자 분류: 새 내역 / 진짜 중복(분류·대기 중) / 무시했던 문자(되살리기 가능) / 승인 문자 아님. 붙여넣기·공유·불러오기·캡처 공통
 - `lib/ocr_parse.dart`, `lib/ocr_screen.dart` — 문자 캡처 OCR (두 판 공통). 사진 선택기(저장소 권한 없음) → 긴 이미지는 `ImageSlicer.kt` 가 겹치게 잘라서 → ML Kit 한국어 → RCS 화면 글자 제거·숫자 오인식 보정 → 확인 화면. 이미지는 인식 후 바로 삭제
   - ML Kit 한국어 모델은 `android/app/build.gradle.kts` dependencies 에 직접 넣고, 안 쓰는 언어 클래스는 `proguard-rules.pro` 에서 dontwarn
-- `lib/diagnose_screen.dart` — (전용판) '문자 저장소 진단'. SMS/MMS + 삼성 RCS 후보 URI 접근 여부. 열리는 RCS 저장소는 1년치 불러오기에 포함
-- 무시한 내역은 지우지 않고 보관 (메인 맨 아래 접이식 섹션, 길게 눌러 완전 삭제). 분류·무시하면 5초 [되돌리기]
+- `lib/diagnose_screen.dart` — (전용판에만 메뉴 노출) '문자 저장소 진단'. SMS/MMS + 삼성 RCS 후보 URI 접근 여부. 열리는 RCS 저장소는 1년치 불러오기에 포함
+- 무시한 내역은 지우지 않고 보관 (메인 맨 아래 접이식 섹션). 분류·무시하면 5초 [되돌리기]
+- `lib/vendor.dart` — 차량비/운영비 추천. 우선순위: 자동 등록 업체(가맹점 이름 일치) > 직접 등록 키워드 > 기본 키워드(`kDefaultCarKeywords`, 첫 실행 때 목록에 들어가고 지울 수 있음). 키워드는 대소문자·공백·하이픈 무시
+  - 분류 대기에서 차량비/운영비를 고르면 같은 가맹점의 다른 대기 건 일괄 정리를 묻고(무시한 건은 제외), 그 가맹점을 자동 등록. [되돌리기] 한 번에 일괄 정리·자동 등록까지 전부 복구
+  - 추천 버튼은 진하게 + 작은 표시('추천' / '지난번 운영비'), 반대 버튼은 투명도 40%
+- `lib/menu_screen.dart` — 우측 상단 톱니 → 메뉴 화면 (내역 넣기 / 정산 / 업체 관리 / 설정 / 앱 정보 / 전용판만 '문자 저장소 진단')
+- `lib/vendor_screen.dart` — 메뉴 > 업체 관리 (키워드 추가·카테고리 변경·삭제, 자동 등록 업체 관리)
+- 이 앱은 상태바 알림을 띄우지 않는다 (POST_NOTIFICATIONS 없음). 감지한 문자는 조용히 분류 대기에 쌓이고, 업데이트 안내도 앱 안 다이얼로그로만
 - `lib/native.dart` — `card_expense/native` MethodChannel 래퍼
 - `lib/main.dart` — 화면 (설정, 분류 대기, 월별 수립/사용 표, 내역)
 - `android/.../CardSms.kt` — 알림 리스너·SMS 리시버 공용 처리: 판정, 중복 방지(금액+일시+취소 키), 네이티브 inbox 적재, 알림 표시
@@ -34,7 +40,7 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 지난 문자: 두 판 모두 메시지 앱 공유(ACTION_SEND/SEND_MULTIPLE → `takeShared`)·붙여넣기. 전용판은 추가로 SMS+MMS 1년치 조회(MMS date 는 초 단위, 발신번호는 addr type=137, 본문은 part ct=text/plain)
 
 앱이 꺼져 있을 때 들어온 문자는 네이티브 inbox 에 쌓였다가 앱이 켜지면 `drainInbox` 로 Dart 저장소로 옮겨진다.
-테스트: `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`
+테스트: `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
 
 ## 빌드 / 배포
 - `flutter test`, `flutter build apk --release --flavor public` / `--flavor full`

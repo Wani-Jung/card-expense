@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'budget.dart';
 import 'flavor.dart';
 import 'sms_parser.dart';
+import 'vendor.dart';
 
 /// 분류: null 이면 분류 대기.
 const kCar = 'car';
@@ -121,6 +122,16 @@ class Store {
   /// (전용판) 현재 설정으로 1년치 자동 불러오기를 했는지.
   bool get autoImported => _prefs.getBool(_kAutoImported) ?? false;
   Future<void> setAutoImported() => _prefs.setBool(_kAutoImported, true);
+
+  static const _kVendors = 'vendor_book_v1';
+
+  /// 업체 관리. 처음이면 기본 키워드가 들어간 상태로 시작한다.
+  VendorBook loadVendors() {
+    final s = _prefs.getString(_kVendors);
+    return s == null ? VendorBook.initial() : VendorBook.fromJson(jsonDecode(s) as Map<String, dynamic>);
+  }
+
+  Future<void> saveVendors(VendorBook v) => _prefs.setString(_kVendors, jsonEncode(v.toJson()));
 
   Budgets loadBudgets() {
     final s = _prefs.getString(_kBudgets);

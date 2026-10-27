@@ -8,4 +8,4 @@ bool get isFullEdition => appFlavor == 'full';
 
 String get editionLabel => isFullEdition ? '전용판' : '일반판';
 
-const kAppName = '공감카드 정산';
+const kAppName = '공감카드 관리';

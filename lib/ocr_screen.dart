@@ -11,6 +11,7 @@ import 'expense.dart';
 import 'native.dart';
 import 'ocr_parse.dart';
 import 'sms_parser.dart';
+import 'vendor.dart';
 
 /// 확인 화면에서 고른 결과.
 class OcrResult {
@@ -26,7 +27,10 @@ enum _Status { fresh, dup, ignored, invalid }
 class OcrScreen extends StatefulWidget {
   final String digits;
   final Map<String, Expense> existing;
-  const OcrScreen({super.key, required this.digits, required this.existing});
+
+  /// 가맹점 이름으로 차량비/운영비 추천.
+  final Recommendation? Function(String merchant) recommend;
+  const OcrScreen({super.key, required this.digits, required this.existing, required this.recommend});
 
   @override
   State<OcrScreen> createState() => _OcrScreenState();
@@ -275,6 +279,13 @@ class _OcrScreenState extends State<OcrScreen> {
                   decoration: BoxDecoration(border: Border.all(color: color), borderRadius: BorderRadius.circular(4)),
                   child: Text(label, style: TextStyle(fontSize: 12, color: color)),
                 ),
+                if (widget.recommend(c.merchant) case final r?) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    r.source == RecSource.learned ? r.badge : '${categoryLabel(r.category)} 추천',
+                    style: TextStyle(fontSize: 12, color: r.category == kCar ? const Color(0xFF2E7D32) : const Color(0xFF8D6E00)),
+                  ),
+                ],
                 if (c.isCancel) ...[
                   const SizedBox(width: 6),
                   const Text('승인취소', style: TextStyle(fontSize: 12, color: Colors.red)),

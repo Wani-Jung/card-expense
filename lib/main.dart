@@ -8,11 +8,14 @@ import 'diagnose_screen.dart';
 import 'expense.dart';
 import 'flavor.dart';
 import 'ingest.dart';
+import 'menu_screen.dart';
 import 'native.dart';
 import 'ocr_screen.dart';
 import 'paste_screen.dart';
 import 'sms_parser.dart';
 import 'update_check.dart';
+import 'vendor.dart';
+import 'vendor_screen.dart';
 
 const kCarColor = Color(0xFF2E7D32);
 const kOpsColor = Color(0xFFFFC107);
@@ -176,6 +179,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final List<Expense> _items = widget.store.loadItems();
   late final Budgets _budgets = widget.store.loadBudgets();
+  late final VendorBook _vendors = widget.store.loadVendors();
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   PermStatus _perms = const PermStatus();
   bool _importing = false;
@@ -217,7 +221,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _drain();
     await _takeShared();
     await _refreshPerms();
-    await Native.cancelNotifications();
   }
 
   Future<void> _refreshPerms() async {
@@ -343,30 +346,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _showResult('$source 문자', r, added);
   }
 
-  Future<void> _setCategory(Expense e, String? cat) async {
-    setState(() => e.category = cat);
-    await widget.store.saveItems(_items);
-  }
-
   /// 분류·무시·대기로 되돌리기. 잘못 눌러도 바로 복구할 수 있게 5초 동안 [되돌리기]를 띄운다.
-  Future<void> _classify(Expense e, String? cat) async {
-    final prev = e.category;
-    if (prev == cat) return;
-    await _setCategory(e, cat);
+  ///
+  /// [askBulk] (분류 대기에서 고를 때): 같은 가맹점의 다른 대기 건이 있으면 함께 정리할지 묻는다.
+  /// 차량비/운영비로 고르면 그 가맹점을 '등록 업체'로 기억한다.
+  /// [되돌리기] 한 번이면 같이 정리된 건과 등록 업체까지 전부 원래대로.
+  Future<void> _classify(Expense e, String? cat, {bool askBulk = false}) async {
+    if (e.category == cat) return;
+    final isChoice = cat == kCar || cat == kOps;
+    var targets = [e];
+    if (askBulk && isChoice) {
+      final others = sameVendorPending(_items, e);
+      if (others.isNotEmpty) {
+        final all = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            content: Text("'${e.merchant}' 대기 내역 ${others.length}건도 ${categoryLabel(cat!)}로 정리할까요?"),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('이번 건만')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('모두 정리')),
+            ],
+          ),
+        );
+        if (all == null) return; // 창 밖을 눌러 닫으면 아무것도 안 함
+        if (all) targets = [e, ...others];
+      }
+    }
+
+    final before = {for (final t in targets) t: t.category};
+    final learns = isChoice && e.merchant.trim().isNotEmpty;
+    final learnedBefore = learns ? _vendors.learn(e.merchant, cat!) : null;
+    setState(() {
+      for (final t in targets) {
+        t.category = cat;
+      }
+    });
+    await widget.store.saveItems(_items);
+    if (learns) await widget.store.saveVendors(_vendors);
     if (!mounted) return;
+
     final what = switch (cat) {
       kCar => '차량비로 분류했어요',
       kOps => '운영비로 분류했어요',
       kIgnored => '무시했어요',
       _ => '분류 대기로 되돌렸어요',
     };
+    final who = e.merchant.isEmpty ? won(e.signedAmount) : e.merchant;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
-        content: Text('${e.merchant.isEmpty ? won(e.signedAmount) : e.merchant} · $what'),
+        content: Text(targets.length > 1 ? '$who ${targets.length}건 · $what' : '$who · $what'),
         duration: const Duration(seconds: 5),
         persist: false,
-        action: SnackBarAction(label: '되돌리기', onPressed: () => _setCategory(e, prev)),
+        action: SnackBarAction(
+          label: '되돌리기',
+          onPressed: () async {
+            setState(() {
+              before.forEach((t, c) => t.category = c);
+              if (learns) _vendors.restore(e.merchant, learnedBefore);
+            });
+            await widget.store.saveItems(_items);
+            if (learns) await widget.store.saveVendors(_vendors);
+          },
+        ),
       ));
   }
 
@@ -424,12 +466,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (ctx) => AlertDialog(
         title: const Text('새로 불러온 문자가 없어요'),
         content: Text(
-          'SMS ${scan.smsScanned}건 · MMS ${scan.mmsScanned}건'
-          '${scan.otherScanned > 0 ? ' · 기타 저장소 ${scan.otherScanned}건' : ''} 검사\n'
-          '발신번호(${widget.sender}) 일치 ${scan.senderMatched}건\n'
-          '카드번호(${widget.digits}) 일치 $cardMatched건\n\n'
-          '${cardMatched > 0 ? '모두 이미 들어와 있는 내역이에요.' : '카드 문자가 RCS(알림 · 확인된 발신번호)로 왔다면 문자 저장소에 없을 수 있어요. '
-              '메뉴의 \'문자 캡처화면 업로드\'로 넣어주세요. (\'문자 저장소 진단\'으로 확인 가능)'}',
+          'SMS ${scan.smsScanned}건, MMS ${scan.mmsScanned}건'
+          '${scan.otherScanned > 0 ? ', 기타 저장소 ${scan.otherScanned}건' : ''} 검사\n'
+          '발신번호 일치 ${scan.senderMatched}건\n'
+          '카드번호 일치 $cardMatched건\n\n'
+          '${cardMatched > 0 ? '모두 이미 들어와 있는 내역이에요.' : '카드 문자가 RCS 기업메시지로 왔다면 문자 저장소에 없을 수 있어요. 메뉴에서 문자 캡처화면 업로드로 넣어주세요.'}',
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
       ),
@@ -483,6 +524,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (_) => PasteScreen(
         digits: widget.digits,
         classify: (text) => _classifyRaw(splitToRaw([text], DateTime.now())),
+        recommend: _vendors.recommend,
       ),
     ));
     if (res == null) return;
@@ -493,7 +535,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _openOcr() async {
     final res = await Navigator.of(context).push<OcrResult>(MaterialPageRoute(
-      builder: (_) => OcrScreen(digits: widget.digits, existing: _byId),
+      builder: (_) => OcrScreen(digits: widget.digits, existing: _byId, recommend: _vendors.recommend),
     ));
     if (res == null) return;
     final added = await _addParsed(res.add);
@@ -504,20 +546,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ].join(' · '));
   }
 
-  /// 무시한 내역 완전 삭제 (길게 눌렀을 때만).
-  Future<void> _deleteForever(Expense e) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (d) => AlertDialog(
-        title: const Text('완전 삭제할까요?'),
-        content: Text('${e.merchant} ${won(e.signedAmount)}\n같은 문자를 다시 넣으면 새 내역으로 들어와요.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('취소')),
-          TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('완전 삭제')),
-        ],
+  void _openMenu() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => MenuScreen(
+        monthLabel: '${_month.year}년 ${_month.month}월',
+        onImport: _importInbox,
+        onPaste: _openPaste,
+        onOcr: _openOcr,
+        onCopy: _copyMonth,
+        onVendors: _openVendors,
+        onSettings: _openSettings,
+        onListener: Native.openNotificationAccessSettings,
+        onUpdate: () => _checkUpdate(manual: true),
+        onDiagnose: () =>
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiagnoseScreen())),
       ),
-    );
-    if (ok == true) await _delete(e);
+    ));
+  }
+
+  void _openVendors() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => VendorScreen(
+        book: _vendors,
+        onChanged: () async {
+          await widget.store.saveVendors(_vendors);
+          if (mounted) setState(() {});
+        },
+      ),
+    ));
   }
 
   Future<void> _copyMonth() async {
@@ -585,40 +641,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('$kAppName · ${widget.digits}'),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              switch (v) {
-                case 'paste':
-                  _openPaste();
-                case 'ocr':
-                  _openOcr();
-                case 'import':
-                  _importInbox();
-                case 'diagnose':
-                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiagnoseScreen()));
-                case 'copy':
-                  _copyMonth();
-                case 'listener':
-                  Native.openNotificationAccessSettings();
-                case 'update':
-                  _checkUpdate(manual: true);
-                case 'settings':
-                  _openSettings();
-              }
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: 'paste', child: Text('문자 붙여넣기 (여러 건 가능)')),
-              const PopupMenuItem(value: 'ocr', child: Text('문자 캡처화면 업로드')),
-              if (isFullEdition) const PopupMenuItem(value: 'import', child: Text('지난 문자 1년치 불러오기')),
-              if (isFullEdition) const PopupMenuItem(value: 'diagnose', child: Text('문자 저장소 진단')),
-              const PopupMenuItem(value: 'copy', child: Text('이번 달 내역 복사 (정산용)')),
-              const PopupMenuItem(value: 'listener', child: Text('알림 접근 설정 열기')),
-              const PopupMenuItem(value: 'update', child: Text('업데이트 확인')),
-              const PopupMenuItem(value: 'settings', child: Text('설정 (카드번호·발신번호)')),
-            ],
+        centerTitle: true,
+        title: Text.rich(TextSpan(children: [
+          const TextSpan(text: kAppName),
+          TextSpan(
+            text: '  ${widget.digits}',
+            style: const TextStyle(
+                fontSize: 13, fontFamily: 'monospace', color: Colors.black45, fontWeight: FontWeight.normal),
           ),
+        ])),
+        actions: [
+          IconButton(icon: const Icon(Icons.settings_outlined), tooltip: '메뉴', onPressed: _openMenu),
         ],
       ),
       body: RefreshIndicator(
@@ -632,8 +665,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               for (final e in pending)
                 _PendingCard(
                   e: e,
-                  onCar: () => _classify(e, kCar),
-                  onOps: () => _classify(e, kOps),
+                  rec: _vendors.recommend(e.merchant),
+                  onCar: () => _classify(e, kCar, askBulk: true),
+                  onOps: () => _classify(e, kOps, askBulk: true),
                   onIgnore: () => _classify(e, kIgnored),
                 ),
               const SizedBox(height: 12),
@@ -662,10 +696,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               const SizedBox(height: 16),
               _IgnoredSection(
                 items: ignored,
+                recommend: _vendors.recommend,
                 onCar: (e) => _classify(e, kCar),
                 onOps: (e) => _classify(e, kOps),
                 onPending: (e) => _classify(e, null),
-                onDeleteForever: _deleteForever,
               ),
             ],
           ],
@@ -788,11 +822,9 @@ class _PermissionBanner extends StatelessWidget {
             Wrap(spacing: 8, runSpacing: 4, children: [
               if (perms.sms == false)
                 FilledButton.tonal(onPressed: Native.requestSmsPermission, child: const Text('문자 권한')),
-              if (!perms.notification)
-                FilledButton.tonal(onPressed: Native.requestNotificationPermission, child: const Text('알림 권한')),
               if (!perms.listener)
                 FilledButton.tonal(
-                    onPressed: Native.openNotificationAccessSettings, child: const Text('알림 접근')),
+                    onPressed: Native.openNotificationAccessSettings, child: const Text('알림 접근 켜기')),
             ]),
             TextButton(
               onPressed: Native.openAppSettings,
@@ -805,25 +837,81 @@ class _PermissionBanner extends StatelessWidget {
   }
 }
 
+/// 차량비/운영비 버튼. 추천이 있으면 추천 버튼에 작은 표시([badge])를 달고, 반대 버튼은 연하게([dim]).
+/// 연한 버튼도 누르는 건 그대로 된다.
 class _CategoryButton extends StatelessWidget {
   final String label;
   final Color bg;
   final Color fg;
   final VoidCallback onPressed;
-  const _CategoryButton({required this.label, required this.bg, required this.fg, required this.onPressed});
+  final bool dim;
+  final String? badge;
+  final bool small;
+  const _CategoryButton({
+    required this.label,
+    required this.bg,
+    required this.fg,
+    required this.onPressed,
+    this.dim = false,
+    this.badge,
+    this.small = false,
+  });
+
+  /// [rec] 기준으로 [category] 버튼을 만든다.
+  factory _CategoryButton.of(String category, Recommendation? rec, VoidCallback onPressed, {bool small = false}) {
+    final car = category == kCar;
+    return _CategoryButton(
+      label: categoryLabel(category),
+      bg: car ? kCarColor : kOpsColor,
+      fg: car ? Colors.white : kOpsText,
+      onPressed: onPressed,
+      dim: rec != null && rec.category != category,
+      badge: rec != null && rec.category == category ? rec.badge : null,
+      small: small,
+    );
+  }
 
   @override
-  Widget build(BuildContext context) => ElevatedButton(
+  Widget build(BuildContext context) {
+    final button = Opacity(
+      opacity: dim ? 0.4 : 1,
+      child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: bg,
           foregroundColor: fg,
-          minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          elevation: dim ? 0 : null,
+          minimumSize: small ? const Size(0, 30) : const Size.fromHeight(52),
+          padding: small ? const EdgeInsets.symmetric(horizontal: 10) : null,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(small ? 4 : 6)),
+          textStyle: TextStyle(fontSize: small ? 12 : 18, fontWeight: FontWeight.bold),
         ),
         onPressed: onPressed,
         child: Text(label),
-      );
+      ),
+    );
+    if (badge == null) return button;
+    final badgeColor = bg == kOpsColor ? kOpsText : bg;
+    return Stack(
+      clipBehavior: Clip.none,
+      fit: small ? StackFit.loose : StackFit.passthrough,
+      children: [
+        button,
+        Positioned(
+          top: small ? -9 : -10,
+          right: 4,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: badgeColor),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(badge!, style: TextStyle(fontSize: 10, color: badgeColor, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _RawBox extends StatelessWidget {
@@ -840,8 +928,15 @@ class _RawBox extends StatelessWidget {
 
 class _PendingCard extends StatelessWidget {
   final Expense e;
+  final Recommendation? rec;
   final VoidCallback onCar, onOps, onIgnore;
-  const _PendingCard({required this.e, required this.onCar, required this.onOps, required this.onIgnore});
+  const _PendingCard({
+    required this.e,
+    required this.rec,
+    required this.onCar,
+    required this.onOps,
+    required this.onIgnore,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -865,11 +960,11 @@ class _PendingCard extends StatelessWidget {
             Text(fmtDateTime(e.dateTime), style: const TextStyle(color: Colors.black54)),
             const SizedBox(height: 8),
             _RawBox(e.raw),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Row(children: [
-              Expanded(child: _CategoryButton(label: '차량비', bg: kCarColor, fg: Colors.white, onPressed: onCar)),
+              Expanded(child: _CategoryButton.of(kCar, rec, onCar)),
               const SizedBox(width: 8),
-              Expanded(child: _CategoryButton(label: '운영비', bg: kOpsColor, fg: kOpsText, onPressed: onOps)),
+              Expanded(child: _CategoryButton.of(kOps, rec, onOps)),
               const SizedBox(width: 4),
               TextButton(onPressed: onIgnore, child: const Text('무시')),
             ]),
@@ -982,33 +1077,18 @@ class _BudgetTable extends StatelessWidget {
   }
 }
 
-/// 맨 아래 '무시한 내역 (N건)'. 기본은 접힘. 지우지 않고 보관하다가 되살리거나 길게 눌러 완전 삭제.
+/// 맨 아래 '무시한 내역 (N건)'. 기본은 접힘. 지우지 않고 보관하다가 되살린다.
 class _IgnoredSection extends StatelessWidget {
   final List<Expense> items;
-  final void Function(Expense) onCar, onOps, onPending, onDeleteForever;
+  final Recommendation? Function(String merchant) recommend;
+  final void Function(Expense) onCar, onOps, onPending;
   const _IgnoredSection({
     required this.items,
+    required this.recommend,
     required this.onCar,
     required this.onOps,
     required this.onPending,
-    required this.onDeleteForever,
   });
-
-  Widget _small(String label, Color bg, Color fg, VoidCallback onPressed) => SizedBox(
-        height: 30,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: bg,
-            foregroundColor: fg,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            minimumSize: const Size(0, 30),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-          ),
-          onPressed: onPressed,
-          child: Text(label),
-        ),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -1016,27 +1096,26 @@ class _IgnoredSection extends StatelessWidget {
       color: const Color(0xFFFAFAFA),
       child: ExpansionTile(
         title: Text('무시한 내역 (${items.length}건)', style: const TextStyle(color: Colors.black54)),
-        subtitle: const Text('길게 누르면 완전 삭제', style: TextStyle(fontSize: 11, color: Colors.black38)),
         children: [
           for (final e in items)
-            InkWell(
-              onLongPress: () => onDeleteForever(e),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 12, 6),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(
-                      child: Text(
-                        '${fmtDateTime(e.dateTime)} · ${e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant}',
-                        style: const TextStyle(fontSize: 13),
-                      ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 12, 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(
+                    child: Text(
+                      '${fmtDateTime(e.dateTime)} · ${e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant}',
+                      style: const TextStyle(fontSize: 13),
                     ),
-                    Text(won(e.signedAmount), style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Wrap(spacing: 6, children: [
-                    _small('차량비', kCarColor, Colors.white, () => onCar(e)),
-                    _small('운영비', kOpsColor, kOpsText, () => onOps(e)),
+                  ),
+                  Text(won(e.signedAmount), style: const TextStyle(fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 8),
+                Builder(builder: (_) {
+                  final rec = recommend(e.merchant);
+                  return Wrap(spacing: 6, runSpacing: 10, children: [
+                    _CategoryButton.of(kCar, rec, () => onCar(e), small: true),
+                    _CategoryButton.of(kOps, rec, () => onOps(e), small: true),
                     SizedBox(
                       height: 30,
                       child: OutlinedButton(
@@ -1049,9 +1128,9 @@ class _IgnoredSection extends StatelessWidget {
                         child: const Text('대기로 되돌리기'),
                       ),
                     ),
-                  ]),
-                ]),
-              ),
+                  ]);
+                }),
+              ]),
             ),
         ],
       ),

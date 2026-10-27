@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'expense.dart';
 import 'ingest.dart';
 import 'sms_parser.dart';
+import 'vendor.dart';
 
 /// 붙여넣기 결과. Home 이 [report] 의 새 내역을 넣고, [revive] 면 무시했던 문자도 분류 대기로 돌린다.
 class PasteResult {
@@ -20,7 +21,10 @@ class PasteScreen extends StatefulWidget {
   /// 붙여넣은 텍스트를 한 건씩 나눠 새 내역/중복/무시했던 문자/승인 문자 아님으로 분류한다.
   final IngestReport Function(String text) classify;
 
-  const PasteScreen({super.key, required this.digits, required this.classify});
+  /// 가맹점 이름으로 차량비/운영비 추천.
+  final Recommendation? Function(String merchant) recommend;
+
+  const PasteScreen({super.key, required this.digits, required this.classify, required this.recommend});
 
   @override
   State<PasteScreen> createState() => _PasteScreenState();
@@ -107,7 +111,7 @@ class _PasteScreenState extends State<PasteScreen> with WidgetsBindingObserver {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (_clipText != null) _ClipPreview(found: _clipFound, onUse: () => _submit(_clipText!)),
+          if (_clipText != null) _ClipPreview(found: _clipFound, recommend: widget.recommend, onUse: () => _submit(_clipText!)),
           const Text(
             '메시지 앱에서 카드 문자를 길게 눌러 여러 개 선택 → 복사 → 여기에 붙여넣으면 한 번에 들어가요',
             style: TextStyle(color: Colors.black87),
@@ -136,10 +140,14 @@ class _PasteScreenState extends State<PasteScreen> with WidgetsBindingObserver {
   }
 }
 
+String _recText(Recommendation? r) =>
+    r == null ? '' : ' · ${r.source == RecSource.learned ? r.badge : '${categoryLabel(r.category)} 추천'}';
+
 class _ClipPreview extends StatelessWidget {
   final List<ParsedSms> found;
+  final Recommendation? Function(String merchant) recommend;
   final VoidCallback onUse;
-  const _ClipPreview({required this.found, required this.onUse});
+  const _ClipPreview({required this.found, required this.recommend, required this.onUse});
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +166,8 @@ class _ClipPreview extends StatelessWidget {
               Text(
                 '${two(p.dateTime.month)}/${two(p.dateTime.day)} ${two(p.dateTime.hour)}:${two(p.dateTime.minute)}'
                 ' · ${p.merchant.isEmpty ? '(가맹점 미상)' : p.merchant}'
-                ' · ${won(p.isCancel ? -p.amount : p.amount)}',
+                ' · ${won(p.isCancel ? -p.amount : p.amount)}'
+                '${_recText(recommend(p.merchant))}',
                 style: const TextStyle(fontSize: 13),
               ),
             if (found.length > maxLines)

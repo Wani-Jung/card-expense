@@ -1,11 +1,8 @@
 package com.wani.card_expense
 
-import android.app.NotificationManager
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
@@ -61,8 +58,7 @@ class MainActivity : FlutterActivity() {
                     shared.clear()
                 }
                 "permissionStatus" -> {
-                    val status = mutableMapOf(
-                        "notification" to notificationsAllowed(),
+                    val status = mutableMapOf<String, Boolean>(
                         "listener" to listenerEnabled(),
                     )
                     // 문자 권한은 전용판에만 있다. 일반판은 키 자체를 넣지 않는다.
@@ -112,24 +108,12 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
-                "requestNotificationPermission" -> {
-                    if (Build.VERSION.SDK_INT >= 33) {
-                        requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 2)
-                    } else {
-                        openAppSettings()
-                    }
-                    result.success(null)
-                }
                 "openNotificationAccessSettings" -> {
                     startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     result.success(null)
                 }
                 "openAppSettings" -> {
                     openAppSettings()
-                    result.success(null)
-                }
-                "cancelNotifications" -> {
-                    CardSms.cancelAll(this)
                     result.success(null)
                 }
                 else -> result.notImplemented()
@@ -146,11 +130,6 @@ class MainActivity : FlutterActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         channel?.invokeMethod("permissionsChanged", null)
-    }
-
-    private fun notificationsAllowed(): Boolean {
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        return nm.areNotificationsEnabled()
     }
 
     private fun listenerEnabled(): Boolean {

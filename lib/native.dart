@@ -45,13 +45,13 @@ class StoreDiagnosis {
 }
 
 class PermStatus {
-  final bool notification;
+  /// 알림 접근(메시지 앱 알림 읽기). 이 앱은 상태바 알림을 띄우지 않으므로 알림 표시 권한은 없다.
   final bool listener;
 
   /// 문자 권한. 일반판은 문자 권한이 아예 없어서 null.
   final bool? sms;
-  const PermStatus({this.notification = true, this.listener = true, this.sms});
-  bool get allOk => notification && listener && (sms ?? true);
+  const PermStatus({this.listener = true, this.sms});
+  bool get allOk => listener && (sms ?? true);
 }
 
 /// MainActivity.kt 와 주고받는 채널.
@@ -105,17 +105,13 @@ class Native {
   static Future<PermStatus> permissionStatus() async {
     final m = await _ch.invokeMapMethod<String, bool>('permissionStatus') ?? {};
     return PermStatus(
-      notification: m['notification'] ?? false,
       listener: m['listener'] ?? false,
       sms: m['sms'],
     );
   }
 
   static Future<void> requestSmsPermission() => _ch.invokeMethod('requestSmsPermission');
-  static Future<void> requestNotificationPermission() =>
-      _ch.invokeMethod('requestNotificationPermission');
   static Future<void> openNotificationAccessSettings() =>
       _ch.invokeMethod('openNotificationAccessSettings');
   static Future<void> openAppSettings() => _ch.invokeMethod('openAppSettings');
-  static Future<void> cancelNotifications() => _ch.invokeMethod('cancelNotifications');
 }
