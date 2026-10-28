@@ -191,15 +191,26 @@ void main() {
       expect(t, isNot(contains('계획 +')));
     });
 
-    test('정산 텍스트: 두 달 합산 보기면 합산 표도', () {
+    test('정산 텍스트: 합산 화면이면 합산 표 + 두 달 내역', () {
       final budgets = Budgets({})
         ..setTotal(DateTime(2026, 9), 500000)
         ..setCar(DateTime(2026, 9), 300000);
       final items = [_e(100000, kCar, DateTime(2026, 9, 2)), _e(200000, kCar, DateTime(2026, 10, 2))];
       final p = PeriodSummary.of(budgets, items, periodMonths(DateTime(2026, 10), PeriodMode.oddEven));
-      final t = settlementText(items, DateTime(2026, 10), '0000', budgets.forMonth(DateTime(2026, 10)), p);
-      expect(t, contains('■ 9~10월 합산 수립/사용 (단위: 만원)'));
+      final v = PeriodView(DateTime(2026, 9), combined: true);
+      final t = settlementText(
+          items, DateTime(2026, 9), '0000', budgets.forMonth(DateTime(2026, 9)), p, v.title(PeriodMode.oddEven));
+      expect(t, startsWith('[2026년 9~10월 합산 '));
+      expect(t, contains('■ 두 달 합산 수립/사용 (단위: 만원)'));
       expect(t, contains('차량비: 수립 60.00 / 사용 30.00 / 잔여 30.00'));
+      expect(t, contains('■ 차량비 2건 / 300,000원'));
+      expect(t, contains(' 09/02 '));
+      expect(t, contains(' 10/02 '));
+
+      // 월 화면에서는 그 달만
+      final m = settlementText(items, DateTime(2026, 10), '0000', budgets.forMonth(DateTime(2026, 10)));
+      expect(m, contains('■ 차량비 1건 / 200,000원'));
+      expect(m, contains('차량비: 수립 30.00 / 사용 20.00 / 잔여 10.00'));
     });
   });
 
@@ -220,7 +231,7 @@ void main() {
 
     test('1개월', () {
       expect(ms(2026, 9, PeriodMode.single), ['2026-9']);
-      expect(periodButtonLabel(DateTime(2026, 9), PeriodMode.single), '1개월');
+      expect(periodModeShort(PeriodMode.single), '1개월');
     });
 
     test('홀짝: (1·2)(3·4)…(11·12)', () {
@@ -228,7 +239,7 @@ void main() {
       expect(ms(2026, 10, PeriodMode.oddEven), ['2026-9', '2026-10']);
       expect(ms(2026, 1, PeriodMode.oddEven), ['2026-1', '2026-2']);
       expect(ms(2026, 12, PeriodMode.oddEven), ['2026-11', '2026-12']);
-      expect(periodButtonLabel(DateTime(2026, 10), PeriodMode.oddEven), '9~10월 합산');
+      expect(periodModeShort(PeriodMode.oddEven), '홀짝');
     });
 
     test('짝홀: (2·3)…(12·1), 연도 넘김', () {
@@ -236,7 +247,7 @@ void main() {
       expect(ms(2026, 11, PeriodMode.evenOdd), ['2026-10', '2026-11']);
       expect(ms(2026, 12, PeriodMode.evenOdd), ['2026-12', '2027-1']);
       expect(ms(2027, 1, PeriodMode.evenOdd), ['2026-12', '2027-1']);
-      expect(periodButtonLabel(DateTime(2027, 1), PeriodMode.evenOdd), '12~1월 합산');
+      expect(periodModeShort(PeriodMode.evenOdd), '짝홀');
     });
 
     test('합산: 수립·사용 더하기, 한 달이라도 수립이 비면 -', () {
@@ -255,6 +266,89 @@ void main() {
 
       final p2 = PeriodSummary.of(Budgets({}), items, periodMonths(DateTime(2026, 12), PeriodMode.evenOdd));
       expect(p2.budget.total, isNull);
+    });
+  });
+
+  group('◀ ▶ 넘김 순서', () {
+    /// [start] 에서 [dir] 방향으로 [n] 번 넘기며 제목을 모은다.
+    List<String> walk(PeriodView start, PeriodMode mode, int dir, int n) {
+      final out = <String>[];
+      var v = start;
+      for (var i = 0; i < n; i++) {
+        out.add(v.title(mode));
+        v = stepView(v, mode, dir);
+      }
+      return out;
+    }
+
+    test('1개월: 한 달씩, 연도 넘김', () {
+      expect(walk(PeriodView(DateTime(2026, 11)), PeriodMode.single, 1, 4),
+          ['2026년 11월', '2026년 12월', '2027년 1월', '2027년 2월']);
+      expect(walk(PeriodView(DateTime(2027, 1)), PeriodMode.single, -1, 2), ['2027년 1월', '2026년 12월']);
+    });
+
+    test('홀짝: 3월 → 4월 → 3~4월 합산 → 5월 → 6월 → 5~6월 합산', () {
+      expect(walk(PeriodView(DateTime(2026, 3)), PeriodMode.oddEven, 1, 7), [
+        '2026년 3월',
+        '2026년 4월',
+        '2026년 3~4월 합산',
+        '2026년 5월',
+        '2026년 6월',
+        '2026년 5~6월 합산',
+        '2026년 7월',
+      ]);
+    });
+
+    test('짝홀: 4월 → 5월 → 4~5월 합산 → 6월 → 7월 → 6~7월 합산', () {
+      expect(walk(PeriodView(DateTime(2026, 4)), PeriodMode.evenOdd, 1, 6), [
+        '2026년 4월',
+        '2026년 5월',
+        '2026년 4~5월 합산',
+        '2026년 6월',
+        '2026년 7월',
+        '2026년 6~7월 합산',
+      ]);
+    });
+
+    test('짝홀 연도 넘김: 11월 합산 → 12월 → 1월 → 12~1월 합산 → 2월', () {
+      expect(walk(PeriodView(DateTime(2026, 10), combined: true), PeriodMode.evenOdd, 1, 5), [
+        '2026년 10~11월 합산',
+        '2026년 12월',
+        '2027년 1월',
+        '2026년 12월~2027년 1월 합산',
+        '2027년 2월',
+      ]);
+    });
+
+    test('홀짝 연도 넘김: 11~12월 합산 → 1월', () {
+      expect(walk(PeriodView(DateTime(2026, 11), combined: true), PeriodMode.oddEven, 1, 2),
+          ['2026년 11~12월 합산', '2027년 1월']);
+    });
+
+    test('◀는 정확히 역순 (홀짝·짝홀, 연도 넘김 포함)', () {
+      for (final mode in [PeriodMode.oddEven, PeriodMode.evenOdd]) {
+        final start = PeriodView(DateTime(2026, 10));
+        final fwd = <PeriodView>[start];
+        for (var i = 0; i < 12; i++) {
+          fwd.add(stepView(fwd.last, mode, 1));
+        }
+        final back = <PeriodView>[fwd.last];
+        for (var i = 0; i < 12; i++) {
+          back.add(stepView(back.last, mode, -1));
+        }
+        expect(back.reversed.toList(), fwd, reason: '$mode');
+      }
+      // 첫째 달에서 ◀ 는 이전 묶음 합산
+      expect(stepView(PeriodView(DateTime(2027, 1)), PeriodMode.oddEven, -1),
+          PeriodView(DateTime(2026, 11), combined: true));
+      expect(stepView(PeriodView(DateTime(2027, 2)), PeriodMode.evenOdd, -1),
+          PeriodView(DateTime(2026, 12), combined: true));
+    });
+
+    test('합산 화면은 두 달, 월 화면은 그 달', () {
+      expect(PeriodView(DateTime(2026, 12), combined: true).months(PeriodMode.evenOdd),
+          [DateTime(2026, 12), DateTime(2027, 1)]);
+      expect(PeriodView(DateTime(2026, 4)).months(PeriodMode.oddEven), [DateTime(2026, 4)]);
     });
   });
 }

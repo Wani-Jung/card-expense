@@ -119,11 +119,54 @@ List<DateTime> periodMonths(DateTime month, PeriodMode mode) {
       : [DateTime(m.year, m.month - 1), m];
 }
 
-/// 버튼 글씨. "1개월" / "9~10월 합산" / "12~1월 합산"
-String periodButtonLabel(DateTime month, PeriodMode mode) {
-  if (mode == PeriodMode.single) return '1개월';
-  final ms = periodMonths(month, mode);
-  return '${ms.first.month}~${ms.last.month}월 합산';
+/// 버튼 글씨는 모드 이름만. 어느 기간인지는 위쪽 제목에서 보인다.
+String periodModeShort(PeriodMode m) => switch (m) {
+      PeriodMode.single => '1개월',
+      PeriodMode.oddEven => '홀짝',
+      PeriodMode.evenOdd => '짝홀',
+    };
+
+/// 메인 화면이 보고 있는 단계. 월 화면이면 그 달, 합산 화면이면 묶음의 첫째 달 + [combined].
+class PeriodView {
+  final DateTime month;
+  final bool combined;
+  PeriodView(DateTime month, {this.combined = false}) : month = DateTime(month.year, month.month);
+
+  /// 표·내역에 쓰는 달들 (합산이면 두 달)
+  List<DateTime> months(PeriodMode mode) => combined ? periodMonths(month, mode) : [month];
+
+  /// 위쪽 제목. "2026년 3월" / "2026년 3~4월 합산" / "2026년 12월~2027년 1월 합산"
+  String title(PeriodMode mode) {
+    final ms = months(mode);
+    if (ms.length == 1) return '${month.year}년 ${month.month}월';
+    final a = ms.first, b = ms.last;
+    return a.year == b.year
+        ? '${a.year}년 ${a.month}~${b.month}월 합산'
+        : '${a.year}년 ${a.month}월~${b.year}년 ${b.month}월 합산';
+  }
+
+  @override
+  bool operator ==(Object other) => other is PeriodView && other.month == month && other.combined == combined;
+  @override
+  int get hashCode => Object.hash(month, combined);
+  @override
+  String toString() => '${month.year}-${month.month}${combined ? '합산' : ''}';
+}
+
+/// ◀(-1) ▶(+1) 한 번 넘기기.
+/// 1개월: 한 달씩. 홀짝·짝홀: 묶음마다 [첫째 달] → [둘째 달] → [두 달 합산] → 다음 묶음 첫째 달, ◀는 정확히 역순.
+PeriodView stepView(PeriodView v, PeriodMode mode, int dir) {
+  final m = v.month;
+  if (mode == PeriodMode.single) return PeriodView(DateTime(m.year, m.month + dir));
+  final pair = periodMonths(m, mode);
+  final idx = v.combined ? 2 : (m == pair.first ? 0 : 1);
+  final next = idx + dir;
+  if (next == 0 || next == 1) return PeriodView(pair[next]);
+  if (next == 2) return PeriodView(pair.first, combined: true);
+  if (next == 3) return PeriodView(DateTime(pair.last.year, pair.last.month + 1)); // 다음 묶음 첫째 달
+  // next == -1: 이전 묶음 합산
+  final prev = periodMonths(DateTime(pair.first.year, pair.first.month - 1), mode);
+  return PeriodView(prev.first, combined: true);
 }
 
 /// 여러 달 합산 표. 한 달이라도 수립이 비어 있으면 그 칸은 null('-').
@@ -153,6 +196,4 @@ class PeriodSummary {
     return PeriodSummary(months, MonthBudget(total: sum((b) => b.total), car: sum((b) => b.car)), MonthUsage(car, ops));
   }
 
-  String get label =>
-      months.length == 1 ? '${months.first.month}월' : '${months.first.month}~${months.last.month}월 합산';
 }

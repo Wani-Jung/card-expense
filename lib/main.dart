@@ -243,8 +243,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final List<Expense> _items = widget.store.loadItems();
   late final Budgets _budgets = widget.store.loadBudgets();
   late final VendorBook _vendors = widget.store.loadVendors();
-  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
-  PeriodMode _period = PeriodMode.single; // 요약표 보기 기간. 앱을 켤 때마다 1개월
+  PeriodMode _period = PeriodMode.single; // 보기 기간. 앱을 켤 때마다 1개월
+  PeriodView _view = PeriodView(DateTime.now()); // 지금 보는 달 (홀짝·짝홀이면 두 달 합산 단계도)
+  DateTime get _month => _view.month;
   PermStatus _perms = const PermStatus();
   bool _importing = false;
 
@@ -613,7 +614,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _openMenu() {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => MenuScreen(
-        monthLabel: '${_month.year}년 ${_month.month}월',
+        monthLabel: _view.title(_period),
         onImport: _importInbox,
         onPaste: _openPaste,
         onOcr: _openOcr,
@@ -663,12 +664,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _copyMonth() async {
-    final period = _period == PeriodMode.single
-        ? null
-        : PeriodSummary.of(_budgets, _items, periodMonths(_month, _period));
-    final text = settlementText(_items, _month, widget.digits, _budgets.forMonth(_month), period);
+    // 월 화면이면 그 달, 합산 화면이면 두 달 합산 표 + 두 달 내역
+    final months = _view.months(_period);
+    final period = months.length > 1 ? PeriodSummary.of(_budgets, _items, months) : null;
+    final title = _view.title(_period);
+    final text = settlementText(_items, _month, widget.digits, _budgets.forMonth(_month), period, title);
     await Clipboard.setData(ClipboardData(text: text));
-    _toast('${_month.year}년 ${_month.month}월 내역을 복사했어요');
+    _toast('$title 내역을 복사했어요');
   }
 
   void _openSettings() {
@@ -721,12 +723,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final pending = _items.where((e) => e.category == null).toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+    // 월 화면이면 그 달, 합산 화면이면 두 달 (표·내역 모두)
+    final months = _view.months(_period);
+    final combined = months.length > 1;
     final monthItems = _items
-        .where((e) => e.inMonth(_month) && (e.category == kCar || e.category == kOps))
+        .where((e) => months.any(e.inMonth) && (e.category == kCar || e.category == kOps))
         .toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
-    // 요약표는 1개월 또는 지금 보는 달이 든 두 달 합산. 아래 내역은 보는 달만.
-    final period = PeriodSummary.of(_budgets, _items, periodMonths(_month, _period));
+    final period = PeriodSummary.of(_budgets, _items, months);
 
     return Scaffold(
       appBar: AppBar(
@@ -762,28 +766,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               const SizedBox(height: 12),
             ],
             _MonthHeader(
-              month: _month,
-              onPrev: () => setState(() => _month = DateTime(_month.year, _month.month - 1)),
-              onNext: () => setState(() => _month = DateTime(_month.year, _month.month + 1)),
+              title: _view.title(_period),
+              onPrev: () => setState(() => _view = stepView(_view, _period, -1)),
+              onNext: () => setState(() => _view = stepView(_view, _period, 1)),
             ),
             _BudgetTable(
               budget: period.budget,
               usage: period.usage,
               mode: _period,
-              modeLabel: periodButtonLabel(_month, _period),
-              onMode: (m) => setState(() => _period = m),
-              onEditTotal: () => _editBudget(
-                  '합계', _budgets.forMonth(_month).total, (w) => _budgets.setTotal(_month, w)),
-              onEditCar: () => _editBudget(
-                  '차량비', _budgets.forMonth(_month).car, (w) => _budgets.setCar(_month, w)),
+              modeLabel: periodModeShort(_period),
+              // 모드를 바꾸면 보고 있던 달의 월 화면부터
+              onMode: (m) => setState(() {
+                _period = m;
+                _view = PeriodView(_view.month);
+              }),
+              // 수립은 각 달 화면에서만 입력 (합산 화면은 연필도 숨김)
+              onEditTotal: combined
+                  ? null
+                  : () => _editBudget(
+                      '합계', _budgets.forMonth(_month).total, (w) => _budgets.setTotal(_month, w)),
+              onEditCar: combined
+                  ? null
+                  : () => _editBudget(
+                      '차량비', _budgets.forMonth(_month).car, (w) => _budgets.setCar(_month, w)),
             ),
             const SizedBox(height: 8),
             if (monthItems.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: Text('이 달 분류된 내역이 없어요', style: TextStyle(color: Colors.black45))),
+              Padding(
+                padding: const EdgeInsets.all(32),
+                child: Center(
+                    child: Text(combined ? '이 기간 분류된 내역이 없어요' : '이 달 분류된 내역이 없어요',
+                        style: const TextStyle(color: Colors.black45))),
               ),
-            for (final e in monthItems) _ExpenseTile(e: e, onTap: () => _editSheet(e)),
+            for (final (i, e) in monthItems.indexed) ...[
+              // 합산 화면: 달이 바뀌는 지점에 작은 구분선
+              if (combined && (i == 0 || monthItems[i - 1].dateTime.month != e.dateTime.month))
+                _MonthDivider(e.dateTime.month),
+              _ExpenseTile(e: e, onTap: () => _editSheet(e)),
+            ],
           ],
         ),
       ),
@@ -1058,19 +1078,39 @@ class _PendingCard extends StatelessWidget {
 }
 
 class _MonthHeader extends StatelessWidget {
-  final DateTime month;
+  final String title;
   final VoidCallback onPrev, onNext;
-  const _MonthHeader({required this.month, required this.onPrev, required this.onNext});
+  const _MonthHeader({required this.title, required this.onPrev, required this.onNext});
 
   @override
   Widget build(BuildContext context) => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(onPressed: onPrev, icon: const Icon(Icons.arrow_left, size: 36)),
-          Text('${month.year}년 ${month.month}월',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            ),
+          ),
           IconButton(onPressed: onNext, icon: const Icon(Icons.arrow_right, size: 36)),
         ],
+      );
+}
+
+/// 합산 화면 내역 목록에서 달이 바뀌는 지점의 작은 구분선.
+class _MonthDivider extends StatelessWidget {
+  final int month;
+  const _MonthDivider(this.month);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 10, 4, 2),
+        child: Row(children: [
+          Text('$month월', style: const TextStyle(fontSize: 12, color: kSubText, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 8),
+          const Expanded(child: Divider(height: 1)),
+        ]),
       );
 }
 
@@ -1082,7 +1122,7 @@ class _BudgetTable extends StatelessWidget {
   final PeriodMode mode;
   final String modeLabel;
   final ValueChanged<PeriodMode> onMode;
-  final VoidCallback onEditTotal, onEditCar;
+  final VoidCallback? onEditTotal, onEditCar; // null 이면 편집 불가 (합산 화면)
   const _BudgetTable({
     required this.budget,
     required this.usage,

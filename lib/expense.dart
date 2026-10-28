@@ -192,11 +192,14 @@ String fmtDateTime(DateTime d) =>
 
 /// 정산용 텍스트. 화면에서 보고 있는 달 기준. 맨 위에 수립/사용 표를 붙인다.
 /// [period] (두 달 합산 보기 중일 때): 합산 표도 함께 붙인다.
+///
+/// [period] 가 두 달이면 (합산 화면) 제목·표·내역 모두 두 달 합산 기준. [title] 은 화면 제목과 같게.
 String settlementText(List<Expense> items, DateTime month, String digits,
-    [MonthBudget budget = const MonthBudget(), PeriodSummary? period]) {
-  final inMonth = items.where((e) => e.inMonth(month)).toList()
+    [MonthBudget budget = const MonthBudget(), PeriodSummary? period, String? title]) {
+  final months = period != null && period.months.length > 1 ? period.months : [month];
+  final inMonth = items.where((e) => months.any(e.inMonth)).toList()
     ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
-  final b = StringBuffer('[${month.year}년 ${month.month}월 $kAppName] 카드 $digits\n');
+  final b = StringBuffer('[${title ?? '${month.year}년 ${month.month}월'} $kAppName] 카드 $digits\n');
   // 메신저에 붙여넣으면 칸이 안 맞으므로 줄 단위로 쓴다. 화면 표와 같은 기준.
   void table(String title, MonthBudget budget, MonthUsage usage) {
     String row(String label, int? plan, int used) {
@@ -214,8 +217,11 @@ String settlementText(List<Expense> items, DateTime month, String digits,
     b.writeln(' 운영비: 수립 ${manwonOrDash(ops)} / 사용 ${manwon(usage.ops)}');
   }
 
-  table('수립/사용', budget, MonthUsage.of(inMonth, month));
-  if (period != null && period.months.length > 1) table('${period.label} 수립/사용', period.budget, period.usage);
+  if (months.length > 1) {
+    table('두 달 합산 수립/사용', period!.budget, period.usage);
+  } else {
+    table('수립/사용', budget, MonthUsage.of(inMonth, month));
+  }
   var total = 0;
   for (final (cat, label) in [(kCar, '차량비'), (kOps, '운영비')]) {
     final list = inMonth.where((e) => e.category == cat).toList();
