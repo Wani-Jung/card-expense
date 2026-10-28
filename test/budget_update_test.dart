@@ -114,7 +114,8 @@ void main() {
     expect(t, contains('수립/사용 (단위: 만원)'));
     expect(t, contains('합계: 수립 50.00 / 사용 34.25 / 잔여 15.75'));
     expect(t, contains('차량비: 수립 30.00 / 사용 34.25 / 초과 4.25'));
-    expect(t, contains('운영비: 수립 20.00 / 사용 0.00 / 잔여 20.00'));
+    expect(t, contains('운영비: 수립 20.00 / 사용 0.00\n'));
+    expect(t, isNot(contains('운영비 계획')));
   });
 
   group('업데이트 버전 비교', () {
@@ -171,9 +172,99 @@ void main() {
       expect(remainingText(-35000), '초과 3.50');
     });
 
-    test('정산 텍스트: 수립이 없으면 잔여 -', () {
+    test('정산 텍스트: 수립이 없으면 잔여 -, 운영비는 잔여 생략', () {
       final t = settlementText([_e(10000, kOps, DateTime(2026, 7, 2))], DateTime(2026, 7), '0000');
-      expect(t, contains('운영비: 수립 - / 사용 1.00 / 잔여 -'));
+      expect(t, contains('합계: 수립 - / 사용 1.00 / 잔여 -'));
+      expect(t, contains('운영비: 수립 - / 사용 1.00\n'));
+    });
+
+    test('정산 텍스트: 운영비 계획 초과, 차량비 잔여 > 합계 잔여 참고', () {
+      final m = DateTime(2026, 7);
+      // 합계 50 / 차량비 30 → 운영비 20. 운영비 25 사용, 차량비 5 사용
+      final t = settlementText([
+        _e(250000, kOps, DateTime(2026, 7, 2)),
+        _e(50000, kCar, DateTime(2026, 7, 3)),
+      ], m, '0000', const MonthBudget(total: 500000, car: 300000));
+      expect(t, contains('운영비 계획 +5.00'));
+      expect(t, contains('차량비: 수립 30.00 / 사용 5.00 / 잔여 25.00 (합계 잔여 20.00)'));
+    });
+
+    test('정산 텍스트: 두 달 합산 보기면 합산 표도', () {
+      final budgets = Budgets({})
+        ..setTotal(DateTime(2026, 9), 500000)
+        ..setCar(DateTime(2026, 9), 300000);
+      final items = [_e(100000, kCar, DateTime(2026, 9, 2)), _e(200000, kCar, DateTime(2026, 10, 2))];
+      final p = PeriodSummary.of(budgets, items, periodMonths(DateTime(2026, 10), PeriodMode.oddEven));
+      final t = settlementText(items, DateTime(2026, 10), '0000', budgets.forMonth(DateTime(2026, 10)), p);
+      expect(t, contains('■ 9~10월 합산 수립/사용 (단위: 만원)'));
+      expect(t, contains('차량비: 수립 60.00 / 사용 30.00 / 잔여 30.00'));
+    });
+  });
+
+  group('합계·차량비 상태 3단계', () {
+    test('경계값 80% / 100%', () {
+      expect(budgetLevel(799999, 1000000), BudgetLevel.ok);
+      expect(budgetLevel(800000, 1000000), BudgetLevel.warn);
+      expect(budgetLevel(1000000, 1000000), BudgetLevel.warn);
+      expect(budgetLevel(1000001, 1000000), BudgetLevel.over);
+      expect(budgetLevel(5000000, null), BudgetLevel.ok);
+    });
+
+    test('차량비 잔여가 합계 잔여보다 클 때만 참고 문구', () {
+      expect(carRemainHint(200000, 250000), '합계 잔여 20.00');
+      expect(carRemainHint(-10000, 50000), '합계 초과 상태');
+      expect(carRemainHint(300000, 250000), isNull);
+      expect(carRemainHint(null, 250000), isNull);
+    });
+
+    test('운영비는 계획보다 더 썼을 때만 계획 +X.XX', () {
+      expect(opsOverText(200000, 250000), '계획 +5.00');
+      expect(opsOverText(200000, 200000), isNull);
+      expect(opsOverText(null, 250000), isNull);
+    });
+  });
+
+  group('보기 기간 묶음', () {
+    List<String> ms(int y, int m, PeriodMode mode) =>
+        periodMonths(DateTime(y, m), mode).map((d) => '${d.year}-${d.month}').toList();
+
+    test('1개월', () {
+      expect(ms(2026, 9, PeriodMode.single), ['2026-9']);
+      expect(periodButtonLabel(DateTime(2026, 9), PeriodMode.single), '1개월');
+    });
+
+    test('홀짝: (1·2)(3·4)…(11·12)', () {
+      expect(ms(2026, 9, PeriodMode.oddEven), ['2026-9', '2026-10']);
+      expect(ms(2026, 10, PeriodMode.oddEven), ['2026-9', '2026-10']);
+      expect(ms(2026, 1, PeriodMode.oddEven), ['2026-1', '2026-2']);
+      expect(ms(2026, 12, PeriodMode.oddEven), ['2026-11', '2026-12']);
+      expect(periodButtonLabel(DateTime(2026, 10), PeriodMode.oddEven), '9~10월 합산');
+    });
+
+    test('짝홀: (2·3)…(12·1), 연도 넘김', () {
+      expect(ms(2026, 10, PeriodMode.evenOdd), ['2026-10', '2026-11']);
+      expect(ms(2026, 11, PeriodMode.evenOdd), ['2026-10', '2026-11']);
+      expect(ms(2026, 12, PeriodMode.evenOdd), ['2026-12', '2027-1']);
+      expect(ms(2027, 1, PeriodMode.evenOdd), ['2026-12', '2027-1']);
+      expect(periodButtonLabel(DateTime(2027, 1), PeriodMode.evenOdd), '12~1월 합산');
+    });
+
+    test('합산: 수립·사용 더하기, 한 달이라도 수립이 비면 -', () {
+      final budgets = Budgets({})..setTotal(DateTime(2026, 12), 500000);
+      final items = [
+        _e(100000, kCar, DateTime(2026, 12, 5)),
+        _e(30000, kOps, DateTime(2027, 1, 3)),
+        _e(70000, kCar, DateTime(2026, 11, 3)), // 묶음 밖
+      ];
+      final p = PeriodSummary.of(budgets, items, periodMonths(DateTime(2026, 12), PeriodMode.evenOdd));
+      expect(p.budget.total, 1000000); // 1월은 12월 수립을 물려받음
+      expect(p.budget.car, isNull); // 차량비 수립은 비어 있음
+      expect(p.usage.car, 100000);
+      expect(p.usage.ops, 30000);
+      expect(remainingText(remaining(p.budget.car, p.usage.car)), '-');
+
+      final p2 = PeriodSummary.of(Budgets({}), items, periodMonths(DateTime(2026, 12), PeriodMode.evenOdd));
+      expect(p2.budget.total, isNull);
     });
   });
 }

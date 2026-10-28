@@ -244,6 +244,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final Budgets _budgets = widget.store.loadBudgets();
   late final VendorBook _vendors = widget.store.loadVendors();
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  PeriodMode _period = PeriodMode.single; // 요약표 보기 기간. 앱을 켤 때마다 1개월
   PermStatus _perms = const PermStatus();
   bool _importing = false;
 
@@ -662,7 +663,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _copyMonth() async {
-    final text = settlementText(_items, _month, widget.digits, _budgets.forMonth(_month));
+    final period = _period == PeriodMode.single
+        ? null
+        : PeriodSummary.of(_budgets, _items, periodMonths(_month, _period));
+    final text = settlementText(_items, _month, widget.digits, _budgets.forMonth(_month), period);
     await Clipboard.setData(ClipboardData(text: text));
     _toast('${_month.year}년 ${_month.month}월 내역을 복사했어요');
   }
@@ -721,6 +725,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .where((e) => e.inMonth(_month) && (e.category == kCar || e.category == kOps))
         .toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+    // 요약표는 1개월 또는 지금 보는 달이 든 두 달 합산. 아래 내역은 보는 달만.
+    final period = PeriodSummary.of(_budgets, _items, periodMonths(_month, _period));
 
     return Scaffold(
       appBar: AppBar(
@@ -761,8 +767,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               onNext: () => setState(() => _month = DateTime(_month.year, _month.month + 1)),
             ),
             _BudgetTable(
-              budget: _budgets.forMonth(_month),
-              usage: MonthUsage.of(monthItems, _month),
+              budget: period.budget,
+              usage: period.usage,
+              mode: _period,
+              modeLabel: periodButtonLabel(_month, _period),
+              onMode: (m) => setState(() => _period = m),
               onEditTotal: () => _editBudget(
                   '합계', _budgets.forMonth(_month).total, (w) => _budgets.setTotal(_month, w)),
               onEditCar: () => _editBudget(
@@ -1065,24 +1074,39 @@ class _MonthHeader extends StatelessWidget {
       );
 }
 
-/// 수립/사용/잔여 표 (단위: 만원). 합계·차량비 수립은 터치해서 입력(연필 표시), 운영비 수립은 자동 계산.
+/// 수립/사용/잔여 표 (단위: 만원, 참고용). 합계·차량비 수립은 터치해서 입력(연필 표시), 운영비 수립은 자동 계산.
+/// 합계·차량비는 여유/주의(80%~)/초과 3단계로 색을 바꾸고, 운영비는 경고 없이 계획보다 더 썼을 때만 작게 알린다.
 class _BudgetTable extends StatelessWidget {
   final MonthBudget budget;
   final MonthUsage usage;
+  final PeriodMode mode;
+  final String modeLabel;
+  final ValueChanged<PeriodMode> onMode;
   final VoidCallback onEditTotal, onEditCar;
   const _BudgetTable({
     required this.budget,
     required this.usage,
+    required this.mode,
+    required this.modeLabel,
+    required this.onMode,
     required this.onEditTotal,
     required this.onEditCar,
   });
 
   static const _carTitleBg = Color(0xFFF4FAF4);
   static const _opsTitleBg = Color(0xFFFFFCF2);
+  static const _warn = Color(0xFFE67E22);
+
+  static Color? _levelColor(BudgetLevel l) => switch (l) {
+        BudgetLevel.ok => null,
+        BudgetLevel.warn => _warn,
+        BudgetLevel.over => kOverText,
+      };
 
   /// 표 칸. 높이를 고정해 둬야 행이 접히지 않는다. 수립 칸은 [onTap] 으로 터치 입력.
+  /// [sub] 는 숫자 아래 작은 회색 참고 문구.
   Widget _cell(String text,
-      {Color? bg, Color? fg, bool bold = false, double size = 16, VoidCallback? onTap}) {
+      {Color? bg, Color? fg, bool bold = false, double size = 16, String? sub, VoidCallback? onTap}) {
     Widget child = Container(
       color: bg,
       constraints: const BoxConstraints(minHeight: 48),
@@ -1090,8 +1114,12 @@ class _BudgetTable extends StatelessWidget {
       alignment: Alignment.center,
       child: FittedBox(
         fit: BoxFit.scaleDown,
-        child: Text(text,
-            style: TextStyle(fontSize: size, color: fg, fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (text.isNotEmpty)
+            Text(text,
+                style: TextStyle(fontSize: size, color: fg, fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
+          if (sub != null) Text(sub, style: const TextStyle(fontSize: 11, color: kSubText)),
+        ]),
       ),
     );
     if (onTap == null) return child;
@@ -1103,33 +1131,59 @@ class _BudgetTable extends StatelessWidget {
     return InkWell(onTap: onTap, child: child);
   }
 
-  /// 잔여 칸. 가장 눈에 띄게. 초과면 [strong] 일 때만 빨갛게, 아니면 회색 글자만.
-  Widget _remain(int? plan, int used, {required bool strong}) {
-    final rem = remaining(plan, used);
-    final over = rem != null && rem < 0;
+  /// 합계·차량비 잔여 칸. 가장 눈에 띄게.
+  Widget _remain(int? plan, int used, {String? sub}) {
+    final level = budgetLevel(used, plan);
     return _cell(
-      remainingText(rem),
-      bg: over && strong ? kOverBg : kGoldLight,
-      fg: over ? (strong ? kOverText : kSubText) : kText,
+      remainingText(remaining(plan, used)),
+      bg: level == BudgetLevel.over ? kOverBg : kGoldLight,
+      fg: _levelColor(level) ?? kText,
       bold: true,
       size: 18,
+      sub: sub,
     );
   }
 
+  Widget _modeButton(BuildContext context) => PopupMenuButton<PeriodMode>(
+        initialValue: mode,
+        onSelected: onMode,
+        tooltip: '보기 기간',
+        position: PopupMenuPosition.under,
+        itemBuilder: (_) => [
+          for (final m in PeriodMode.values)
+            PopupMenuItem(
+              value: m,
+              height: 40,
+              child: Row(children: [
+                SizedBox(width: 24, child: m == mode ? const Icon(Icons.check, size: 18) : null),
+                Text(periodModeLabel(m), style: const TextStyle(fontSize: 14)),
+              ]),
+            ),
+        ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Text('$modeLabel ▾',
+              style: const TextStyle(fontSize: 13, color: kText, fontWeight: FontWeight.w600)),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    final totalOver = isOverBudget(usage.total, budget.total);
-    final carOver = isOverBudget(usage.car, budget.car);
-    // 잔여 칸이 바로 옆에서 초과를 크게 보여 주므로 사용 칸은 글씨색만
-    Widget used(int won, bool over) => _cell(manwon(won), fg: over ? kOverText : null);
+    final totalRem = remaining(budget.total, usage.total);
+    final carRem = remaining(budget.car, usage.car);
+    final opsPlan = budget.opsInvalid ? null : budget.ops;
+    final opsOver = opsOverText(opsPlan, usage.ops);
+    Widget used(int won, int? plan) => _cell(manwon(won), fg: _levelColor(budgetLevel(won, plan)));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(bottom: 4, right: 2),
-          child: Text('(단위: 만원)', style: TextStyle(fontSize: 12, color: kSubText)),
-        ),
+        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          const Text('(단위: 만원)', style: TextStyle(fontSize: 12, color: kSubText)),
+          const SizedBox(width: 4),
+          _modeButton(context),
+        ]),
+        const SizedBox(height: 2),
         Table(
           border: TableBorder.all(color: kLine, borderRadius: BorderRadius.circular(6)),
           columnWidths: const {
@@ -1149,14 +1203,14 @@ class _BudgetTable extends StatelessWidget {
             TableRow(children: [
               _cell('합계', bg: kSubBg, bold: true),
               _cell(manwonOrDash(budget.total), onTap: onEditTotal),
-              used(usage.total, totalOver),
-              _remain(budget.total, usage.total, strong: true),
+              used(usage.total, budget.total),
+              _remain(budget.total, usage.total),
             ]),
             TableRow(children: [
               _cell('차량비', bg: _carTitleBg, fg: kCarColor, bold: true),
               _cell(manwonOrDash(budget.car), onTap: onEditCar),
-              used(usage.car, carOver),
-              _remain(budget.car, usage.car, strong: true),
+              used(usage.car, budget.car),
+              _remain(budget.car, usage.car, sub: carRemainHint(totalRem, carRem)),
             ]),
             TableRow(children: [
               _cell('운영비', bg: _opsTitleBg, fg: kOpsText, bold: true),
@@ -1165,8 +1219,9 @@ class _BudgetTable extends StatelessWidget {
                   bg: budget.opsInvalid ? kOverBg : null,
                   fg: budget.opsInvalid ? kOverText : kSubText,
                   bold: budget.opsInvalid),
-              used(usage.ops, false), // 운영비는 초과 표시 안 함
-              _remain(budget.opsInvalid ? null : budget.ops, usage.ops, strong: false),
+              _cell(manwon(usage.ops)), // 운영비는 항상 기본색
+              // 무시해도 되는 빈칸. 계획보다 더 썼을 때만 작은 회색 글씨
+              _cell('', bg: Colors.white, sub: opsOver),
             ]),
           ],
         ),
