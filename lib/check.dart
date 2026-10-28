@@ -18,13 +18,28 @@ class CheckIssue {
   final Expense e;
   final String reason;
 
-  /// 중복 의심 묶음 (자기 포함). [이대로 맞아요] 하면 묶음 전체를 다시 안 보여준다.
+  /// 중복 의심 묶음 (시간순, 자기 포함). 중복 의심은 묶음 하나가 카드 하나이고 [e] 는 가장 늦은 건.
   final List<Expense> group;
   CheckIssue(this.rule, this.e, this.reason, [List<Expense>? group]) : group = group ?? [e];
 
-  /// '이대로 맞아요'·배너 닫기 기억용 키
-  String get key => '${rule.name}|${e.id}';
+  /// '이대로 맞아요'·배너 닫기 기억용 키. 중복 의심은 묶음 전체 id.
+  String get key =>
+      rule == CheckRule.duplicate ? '${rule.name}|${group.map((g) => g.id).join('+')}' : '${rule.name}|${e.id}';
 }
+
+/// 중복 의심 쌍 키 (순서 무관). [둘 다 맞아요]·[중복 아님 · 되살리기] 하면 이 쌍은 다시 안 묶는다.
+String dupPairKey(String a, String b) {
+  final ids = [a, b]..sort();
+  return 'dup|${ids[0]}|${ids[1]}';
+}
+
+/// [이대로 맞아요]/[둘 다 맞아요] 할 때 check_ok 에 넣을 키
+List<String> okKeysFor(CheckIssue i) => i.rule == CheckRule.duplicate
+    ? [
+        for (var x = 0; x < i.group.length; x++)
+          for (var y = x + 1; y < i.group.length; y++) dupPairKey(i.group[x].id, i.group[y].id),
+      ]
+    : [i.key];
 
 const _dupWindow = Duration(minutes: 10);
 
@@ -85,13 +100,21 @@ List<CheckIssue> findIssues(
   for (final list in sameKey.values) {
     if (list.length < 2) continue;
     list.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    // 맞다고 한 쌍(v1.12 까지는 건마다 'duplicate|id')은 빼고, 남은 쌍에 걸린 건만 묶음으로
+    bool okPair(Expense a, Expense b) =>
+        okKeys.contains(dupPairKey(a.id, b.id)) ||
+        (okKeys.contains('duplicate|${a.id}') && okKeys.contains('duplicate|${b.id}'));
     var cluster = <Expense>[list.first];
     void flush() {
       if (cluster.length < 2) return;
-      final g = List.of(cluster);
-      for (final e in g) {
-        out.add(CheckIssue(CheckRule.duplicate, e, '같은 결제가 두 번 들어온 것 같아요 (${g.length}건)', g));
-      }
+      final g = [
+        for (final e in cluster)
+          if (cluster.any((o) =>
+              o != e && (o.dateTime.difference(e.dateTime)).abs() <= _dupWindow && !okPair(e, o)))
+            e,
+      ];
+      if (g.length < 2) return;
+      out.add(CheckIssue(CheckRule.duplicate, g.last, '같은 결제가 ${g.length}번 들어온 것 같아요', g));
     }
 
     for (final e in list.skip(1)) {

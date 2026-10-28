@@ -4,7 +4,7 @@ import 'expense.dart';
 import 'layout.dart';
 import 'vendor.dart';
 
-/// 메뉴 > 무시한 내역. 지우지 않고 보관하던 문자를 다시 분류하거나 대기로 되돌린다.
+/// 메뉴 > 무시한 내역. 지우지 않고 보관하던 문자를 사유별로 보여 주고 다시 분류하거나 대기로 되돌린다.
 /// 되살린 건은 목록에서 빠지고 메인의 월별 내역/분류 대기로 간다.
 class IgnoredScreen extends StatefulWidget {
   final List<Expense> items;
@@ -12,6 +12,9 @@ class IgnoredScreen extends StatefulWidget {
 
   /// 카테고리 변경 + 저장 (메인 화면 상태를 같이 바꾼다)
   final Future<void> Function(Expense e, String? category) onChange;
+
+  /// 중복으로 무시한 건 [중복 아님 · 되살리기]: 분류 대기로, 그 쌍은 다시 중복 의심에 안 뜨게
+  final Future<void> Function(Expense e) onReviveDuplicate;
 
   /// 메인과 같은 차량비/운영비 버튼 (추천 강조 포함)
   final Widget Function(Recommendation? rec, VoidCallback onPressed) carButton, opsButton;
@@ -21,6 +24,7 @@ class IgnoredScreen extends StatefulWidget {
     required this.items,
     required this.recommend,
     required this.onChange,
+    required this.onReviveDuplicate,
     required this.carButton,
     required this.opsButton,
   });
@@ -30,67 +34,111 @@ class IgnoredScreen extends StatefulWidget {
 }
 
 class _IgnoredScreenState extends State<IgnoredScreen> {
+  void _snack(Expense e, String what) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text('${e.merchant.isEmpty ? won(e.signedAmount) : e.merchant} · $what')));
+
   Future<void> _set(Expense e, String? cat) async {
     await widget.onChange(e, cat);
     if (!mounted) return;
     setState(() {});
-    final what = switch (cat) {
+    _snack(e, switch (cat) {
       kCar => '차량비로 분류했어요',
       kOps => '운영비로 분류했어요',
       _ => '분류 대기로 되돌렸어요',
-    };
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('${e.merchant.isEmpty ? won(e.signedAmount) : e.merchant} · $what')));
+    });
+  }
+
+  Future<void> _revive(Expense e) async {
+    await widget.onReviveDuplicate(e);
+    if (!mounted) return;
+    setState(() {});
+    _snack(e, '분류 대기로 되살렸어요');
+  }
+
+  Widget _outlined(String label, VoidCallback onPressed) => SizedBox(
+        height: 30,
+        child: OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            minimumSize: const Size(0, 30),
+            textStyle: const TextStyle(fontSize: 12),
+          ),
+          onPressed: onPressed,
+          child: Text(label),
+        ),
+      );
+
+  /// "원본 12.08 13:23 (차량비)"
+  String _originalText(Expense e) {
+    final o = widget.items.where((x) => x.id == e.dupOf).firstOrNull;
+    if (o == null) return '원본 없음';
+    final d = o.dateTime;
+    final cat = o.category == kCar || o.category == kOps ? categoryLabel(o.category!) : '분류 대기';
+    return '원본 ${two(d.month)}.${two(d.day)} ${two(d.hour)}:${two(d.minute)} ($cat)';
+  }
+
+  Widget _tile(Expense e) {
+    final dup = e.ignoredAsDuplicate;
+    final rec = dup ? null : widget.recommend(e.merchant);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text(
+              '${fmtDateTime(e.dateTime)} · ${e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant}',
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+          Text(won(e.signedAmount), style: const TextStyle(fontWeight: FontWeight.bold)),
+        ]),
+        if (dup)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('중복이라 무시함 · ${_originalText(e)}',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
+          ),
+        const SizedBox(height: 10),
+        Wrap(spacing: 6, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          if (dup)
+            _outlined('중복 아님 · 되살리기', () => _revive(e))
+          else ...[
+            widget.carButton(rec, () => _set(e, kCar)),
+            widget.opsButton(rec, () => _set(e, kOps)),
+            _outlined('대기로 되돌리기', () => _set(e, null)),
+          ],
+        ]),
+      ]),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final items = widget.items.where((e) => e.category == kIgnored).toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+    final manual = items.where((e) => !e.ignoredAsDuplicate).toList();
+    final dups = items.where((e) => e.ignoredAsDuplicate).toList();
+    Widget header(String t) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 2),
+          child: Text(t, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        );
     return Scaffold(
       appBar: AppBar(title: Text('무시한 내역 (${items.length}건)')),
       body: items.isEmpty
           ? const Center(child: Text('무시한 내역이 없어요', style: TextStyle(color: Colors.black45)))
-          : ListView.separated(
-              padding: EdgeInsets.only(top: 4, bottom: listBottomPad(context)),
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final e = items[i];
-                final rec = widget.recommend(e.merchant);
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 12, 12),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Expanded(
-                        child: Text(
-                          '${fmtDateTime(e.dateTime)} · ${e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant}',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ),
-                      Text(won(e.signedAmount), style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ]),
-                    const SizedBox(height: 10),
-                    Wrap(spacing: 6, runSpacing: 10, children: [
-                      widget.carButton(rec, () => _set(e, kCar)),
-                      widget.opsButton(rec, () => _set(e, kOps)),
-                      SizedBox(
-                        height: 30,
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            minimumSize: const Size(0, 30),
-                            textStyle: const TextStyle(fontSize: 12),
-                          ),
-                          onPressed: () => _set(e, null),
-                          child: const Text('대기로 되돌리기'),
-                        ),
-                      ),
-                    ]),
-                  ]),
-                );
-              },
+          : ListView(
+              padding: EdgeInsets.only(bottom: listBottomPad(context)),
+              children: [
+                for (final (title, list) in [('직접 무시', manual), ('중복으로 무시', dups)])
+                  if (list.isNotEmpty) ...[
+                    header('$title (${list.length}건)'),
+                    for (final (i, e) in list.indexed) ...[
+                      if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16),
+                      _tile(e),
+                    ],
+                  ],
+              ],
             ),
     );
   }

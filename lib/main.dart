@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'budget.dart';
+import 'category_badge.dart';
 import 'check.dart';
 import 'expense.dart';
 import 'flavor.dart';
@@ -20,9 +21,6 @@ import 'update_check.dart';
 import 'vendor.dart';
 import 'vendor_screen.dart';
 
-const kCarColor = Color(0xFF2E7D32);
-const kOpsColor = Color(0xFFFFC107);
-const kOpsText = Color(0xFF4E2A00); // 노랑 위에서 잘 읽히는 진한 갈색
 const kOverBg = Color(0xFFFFEBEE);
 const kOverText = Color(0xFFC62828);
 const kGold = Color(0xFFF0A500); // 앱 아이콘 골드 (포인트 컬러)
@@ -169,13 +167,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     const label = TextStyle(fontSize: 17, fontWeight: FontWeight.bold);
     return Scaffold(
-      appBar: AppBar(title: const Text('설정')),
+      appBar: AppBar(title: const Text('카드 문자 설정')),
       body: ListView(
         padding: EdgeInsets.fromLTRB(24, 24, 24, listBottomPad(context)),
         children: [
-          const Text('수신 문자에 적힌 카드번호 네자리를 입력해주세요', style: label),
+          const Text('카드번호 네자리', style: label),
           const SizedBox(height: 4),
-          const Text('예) "NH기업0000승인" 이면 0000', style: TextStyle(color: Colors.black54)),
+          const Text('승인 문자에 적힌 카드번호 네자리 (예: "NH기업0000승인" 이면 0000)',
+              style: TextStyle(color: Colors.black54)),
           const SizedBox(height: 12),
           TextField(
             controller: _digits,
@@ -189,9 +188,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 16),
-          const Text('카드 승인 문자를 보내는 번호를 입력해주세요', style: label),
-          const SizedBox(height: 4),
-          const Text('NH농협카드는 보통 1588-1600 이에요', style: TextStyle(color: Colors.black54)),
+          Row(children: [
+            const Expanded(child: Text('발신번호', style: label)),
+            TextButton(
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+              onPressed: () => setState(() => _sender.text = kDefaultSender),
+              child: const Text('기본값으로'),
+            ),
+          ]),
+          const Text('카드 승인 문자를 보내는 번호 (기본값 $kDefaultSender)', style: TextStyle(color: Colors.black54)),
           const SizedBox(height: 12),
           TextField(
             controller: _sender,
@@ -213,17 +218,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }
                 : null,
             child: const Text('저장', style: TextStyle(fontSize: 18)),
-          ),
-          const SizedBox(height: 32),
-          FutureBuilder<PackageInfo>(
-            future: PackageInfo.fromPlatform(),
-            builder: (_, snap) => Column(children: [
-              const Text('제작자: wani',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: kText)),
-              const SizedBox(height: 2),
-              Text(snap.hasData ? 'v${snap.data!.version}' : '',
-                  style: const TextStyle(fontSize: 13, color: kSubText)),
-            ]),
           ),
         ],
       ),
@@ -442,7 +436,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// [askBulk] (분류 대기에서 고를 때): 같은 가맹점의 다른 대기 건이 있으면 함께 정리할지 묻는다.
   /// 차량비/운영비로 고르면 그 가맹점을 '등록 업체'로 기억한다.
   /// [되돌리기] 한 번이면 같이 정리된 건과 등록 업체까지 전부 원래대로.
-  Future<void> _classify(Expense e, String? cat, {bool askBulk = false}) async {
+  ///
+  /// 무시하면 사유도 저장한다 ([dupOf] 가 있으면 '중복', 없으면 '직접 무시'). 무시를 풀면 사유를 지운다.
+  Future<void> _classify(Expense e, String? cat, {bool askBulk = false, String? dupOf}) async {
     if (e.category == cat) return;
     final isChoice = cat == kCar || cat == kOps;
     var targets = [e];
@@ -464,12 +460,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
 
-    final before = {for (final t in targets) t: t.category};
+    final before = {for (final t in targets) t: (t.category, t.ignoreReason, t.dupOf)};
     final learns = isChoice && e.merchant.trim().isNotEmpty;
     final learnedBefore = learns ? _vendors.learn(e.merchant, cat!) : null;
     setState(() {
       for (final t in targets) {
-        t.category = cat;
+        _setCategory(t, cat, dupOf: dupOf);
       }
     });
     await widget.store.saveItems(_items);
@@ -493,7 +489,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           label: '되돌리기',
           onPressed: () async {
             setState(() {
-              before.forEach((t, c) => t.category = c);
+              before.forEach((t, b) {
+                t
+                  ..category = b.$1
+                  ..ignoreReason = b.$2
+                  ..dupOf = b.$3;
+              });
               if (learns) _vendors.restore(e.merchant, learnedBefore);
             });
             await widget.store.saveItems(_items);
@@ -501,6 +502,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           },
         ),
       ));
+  }
+
+  /// 카테고리 바꾸기 + 무시 사유 정리
+  void _setCategory(Expense t, String? cat, {String? dupOf}) {
+    t.category = cat;
+    t.ignoreReason = cat == kIgnored ? (dupOf != null ? kIgnoreDuplicate : kIgnoreManual) : null;
+    t.dupOf = cat == kIgnored ? dupOf : null;
   }
 
   Future<void> _delete(Expense e) async {
@@ -647,6 +655,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onCopy: _copyMonth,
         onVendors: _openVendors,
         onSettings: _openSettings,
+        cardSummary: () => '카드 ${widget.digits} · 발신 ${widget.sender}',
         onListener: Native.openNotificationAccessSettings,
         onUpdate: () => _checkUpdate(manual: true),
         counts: () => (
@@ -681,9 +690,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           issues: () => _issues,
           changes: _changes,
           onChange: (e, cat) => _classify(e, cat),
+          onIgnoreDuplicate: (e, original) => _classify(e, kIgnored, dupOf: original.id),
           onOk: (i) async {
-            // 중복 의심은 묶음 전체를 맞다고 기억
-            await widget.store.addCheckOk([for (final g in i.group) '${i.rule.name}|${g.id}']);
+            // 중복 의심은 묶음 안 쌍을 전부 맞다고 기억
+            await widget.store.addCheckOk(okKeysFor(i));
             if (mounted) setState(() {});
           },
           button: _smallButton,
@@ -697,13 +707,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         items: _items,
         recommend: _vendors.recommend,
         onChange: (e, cat) async {
-          setState(() => e.category = cat);
+          setState(() => _setCategory(e, cat));
           await widget.store.saveItems(_items);
           // 메인에서 고를 때처럼 그 가맹점을 등록 업체로 기억
           if ((cat == kCar || cat == kOps) && e.merchant.trim().isNotEmpty) {
             _vendors.learn(e.merchant, cat!);
             await widget.store.saveVendors(_vendors);
           }
+        },
+        onReviveDuplicate: (e) async {
+          // 되살린 쌍은 다시 중복 의심에 안 뜨게
+          if (e.dupOf != null) await widget.store.addCheckOk([dupPairKey(e.id, e.dupOf!)]);
+          setState(() => _setCategory(e, null));
+          await widget.store.saveItems(_items);
         },
         carButton: (rec, onPressed) => _CategoryButton.of(kCar, rec, onPressed, small: true),
         opsButton: (rec, onPressed) => _CategoryButton.of(kOps, rec, onPressed, small: true),
@@ -734,15 +750,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _toast('$title 내역을 복사했어요');
   }
 
-  void _openSettings() {
-    Navigator.of(context).push(MaterialPageRoute(
+  Future<void> _openSettings() => Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => SettingsScreen(
         initialDigits: widget.digits,
         initialSender: widget.sender,
         onSaved: widget.onSaveSettings,
       ),
     ));
-  }
 
   /// 수립 입력 (만원 단위, 소수점 가능). 빈칸으로 저장하면 지운다.
   Future<void> _editBudget(String label, int? current, void Function(int?) apply) async {
@@ -1070,10 +1084,22 @@ class _CategoryButton extends StatelessWidget {
           textStyle: TextStyle(fontSize: small ? 12 : 18, fontWeight: FontWeight.bold),
         ),
         onPressed: onPressed,
-        child: Text(label),
+        child: small && badge != null
+            ? Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(label),
+                const SizedBox(width: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)),
+                  child: Text(badge!,
+                      style: TextStyle(
+                          fontSize: 10, color: bg == kOpsColor ? kOpsText : bg, fontWeight: FontWeight.bold)),
+                ),
+              ])
+            : Text(label),
       ),
     );
-    if (badge == null) return button;
+    if (badge == null || small) return button;
     final badgeColor = bg == kOpsColor ? kOpsText : bg;
     return Stack(
       clipBehavior: Clip.none,
@@ -1480,23 +1506,12 @@ class _ExpenseTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, bg, fg) = switch (e.category) {
-      kCar => ('차량', kCarColor, Colors.white),
-      kOps => ('운영', kOpsColor, kOpsText),
-      _ => ('무시', Colors.black12, Colors.black54),
-    };
     final ignored = e.category == kIgnored;
     final d = e.dateTime;
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Container(
-        width: 44,
-        height: 32,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
-        child: Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.bold)),
-      ),
+      leading: CategoryBadge(e.category),
       title: Text(
         e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant,
         style: TextStyle(color: ignored ? Colors.black38 : null),

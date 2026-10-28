@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'category_badge.dart';
 import 'expense.dart';
 import 'layout.dart';
 import 'vendor.dart';
@@ -65,19 +66,71 @@ class _VendorScreenState extends State<VendorScreen> {
     await _changed();
   }
 
-  Widget _categoryChip(String cat, VoidCallback onToggle) {
-    final car = cat == kCar;
-    return ActionChip(
-      label: Text(categoryLabel(cat)),
-      labelStyle: TextStyle(color: car ? Colors.white : const Color(0xFF4E2A00), fontWeight: FontWeight.bold),
-      backgroundColor: car ? const Color(0xFF2E7D32) : const Color(0xFFFFC107),
-      side: BorderSide.none,
-      tooltip: '눌러서 바꾸기',
-      onPressed: onToggle,
+  /// 행을 누르면 여는 작은 바텀시트: 이름 + [차량비] [운영비] (현재 값 체크) + [저장]
+  Future<void> _pickCategory(String name, String current, Future<void> Function(String cat) apply) async {
+    var cat = current;
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, listBottomPad(ctx, extra: 8)),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: kCar, label: Text('차량비')),
+                ButtonSegment(value: kOps, label: Text('운영비')),
+              ],
+              selected: {cat},
+              onSelectionChanged: (v) => setLocal(() => cat = v.first),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              onPressed: () => Navigator.pop(ctx, cat),
+              child: const Text('저장'),
+            ),
+          ]),
+        ),
+      ),
     );
+    if (picked == null || picked == current) return;
+    await apply(picked);
+    await _changed();
   }
 
-  String _other(String cat) => cat == kCar ? kOps : kCar;
+  /// 삭제 전 확인 "'이름'을 목록에서 뺄까요?"
+  Future<void> _confirmRemove(String name, VoidCallback remove) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text("'$name'${_objectParticle(name)} 목록에서 뺄까요?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('빼기')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    remove();
+    await _changed();
+  }
+
+  /// [배지] 이름 (회색 설명) ………… [휴지통]. 카테고리는 행을 눌러서만 바꾼다.
+  Widget _row(String name, String cat, String? sub,
+          {required Future<void> Function(String cat) onCategory, required VoidCallback onRemove}) =>
+      ListTile(
+        leading: CategoryBadge(cat),
+        title: Text(name),
+        subtitle: sub == null ? null : Text(sub, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+        onTap: () => _pickCategory(name, cat, onCategory),
+        trailing: IconButton(
+          icon: const Icon(Icons.delete_outline),
+          tooltip: '삭제',
+          onPressed: () => _confirmRemove(name, onRemove),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +152,8 @@ class _VendorScreenState extends State<VendorScreen> {
         label: const Text('추가'),
       ),
       body: ListView(
-        padding: EdgeInsets.only(bottom: listBottomPad(context, extra: 96)),
+        // '+ 추가' 버튼(높이 56 + 아래 여백 16)에 마지막 항목이 가리지 않게
+        padding: EdgeInsets.only(bottom: listBottomPad(context, extra: 56 + 16 + 32)),
         children: [
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -110,48 +164,29 @@ class _VendorScreenState extends State<VendorScreen> {
           if (keywords.isEmpty)
             const ListTile(title: Text('등록된 키워드가 없어요', style: TextStyle(color: Colors.black45))),
           for (final k in List.of(keywords))
-            ListTile(
-              title: Text(k.keyword),
-              subtitle: k.isDefault ? const Text('기본 키워드', style: TextStyle(fontSize: 12)) : null,
-              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                _categoryChip(k.category, () async {
+            _row(k.keyword, k.category, k.isDefault ? '기본 키워드' : null,
+                onCategory: (cat) async {
                   final i = keywords.indexOf(k);
-                  if (i >= 0) keywords[i] = k.withCategory(_other(k.category));
-                  await _changed();
-                }),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: '삭제',
-                  onPressed: () async {
-                    keywords.remove(k);
-                    await _changed();
-                  },
-                ),
-              ]),
-            ),
+                  if (i >= 0) keywords[i] = k.withCategory(cat);
+                },
+                onRemove: () => keywords.remove(k)),
           header('자동 등록된 업체', '분류할 때 고른 카테고리를 기억해요. 같은 가맹점이 또 오면 추천해요'),
           if (learned.isEmpty)
             const ListTile(title: Text('아직 없어요', style: TextStyle(color: Colors.black45))),
           for (final entry in learned)
-            ListTile(
-              title: Text(entry.value.name),
-              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                _categoryChip(entry.value.category, () async {
-                  _book.learned[entry.key] = LearnedVendor(entry.value.name, _other(entry.value.category));
-                  await _changed();
-                }),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: '삭제',
-                  onPressed: () async {
-                    _book.learned.remove(entry.key);
-                    await _changed();
-                  },
-                ),
-              ]),
-            ),
+            _row(entry.value.name, entry.value.category, null,
+                onCategory: (cat) async => _book.learned[entry.key] = LearnedVendor(entry.value.name, cat),
+                onRemove: () => _book.learned.remove(entry.key)),
         ],
       ),
     );
   }
+}
+
+/// 목적격 조사: 받침 있으면 '을', 없으면 '를'. 한글로 안 끝나면 '을(를)'.
+String _objectParticle(String word) {
+  if (word.isEmpty) return '을(를)';
+  final c = word.runes.last;
+  if (c < 0xAC00 || c > 0xD7A3) return '을(를)';
+  return (c - 0xAC00) % 28 == 0 ? '를' : '을';
 }

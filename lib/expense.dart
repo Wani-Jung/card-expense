@@ -12,6 +12,10 @@ const kCar = 'car';
 const kOps = 'ops';
 const kIgnored = 'ignored';
 
+/// 무시 사유: 직접 무시(분류 대기·미분류의 [무시]) / 중복(확인 필요의 [하나 무시])
+const kIgnoreManual = 'manual';
+const kIgnoreDuplicate = 'duplicate';
+
 class Expense {
   final String id;
   final int amount;
@@ -21,6 +25,12 @@ class Expense {
   final String raw;
   String? category;
 
+  /// 무시한 이유 (category == kIgnored 일 때만). null 이면 '직접 무시'로 본다 (예전 데이터 포함).
+  String? ignoreReason;
+
+  /// '중복'으로 무시했을 때 남겨 둔 원본 내역 id
+  String? dupOf;
+
   Expense({
     required this.id,
     required this.amount,
@@ -29,7 +39,12 @@ class Expense {
     required this.isCancel,
     required this.raw,
     this.category,
+    this.ignoreReason,
+    this.dupOf,
   });
+
+  /// 확인 필요 > 중복 의심의 [하나 무시]로 무시한 건
+  bool get ignoredAsDuplicate => category == kIgnored && ignoreReason == kIgnoreDuplicate;
 
   factory Expense.fromParsed(ParsedSms p) => Expense(
         id: p.id,
@@ -54,6 +69,8 @@ class Expense {
         'isCancel': isCancel,
         'raw': raw,
         'category': category,
+        if (ignoreReason != null) 'ignoreReason': ignoreReason,
+        if (dupOf != null) 'dupOf': dupOf,
       };
 
   factory Expense.fromJson(Map<String, dynamic> j) => Expense(
@@ -64,6 +81,8 @@ class Expense {
         isCancel: j['isCancel'] as bool? ?? false,
         raw: j['raw'] as String? ?? '',
         category: j['category'] as String?,
+        ignoreReason: j['ignoreReason'] as String?,
+        dupOf: j['dupOf'] as String?,
       );
 }
 

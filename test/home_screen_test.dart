@@ -1,5 +1,6 @@
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/main.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -72,6 +73,22 @@ void main() {
       expect(find.text(t), findsOneWidget);
     }
     expect(find.text('0건'), findsNWidgets(3));
+    // 설정은 카드 문자 설정 하나 (저장된 값 표시), 앱 정보 맨 아래 제작자
+    expect(find.text('카드번호 변경'), findsNothing);
+    expect(find.text('발신번호 변경'), findsNothing);
+    await tester.drag(find.byType(ListView), const Offset(0, -2000));
+    await tester.pumpAndSettle();
+    expect(find.text('카드 0000 · 발신 1588-1600'), findsOneWidget);
+    expect(find.text('제작자'), findsOneWidget);
+    expect(find.text('wani'), findsOneWidget);
+    await tester.tap(find.text('카드 문자 설정'));
+    await tester.pumpAndSettle();
+    expect(find.text('기본값으로'), findsOneWidget);
+    expect(find.textContaining('제작자'), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, 2000));
+    await tester.pumpAndSettle();
     for (final (t, empty) in [
       ('미분류 내역', '미분류 내역이 없어요'),
       ('확인 필요 내역', '확인이 필요한 내역이 없어요'),

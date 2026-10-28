@@ -81,15 +81,47 @@ void main() {
   });
 
   group('c. 중복 의심', () {
-    test('같은 가맹점·금액 10분 이내 2건 → 둘 다, 묶음 포함', () {
-      final items = [
-        _e('편의점', kOps, DateTime(2026, 10, 1, 9, 0)),
-        _e('편의점', kOps, DateTime(2026, 10, 1, 9, 10)),
-      ];
-      final c = _of(_find(items), CheckRule.duplicate);
-      expect(c, hasLength(2));
-      expect(c.first.reason, contains('같은 결제가 두 번 들어온 것 같아요'));
-      expect(c.first.group, hasLength(2));
+    test('같은 가맹점·금액 10분 이내 2건 → 카드 하나, 묶음은 시간순, 대표는 늦은 건', () {
+      final a = _e('편의점', kOps, DateTime(2026, 10, 1, 9, 0));
+      final b = _e('편의점', kOps, DateTime(2026, 10, 1, 9, 10));
+      final c = _of(_find([b, a]), CheckRule.duplicate);
+      expect(c, hasLength(1));
+      expect(c.single.reason, contains('같은 결제가 2번 들어온 것 같아요'));
+      expect(c.single.group, [a, b]);
+      expect(c.single.e, b);
+    });
+
+    test('둘 다 맞아요(쌍 기억) 하면 다시 안 묶음, 예전 건별 키도 인정', () {
+      final a = _e('편의점', kOps, DateTime(2026, 10, 1, 9, 0));
+      final b = _e('편의점', kOps, DateTime(2026, 10, 1, 9, 5));
+      final issue = _of(_find([a, b]), CheckRule.duplicate).single;
+      expect(okKeysFor(issue), [dupPairKey(a.id, b.id)]);
+      expect(_of(_find([a, b], ok: okKeysFor(issue).toSet()), CheckRule.duplicate), isEmpty);
+      expect(_of(_find([a, b], ok: {'duplicate|${a.id}', 'duplicate|${b.id}'}), CheckRule.duplicate), isEmpty);
+      // 맞다고 한 쌍에 세 번째 건이 오면 새 쌍만큼은 다시 묶음
+      final c = _e('편의점', kOps, DateTime(2026, 10, 1, 9, 8));
+      final again = _of(_find([a, b, c], ok: okKeysFor(issue).toSet()), CheckRule.duplicate);
+      expect(again.single.group, [a, b, c]);
+    });
+
+    test('중복으로 무시 → 되살리면(쌍 기억 + 분류) 다시 중복 의심에 안 뜸', () {
+      final a = _e('편의점', kCar, DateTime(2026, 10, 1, 9, 0));
+      final b = _e('편의점', kCar, DateTime(2026, 10, 1, 9, 3));
+      // 하나 무시: 늦은 건을 '중복'으로, 원본 = 이른 건
+      b
+        ..category = kIgnored
+        ..ignoreReason = kIgnoreDuplicate
+        ..dupOf = a.id;
+      expect(b.ignoredAsDuplicate, isTrue);
+      expect(_of(_find([a, b]), CheckRule.duplicate), isEmpty);
+      // 되살리기 후 다시 차량비로 분류
+      final ok = {dupPairKey(b.id, b.dupOf!)};
+      b
+        ..category = kCar
+        ..ignoreReason = null
+        ..dupOf = null;
+      expect(_of(_find([a, b], ok: ok), CheckRule.duplicate), isEmpty);
+      expect(_of(_find([a, b]), CheckRule.duplicate), hasLength(1));
     });
 
     test('10분 넘게 차이·금액 다름·무시한 건은 아님', () {

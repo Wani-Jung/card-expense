@@ -8,7 +8,11 @@ import 'layout.dart';
 /// 내역 넣기·정산·업데이트 확인은 메뉴를 닫고 메인 화면에서 실행해 결과가 메인에 보이게 한다.
 class MenuScreen extends StatefulWidget {
   final String monthLabel;
-  final VoidCallback onImport, onPaste, onOcr, onCopy, onVendors, onSettings, onListener, onUpdate;
+  final VoidCallback onImport, onPaste, onOcr, onCopy, onVendors, onListener, onUpdate;
+
+  /// 카드 문자 설정 (카드번호·발신번호). 저장하고 돌아오면 설명의 현재 값을 다시 읽는다.
+  final Future<void> Function() onSettings;
+  final String Function() cardSummary;
 
   /// 내역 관리 건수 (미분류, 확인 필요, 무시한). 각 화면에서 돌아오면 다시 센다.
   final ({int pending, int check, int ignored}) Function() counts;
@@ -23,6 +27,7 @@ class MenuScreen extends StatefulWidget {
     required this.onCopy,
     required this.onVendors,
     required this.onSettings,
+    required this.cardSummary,
     required this.onListener,
     required this.onUpdate,
     required this.counts,
@@ -102,8 +107,7 @@ class _MenuScreenState extends State<MenuScreen> {
           section('업체 관리'),
           item(Icons.storefront, '등록 업체·추천 키워드', '가맹점 이름으로 차량비/운영비를 추천해요', w.onVendors),
           section('설정'),
-          item(Icons.credit_card, '카드번호 변경', '승인 문자에 적힌 카드번호 네자리', w.onSettings),
-          item(Icons.phone, '발신번호 변경', '카드 승인 문자를 보내는 번호', w.onSettings),
+          item(Icons.credit_card, '카드 문자 설정', w.cardSummary(), openThen(w.onSettings)),
           item(Icons.notifications_active_outlined, '알림 접근 설정', '메시지 앱 알림에서 승인 문자를 자동으로 찾아요',
               w.onListener),
           section('앱 정보'),
@@ -117,6 +121,7 @@ class _MenuScreenState extends State<MenuScreen> {
               null,
             ),
           ),
+          item(Icons.person_outline, '제작자', 'wani', null),
         ],
       ),
     );

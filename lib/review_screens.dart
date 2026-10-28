@@ -114,6 +114,9 @@ class CheckScreen extends StatelessWidget {
   final Listenable changes;
   final Future<void> Function(Expense e, String category) onChange;
   final Future<void> Function(CheckIssue issue) onOk;
+
+  /// 중복 의심 [하나 무시]: [e] 를 '중복' 사유로 무시, 원본은 [original]
+  final Future<void> Function(Expense e, Expense original) onIgnoreDuplicate;
   final CategoryButtonBuilder button;
 
   const CheckScreen({
@@ -122,6 +125,7 @@ class CheckScreen extends StatelessWidget {
     required this.changes,
     required this.onChange,
     required this.onOk,
+    required this.onIgnoreDuplicate,
     required this.button,
   });
 
@@ -153,6 +157,7 @@ class CheckScreen extends StatelessWidget {
       );
 
   Widget _card(CheckIssue i) {
+    if (i.rule == CheckRule.duplicate) return _duplicateCard(i);
     final e = i.e;
     final to = oppositeCategory(e);
     return Card(
@@ -168,7 +173,45 @@ class CheckScreen extends StatelessWidget {
           Wrap(spacing: 6, runSpacing: 10, children: [
             _smallOutlined('이대로 맞아요', () => onOk(i)),
             button(to, null, () => onChange(e, to), label: '${categoryLabel(to)}로 변경'),
-            if (i.rule == CheckRule.duplicate) _smallOutlined('하나 무시', () => onChange(e, kIgnored)),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  /// 중복 의심: 묶음 하나를 카드 하나로 (시간 나란히). 카테고리 변경 버튼 없음.
+  Widget _duplicateCard(CheckIssue i) {
+    final first = i.group.first;
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Text(first.merchant.isEmpty ? '(가맹점 미상)' : first.merchant,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+            Text(first.isCancel ? '승인취소 ${won(first.signedAmount)}' : won(first.amount),
+                style: TextStyle(fontWeight: FontWeight.bold, color: first.isCancel ? Colors.red : null)),
+          ]),
+          const SizedBox(height: 6),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final g in i.group)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: const Color(0xFFF1F3F4), borderRadius: BorderRadius.circular(6)),
+                child: Text('${fmtDateTime(g.dateTime)} · ${categoryLabel(g.category!)}',
+                    style: const TextStyle(fontSize: 12)),
+              ),
+          ]),
+          const SizedBox(height: 4),
+          Text(i.reason, style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
+          const SizedBox(height: 10),
+          Wrap(spacing: 6, runSpacing: 10, children: [
+            _smallOutlined('둘 다 맞아요', () => onOk(i)),
+            // 가장 늦은 건을 무시, 원본은 가장 이른 건
+            _smallOutlined('하나 무시', () => onIgnoreDuplicate(i.group.last, first)),
           ]),
         ]),
       ),
