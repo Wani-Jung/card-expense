@@ -8,6 +8,7 @@ import 'expense.dart';
 import 'flavor.dart';
 import 'ignored_screen.dart';
 import 'ingest.dart';
+import 'layout.dart';
 import 'menu_screen.dart';
 import 'native.dart';
 import 'ocr_screen.dart';
@@ -86,6 +87,15 @@ ThemeData buildTheme() {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 하단 내비게이션 바 뒤까지 그리고(투명), 목록 끝 여백은 listBottomPad 로 확보한다.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.dark,
+    systemNavigationBarContrastEnforced: false,
+  ));
   final store = await Store.open();
   await store.migrate();
   runApp(CardExpenseApp(store: store));
@@ -159,7 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
       body: ListView(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.viewPaddingOf(context).bottom + 24),
+        padding: EdgeInsets.fromLTRB(24, 24, 24, listBottomPad(context)),
         children: [
           const Text('수신 문자에 적힌 카드번호 네자리를 입력해주세요', style: label),
           const SizedBox(height: 4),
@@ -750,7 +760,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       body: RefreshIndicator(
         onRefresh: _onResume,
         child: ListView(
-          padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.viewPaddingOf(context).bottom + 24),
+          padding: EdgeInsets.fromLTRB(12, 8, 12, listBottomPad(context)),
           children: [
             if (!_perms.allOk) _PermissionBanner(perms: _perms),
             if (pending.isNotEmpty) ...[
@@ -765,6 +775,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               const SizedBox(height: 12),
             ],
+            _MonthStrip(
+              year: _month.year,
+              selected: months,
+              pair: _period == PeriodMode.single ? const [] : periodMonths(_month, _period),
+              // 숫자를 누르면 그 달의 월 화면으로
+              onPick: (m) => setState(() => _view = PeriodView(DateTime(_month.year, m))),
+            ),
             _MonthHeader(
               title: _view.title(_period),
               onPrev: () => setState(() => _view = stepView(_view, _period, -1)),
@@ -1082,20 +1099,107 @@ class _MonthHeader extends StatelessWidget {
   final VoidCallback onPrev, onNext;
   const _MonthHeader({required this.title, required this.onPrev, required this.onNext});
 
+  /// ◀ ▶ 는 좌우 끝 고정(48×48). 제목 길이가 바뀌어도 화살표는 안 움직이고, 길면 글자만 줄어든다.
   @override
-  Widget build(BuildContext context) => Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(onPressed: onPrev, icon: const Icon(Icons.arrow_left, size: 36)),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            ),
+  Widget build(BuildContext context) {
+    Widget arrow(IconData icon, VoidCallback onPressed, String tip) => SizedBox(
+          width: 48,
+          height: 48,
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            tooltip: tip,
+            onPressed: onPressed,
+            icon: Icon(icon, size: 36),
           ),
-          IconButton(onPressed: onNext, icon: const Icon(Icons.arrow_right, size: 36)),
-        ],
+        );
+    return Row(children: [
+      arrow(Icons.arrow_left, onPrev, '이전'),
+      Expanded(
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(title,
+                maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ),
+      arrow(Icons.arrow_right, onNext, '다음'),
+    ]);
+  }
+}
+
+/// 월 진행 표시줄 (1~12). 보는 달은 골드 동그라미, 홀짝·짝홀 묶음은 연회색 캡슐,
+/// 오늘이 속한 실제 이번 달은 숫자 아래 점, 지난 달은 진한 회색·안 온 달은 연한 회색.
+class _MonthStrip extends StatelessWidget {
+  final int year;
+  final List<DateTime> selected; // 골드 동그라미 (합산 화면이면 두 달)
+  final List<DateTime> pair; // 연회색 캡슐 (홀짝·짝홀 묶음)
+  final ValueChanged<int> onPick;
+  const _MonthStrip({required this.year, required this.selected, required this.pair, required this.onPick});
+
+  static const _capsule = Color(0xFFEDEDED);
+  static const _future = Color(0xFFBDBDBD);
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    bool inYear(DateTime d, int m) => d.year == year && d.month == m;
+    final inPair = [for (var m = 1; m <= 12; m++) pair.any((d) => inYear(d, m))];
+
+    Widget cell(int m) {
+      final isSel = selected.any((d) => inYear(d, m));
+      final isNow = now.year == year && now.month == m;
+      final past = year < now.year || (year == now.year && m <= now.month);
+      // 캡슐: 묶음 안에서 왼쪽 끝·오른쪽 끝만 둥글게 (연도를 넘는 묶음은 이 해에 한 달만 보이므로 양쪽 둥글게)
+      BorderRadius? radius;
+      if (inPair[m - 1]) {
+        final left = m == 1 || !inPair[m - 2];
+        final right = m == 12 || !inPair[m];
+        radius = BorderRadius.horizontal(
+          left: left ? const Radius.circular(15) : Radius.zero,
+          right: right ? const Radius.circular(15) : Radius.zero,
+        );
+      }
+      return Expanded(
+        child: InkWell(
+          onTap: () => onPick(m),
+          customBorder: const CircleBorder(),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              height: 30,
+              decoration: radius == null ? null : BoxDecoration(color: _capsule, borderRadius: radius),
+              alignment: Alignment.center,
+              child: Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: isSel ? const BoxDecoration(color: kGold, shape: BoxShape.circle) : null,
+                child: Text(
+                  '$m',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                    color: isSel ? Colors.white : (past ? kSubText : _future),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Container(
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(color: isNow ? kSubText : null, shape: BoxShape.circle),
+            ),
+          ]),
+        ),
       );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(children: [for (var m = 1; m <= 12; m++) cell(m)]),
+    );
+  }
 }
 
 /// 합산 화면 내역 목록에서 달이 바뀌는 지점의 작은 구분선.
@@ -1189,9 +1293,12 @@ class _BudgetTable extends StatelessWidget {
             PopupMenuItem(
               value: m,
               height: 40,
-              child: Row(children: [
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
                 SizedBox(width: 24, child: m == mode ? const Icon(Icons.check, size: 18) : null),
-                Text(periodModeLabel(m), style: const TextStyle(fontSize: 14)),
+                Flexible(
+                  child: Text(periodModeLabel(m),
+                      overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
+                ),
               ]),
             ),
         ],

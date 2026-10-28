@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'expense.dart';
+import 'layout.dart';
 import 'vendor.dart';
 
 /// 메뉴 > 업체 관리. 키워드(직접 등록 + 기본)와 자동 등록 업체를 보고 바꾸거나 지운다.
@@ -98,7 +99,7 @@ class _VendorScreenState extends State<VendorScreen> {
         label: const Text('추가'),
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 96),
+        padding: EdgeInsets.only(bottom: listBottomPad(context, extra: 96)),
         children: [
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 0),

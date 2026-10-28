@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'flavor.dart';
+import 'layout.dart';
 
 /// 우측 상단 톱니 → 메뉴 화면. 기능을 섹션별로 묶는다.
 /// 내역 넣기·정산·업데이트 확인은 메뉴를 닫고 메인 화면에서 실행해 결과가 메인에 보이게 한다.
@@ -57,7 +58,7 @@ class _MenuScreenState extends State<MenuScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('메뉴')),
       body: ListView(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(context).bottom + 24),
+        padding: EdgeInsets.only(bottom: listBottomPad(context)),
         children: [
           section('내역 넣기'),
           if (isFullEdition)

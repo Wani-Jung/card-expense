@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'expense.dart';
+import 'layout.dart';
 import 'vendor.dart';
 
 /// 메뉴 > 무시한 내역. 지우지 않고 보관하던 문자를 다시 분류하거나 대기로 되돌린다.
@@ -52,7 +53,7 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
       body: items.isEmpty
           ? const Center(child: Text('무시한 내역이 없어요', style: TextStyle(color: Colors.black45)))
           : ListView.separated(
-              padding: EdgeInsets.only(top: 4, bottom: MediaQuery.viewPaddingOf(context).bottom + 24),
+              padding: EdgeInsets.only(top: 4, bottom: listBottomPad(context)),
               itemCount: items.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (_, i) {

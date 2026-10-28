@@ -8,6 +8,7 @@ import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 
 import 'expense.dart';
+import 'layout.dart';
 import 'native.dart';
 import 'ocr_parse.dart';
 import 'sms_parser.dart';
@@ -189,7 +190,7 @@ class _OcrScreenState extends State<OcrScreen> {
               Text(_progress!),
             ]))
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(16, 16, 16, cands == null || cands.isEmpty ? listBottomPad(context) : 24),
               children: [
                 const Text(
                   '메시지 앱에서 카드 문자 대화방을 스크롤 캡처로 길게 찍어서 올리면 한 번에 들어가요',

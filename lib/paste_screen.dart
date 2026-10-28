@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'expense.dart';
 import 'ingest.dart';
+import 'layout.dart';
 import 'sms_parser.dart';
 import 'vendor.dart';
 
@@ -109,7 +110,7 @@ class _PasteScreenState extends State<PasteScreen> with WidgetsBindingObserver {
     return Scaffold(
       appBar: AppBar(title: const Text('문자 붙여넣기')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, listBottomPad(context)),
         children: [
           if (_clipText != null) _ClipPreview(found: _clipFound, recommend: widget.recommend, onUse: () => _submit(_clipText!)),
           const Text(
@@ -153,7 +154,7 @@ class _ClipPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     const maxLines = 5;
     return Card(
-      color: const Color(0xFFE8F5E9),
+      color: const Color(0xFFF5F5F5),
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
         padding: const EdgeInsets.all(12),

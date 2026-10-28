@@ -36,13 +36,14 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - `lib/native.dart` — `card_expense/native` MethodChannel 래퍼
 - `lib/main.dart` — 테마(`buildTheme`: 흰 배경 무채색, 포인트 골드 #F0A500, 차량비 초록·운영비 노랑 버튼만 색), 화면 (설정, 분류 대기, 월별 수립/사용/잔여 표, 내역)
 - 요약표 색: 행 제목 차량비 초록·운영비 노랑(버튼과 같은 색), 잔여 열 네이비(#1F3A68)/블루그레이 배경, 주의는 잔여 숫자만 빨강(#D93025), 초과는 빨간 칸+흰 글씨, 사용 칸은 초과일 때만 빨간 글씨. 표 안에 골드·주황 쓰지 않음
-- 스크롤 화면은 edge-to-edge 라 목록 끝 패딩 = `MediaQuery.viewPaddingOf(context).bottom + 24`
+- 스크롤 화면은 edge-to-edge 라 목록 끝 패딩 = `listBottomPad(context)` (`lib/layout.dart`: max(viewPadding.bottom, 48) + 24). 새 스크롤 화면도 반드시 적용
+- 메인 월 이동: 월 진행 표시줄(`_MonthStrip`, 1~12 터치 이동) + ◀ 제목 ▶ (화살표 좌우 끝 고정 48×48, 제목은 FittedBox)
 - `android/.../CardSms.kt` — 알림 리스너·SMS 리시버 공용 처리: 판정, 중복 방지(금액+일시+취소 키), 네이티브 inbox 적재 (알림은 띄우지 않음)
 - `CardNotificationListener.kt` — 메시지 앱 알림 감지(두 판 공통). 알림 제목 발신번호 또는 본문 카드번호로 판정
 - 지난 문자: 두 판 모두 메시지 앱 공유(ACTION_SEND/SEND_MULTIPLE → `takeShared`)·붙여넣기. 전용판은 추가로 SMS+MMS 1년치 조회(MMS date 는 초 단위, 발신번호는 addr type=137, 본문은 part ct=text/plain)
 
 앱이 꺼져 있을 때 들어온 문자는 네이티브 inbox 에 쌓였다가 앱이 켜지면 `drainInbox` 로 Dart 저장소로 옮겨진다.
-테스트: `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
+테스트: `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
 
 ## 빌드 / 배포
 - `flutter test`, `flutter build apk --release --flavor public` / `--flavor full`
