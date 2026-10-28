@@ -178,15 +178,17 @@ void main() {
       expect(t, contains('운영비: 수립 - / 사용 1.00\n'));
     });
 
-    test('정산 텍스트: 운영비 계획 초과, 차량비 잔여 > 합계 잔여 참고', () {
+    test('정산 텍스트: 보조 문구 없음 (합계 잔여·운영비 계획 +)', () {
       final m = DateTime(2026, 7);
       // 합계 50 / 차량비 30 → 운영비 20. 운영비 25 사용, 차량비 5 사용
       final t = settlementText([
         _e(250000, kOps, DateTime(2026, 7, 2)),
         _e(50000, kCar, DateTime(2026, 7, 3)),
       ], m, '0000', const MonthBudget(total: 500000, car: 300000));
-      expect(t, contains('운영비 계획 +5.00'));
-      expect(t, contains('차량비: 수립 30.00 / 사용 5.00 / 잔여 25.00 (합계 잔여 20.00)'));
+      expect(t, contains('차량비: 수립 30.00 / 사용 5.00 / 잔여 25.00\n'));
+      expect(t, contains('운영비: 수립 20.00 / 사용 25.00\n'));
+      expect(t, isNot(contains('합계 잔여')));
+      expect(t, isNot(contains('계획 +')));
     });
 
     test('정산 텍스트: 두 달 합산 보기면 합산 표도', () {
@@ -210,18 +212,6 @@ void main() {
       expect(budgetLevel(5000000, null), BudgetLevel.ok);
     });
 
-    test('차량비 잔여가 합계 잔여보다 클 때만 참고 문구', () {
-      expect(carRemainHint(200000, 250000), '합계 잔여 20.00');
-      expect(carRemainHint(-10000, 50000), '합계 초과 상태');
-      expect(carRemainHint(300000, 250000), isNull);
-      expect(carRemainHint(null, 250000), isNull);
-    });
-
-    test('운영비는 계획보다 더 썼을 때만 계획 +X.XX', () {
-      expect(opsOverText(200000, 250000), '계획 +5.00');
-      expect(opsOverText(200000, 200000), isNull);
-      expect(opsOverText(null, 250000), isNull);
-    });
   });
 
   group('보기 기간 묶음', () {

@@ -199,22 +199,19 @@ String settlementText(List<Expense> items, DateTime month, String digits,
   final b = StringBuffer('[${month.year}년 ${month.month}월 $kAppName] 카드 $digits\n');
   // 메신저에 붙여넣으면 칸이 안 맞으므로 줄 단위로 쓴다. 화면 표와 같은 기준.
   void table(String title, MonthBudget budget, MonthUsage usage) {
-    String row(String label, int? plan, int used, [String? hint]) {
+    String row(String label, int? plan, int used) {
       final rem = remaining(plan, used);
       final last = rem != null && rem < 0 ? remainingText(rem) : '잔여 ${remainingText(rem)}';
-      return ' $label: 수립 ${manwonOrDash(plan)} / 사용 ${manwon(used)} / $last${hint == null ? '' : ' ($hint)'}';
+      return ' $label: 수립 ${manwonOrDash(plan)} / 사용 ${manwon(used)} / $last';
     }
 
     b.writeln();
     b.writeln('■ $title (단위: 만원)');
     b.writeln(row('합계', budget.total, usage.total));
-    b.writeln(row('차량비', budget.car, usage.car,
-        carRemainHint(remaining(budget.total, usage.total), remaining(budget.car, usage.car))));
-    // 운영비는 참고용: 잔여 생략, 계획보다 더 썼을 때만 표시
+    b.writeln(row('차량비', budget.car, usage.car));
+    // 운영비는 참고용: 잔여 생략
     final ops = budget.opsInvalid ? null : budget.ops;
     b.writeln(' 운영비: 수립 ${manwonOrDash(ops)} / 사용 ${manwon(usage.ops)}');
-    final over = opsOverText(ops, usage.ops);
-    if (over != null) b.writeln(' 운영비 $over');
   }
 
   table('수립/사용', budget, MonthUsage.of(inMonth, month));

@@ -98,16 +98,6 @@ BudgetLevel budgetLevel(int used, int? plan) {
   return BudgetLevel.ok;
 }
 
-/// 차량비 잔여가 합계 잔여보다 크면 차량비 칸 아래에 붙이는 참고 문구. 아니면 null.
-String? carRemainHint(int? totalRem, int? carRem) {
-  if (totalRem == null || carRem == null || carRem <= totalRem) return null;
-  return totalRem < 0 ? '합계 초과 상태' : '합계 잔여 ${manwon(totalRem)}';
-}
-
-/// 운영비는 잔여를 보여주지 않고, 사용이 수립을 넘을 때만 '계획 +X.XX'. 아니면 null.
-String? opsOverText(int? opsPlan, int used) =>
-    opsPlan == null || opsPlan < 0 || used <= opsPlan ? null : '계획 +${manwon(used - opsPlan)}';
-
 /// 요약표 보기 기간. 앱을 켤 때마다 [single] 로 시작한다 (저장 안 함).
 enum PeriodMode { single, oddEven, evenOdd }
 

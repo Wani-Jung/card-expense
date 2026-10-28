@@ -24,7 +24,7 @@ const kOverBg = Color(0xFFFFEBEE);
 const kOverText = Color(0xFFC62828);
 const kGold = Color(0xFFF0A500); // 앱 아이콘 골드 (포인트 컬러)
 const kGoldText = Color(0xFF3E2700); // 골드 위 글자
-const kGoldLight = Color(0xFFFFF8E6); // 잔여 열 등 아주 옅은 골드
+const kGoldLight = Color(0xFFFFF8E6); // 아주 옅은 골드 (권한 배너 등 표 밖)
 const kText = Color(0xFF1F1F1F);
 const kSubText = Color(0xFF5F6368);
 const kLine = Color(0xFFE0E0E0);
@@ -1093,20 +1093,15 @@ class _BudgetTable extends StatelessWidget {
     required this.onEditCar,
   });
 
-  static const _carTitleBg = Color(0xFFF4FAF4);
-  static const _opsTitleBg = Color(0xFFFFFCF2);
-  static const _warn = Color(0xFFE67E22);
-
-  static Color? _levelColor(BudgetLevel l) => switch (l) {
-        BudgetLevel.ok => null,
-        BudgetLevel.warn => _warn,
-        BudgetLevel.over => kOverText,
-      };
+  // 표 안에서는 초록=차량비, 노랑=운영비 전용. 잔여 열은 네이비 계열, 경고는 빨강 하나.
+  static const _opsTitleText = Color(0xFF3E2C00);
+  static const _navy = Color(0xFF1F3A68);
+  static const _remainHeadBg = Color(0xFFE3E9F3);
+  static const _remainBg = Color(0xFFF1F4F9);
+  static const _red = Color(0xFFD93025);
 
   /// 표 칸. 높이를 고정해 둬야 행이 접히지 않는다. 수립 칸은 [onTap] 으로 터치 입력.
-  /// [sub] 는 숫자 아래 작은 회색 참고 문구.
-  Widget _cell(String text,
-      {Color? bg, Color? fg, bool bold = false, double size = 16, String? sub, VoidCallback? onTap}) {
+  Widget _cell(String text, {Color? bg, Color? fg, bool bold = false, double size = 16, VoidCallback? onTap}) {
     Widget child = Container(
       color: bg,
       constraints: const BoxConstraints(minHeight: 48),
@@ -1114,12 +1109,9 @@ class _BudgetTable extends StatelessWidget {
       alignment: Alignment.center,
       child: FittedBox(
         fit: BoxFit.scaleDown,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (text.isNotEmpty)
-            Text(text,
-                style: TextStyle(fontSize: size, color: fg, fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
-          if (sub != null) Text(sub, style: const TextStyle(fontSize: 11, color: kSubText)),
-        ]),
+        child: Text(text,
+            style: TextStyle(
+                fontSize: size, color: fg ?? kText, fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
       ),
     );
     if (onTap == null) return child;
@@ -1131,16 +1123,19 @@ class _BudgetTable extends StatelessWidget {
     return InkWell(onTap: onTap, child: child);
   }
 
-  /// 합계·차량비 잔여 칸. 가장 눈에 띄게.
-  Widget _remain(int? plan, int used, {String? sub}) {
+  /// 합계·차량비 잔여 칸. 가장 눈에 띄게. 주의는 숫자만 빨강, 초과는 빨간 칸에 흰 글씨.
+  Widget _remain(int? plan, int used) {
     final level = budgetLevel(used, plan);
     return _cell(
       remainingText(remaining(plan, used)),
-      bg: level == BudgetLevel.over ? kOverBg : kGoldLight,
-      fg: _levelColor(level) ?? kText,
+      bg: level == BudgetLevel.over ? _red : _remainBg,
+      fg: switch (level) {
+        BudgetLevel.ok => _navy,
+        BudgetLevel.warn => _red,
+        BudgetLevel.over => Colors.white,
+      },
       bold: true,
       size: 18,
-      sub: sub,
     );
   }
 
@@ -1169,11 +1164,8 @@ class _BudgetTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalRem = remaining(budget.total, usage.total);
-    final carRem = remaining(budget.car, usage.car);
-    final opsPlan = budget.opsInvalid ? null : budget.ops;
-    final opsOver = opsOverText(opsPlan, usage.ops);
-    Widget used(int won, int? plan) => _cell(manwon(won), fg: _levelColor(budgetLevel(won, plan)));
+    // 사용 칸은 초과일 때만 빨간 글씨 (주의 단계 색 없음)
+    Widget used(int won, int? plan) => _cell(manwon(won), fg: isOverBudget(won, plan) ? _red : null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -1198,7 +1190,7 @@ class _BudgetTable extends StatelessWidget {
               _cell('', bg: kSubBg),
               _cell('수립', bg: kSubBg, bold: true),
               _cell('사용', bg: kSubBg, bold: true),
-              _cell('잔여', bg: kGoldLight, bold: true),
+              _cell('잔여', bg: _remainHeadBg, fg: _navy, bold: true),
             ]),
             TableRow(children: [
               _cell('합계', bg: kSubBg, bold: true),
@@ -1207,21 +1199,20 @@ class _BudgetTable extends StatelessWidget {
               _remain(budget.total, usage.total),
             ]),
             TableRow(children: [
-              _cell('차량비', bg: _carTitleBg, fg: kCarColor, bold: true),
+              _cell('차량비', bg: kCarColor, fg: Colors.white, bold: true),
               _cell(manwonOrDash(budget.car), onTap: onEditCar),
               used(usage.car, budget.car),
-              _remain(budget.car, usage.car, sub: carRemainHint(totalRem, carRem)),
+              _remain(budget.car, usage.car),
             ]),
             TableRow(children: [
-              _cell('운영비', bg: _opsTitleBg, fg: kOpsText, bold: true),
+              _cell('운영비', bg: kOpsColor, fg: _opsTitleText, bold: true),
               // 자동 계산. 음수면 입력 오류(차량비 수립 > 합계 수립)
               _cell(manwonOrDash(budget.ops),
                   bg: budget.opsInvalid ? kOverBg : null,
                   fg: budget.opsInvalid ? kOverText : kSubText,
                   bold: budget.opsInvalid),
               _cell(manwon(usage.ops)), // 운영비는 항상 기본색
-              // 무시해도 되는 빈칸. 계획보다 더 썼을 때만 작은 회색 글씨
-              _cell('', bg: Colors.white, sub: opsOver),
+              _cell('', bg: Colors.white), // 운영비 잔여는 항상 빈 흰 칸
             ]),
           ],
         ),
