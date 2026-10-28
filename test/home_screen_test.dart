@@ -63,4 +63,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining(RegExp(r'^\d{4}년 7월$')), findsOneWidget);
   });
+
+  testWidgets('메뉴 내역 관리 3개 항목·건수 배지, 각 화면 열기', (tester) async {
+    await pumpHome(tester);
+    await tester.tap(find.byTooltip('메뉴'));
+    await tester.pumpAndSettle();
+    for (final t in ['미분류 내역', '확인 필요 내역', '무시한 내역']) {
+      expect(find.text(t), findsOneWidget);
+    }
+    expect(find.text('0건'), findsNWidgets(3));
+    for (final (t, empty) in [
+      ('미분류 내역', '미분류 내역이 없어요'),
+      ('확인 필요 내역', '확인이 필요한 내역이 없어요'),
+      ('무시한 내역', '무시한 내역이 없어요'),
+    ]) {
+      await tester.tap(find.text(t));
+      await tester.pumpAndSettle();
+      expect(find.text(empty), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
+  });
 }

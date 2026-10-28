@@ -10,9 +10,9 @@ class MenuScreen extends StatefulWidget {
   final String monthLabel;
   final VoidCallback onImport, onPaste, onOcr, onCopy, onVendors, onSettings, onListener, onUpdate;
 
-  /// 무시한 내역 건수. 무시한 내역 화면에서 되살리고 돌아오면 다시 센다.
-  final int Function() ignoredCount;
-  final Future<void> Function() onIgnored;
+  /// 내역 관리 건수 (미분류, 확인 필요, 무시한). 각 화면에서 돌아오면 다시 센다.
+  final ({int pending, int check, int ignored}) Function() counts;
+  final Future<void> Function() onUnclassified, onCheck, onIgnored;
 
   const MenuScreen({
     super.key,
@@ -25,7 +25,9 @@ class MenuScreen extends StatefulWidget {
     required this.onSettings,
     required this.onListener,
     required this.onUpdate,
-    required this.ignoredCount,
+    required this.counts,
+    required this.onUnclassified,
+    required this.onCheck,
     required this.onIgnored,
   });
 
@@ -48,12 +50,32 @@ class _MenuScreenState extends State<MenuScreen> {
           child: Text(title,
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF5F6368))),
         );
-    Widget item(IconData icon, String title, String subtitle, VoidCallback? onTap) => ListTile(
+    Widget item(IconData icon, String title, String subtitle, VoidCallback? onTap, {Widget? trailing}) => ListTile(
           leading: Icon(icon),
           title: Text(title),
           subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+          trailing: trailing,
           onTap: onTap,
         );
+    // 건수 배지: 0건이면 회색, 1건 이상이면 진하게
+    Widget badge(int n) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          decoration: BoxDecoration(
+            color: n == 0 ? const Color(0xFFF1F3F4) : const Color(0xFF1F1F1F),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text('$n건',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: n == 0 ? const Color(0xFF9AA0A6) : Colors.white)),
+        );
+    // 내역 관리 화면을 열고, 돌아오면 건수 다시 세기
+    VoidCallback openThen(Future<void> Function() f) => () async {
+          await f();
+          if (mounted) setState(() {});
+        };
+    final c = w.counts();
 
     return Scaffold(
       appBar: AppBar(title: const Text('메뉴')),
@@ -67,11 +89,13 @@ class _MenuScreenState extends State<MenuScreen> {
           item(Icons.content_paste, '문자 붙여넣기', '복사한 카드 문자를 여러 건 한 번에 넣어요', closeThen(w.onPaste)),
           item(Icons.image_search, '문자 캡처화면 업로드', '대화방 스크롤 캡처에서 글자를 읽어 넣어요', closeThen(w.onOcr)),
           section('내역 관리'),
-          item(Icons.visibility_off_outlined, '무시한 내역 (${w.ignoredCount()}건)', '무시한 문자를 다시 분류하거나 대기로 되돌려요',
-              () async {
-            await w.onIgnored();
-            if (mounted) setState(() {});
-          }),
+          item(Icons.inbox_outlined, '미분류 내역', '모든 달의 분류 대기 건을 한 번에 정리해요', openThen(w.onUnclassified),
+              trailing: badge(c.pending)),
+          item(Icons.fact_check_outlined, '확인 필요 내역', '분류 실수·중복·날짜 이상이 의심되는 건을 보여줘요',
+              openThen(w.onCheck),
+              trailing: badge(c.check)),
+          item(Icons.visibility_off_outlined, '무시한 내역', '무시한 문자를 다시 분류하거나 대기로 되돌려요', openThen(w.onIgnored),
+              trailing: badge(c.ignored)),
           section('정산'),
           item(Icons.copy, '이번 달 내역 복사', '${w.monthLabel} 수립/사용과 내역을 정산용 텍스트로 복사해요',
               closeThen(w.onCopy)),

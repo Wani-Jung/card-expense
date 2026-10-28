@@ -27,6 +27,10 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
   - ML Kit 한국어 모델은 `android/app/build.gradle.kts` dependencies 에 직접 넣고, 안 쓰는 언어 클래스는 `proguard-rules.pro` 에서 dontwarn
 - (전용판) 1년치 불러오기는 SMS/MMS 에 더해 삼성 RCS 후보 저장소(`Flavor.kt` `OTHER_STORES`, `scanOther`)도 열리면 함께 조회. 예전 '문자 저장소 진단' 화면은 v1.7.0 에서 삭제
 - 무시한 내역은 지우지 않고 보관 (`lib/ignored_screen.dart`, 메뉴 > 내역 관리 > 무시한 내역). 분류·무시하면 메인에 5초 [되돌리기]
+- 메뉴 > 내역 관리: 미분류 내역(모든 달 대기 건, `UnclassifiedScreen`) / 확인 필요 내역(`CheckScreen`) / 무시한 내역. 각 항목 오른쪽 건수 배지
+  - `lib/check.dart` `findIssues` 실수 의심 규칙 (분류된 건만): a 같은 업체 분류 섞임(소수 쪽) / b 추천 키워드·등록 업체와 반대 / c 같은 가맹점·금액 10분 이내 중복 / d 승인취소 짝 없음·분류 다름 / e 미래·1년 넘은 날짜
+  - [이대로 맞아요] 는 `check_ok_v1`(규칙|id, 중복은 묶음 전체)에 기억. 메인 표 위 '확인이 필요한 내역 N건 ›' 은 닫으면 `check_banner_closed_v1`, 새 건이 생기면 다시 보임
+  - 메뉴에서 연 화면은 HomeScreen `_changes`(setState 마다 증가)를 듣고 다시 그린다. 분류는 메인 `_classify` 를 그대로 써서 일괄 정리 팝업·되돌리기가 같다
 - `lib/vendor.dart` — 차량비/운영비 추천. 우선순위: 자동 등록 업체(가맹점 이름 일치) > 직접 등록 키워드 > 기본 키워드(`kDefaultCarKeywords`, 첫 실행 때 목록에 들어가고 지울 수 있음). 키워드는 대소문자·공백·하이픈 무시
   - 분류 대기에서 차량비/운영비를 고르면 같은 가맹점의 다른 대기 건 일괄 정리를 묻고(무시한 건은 제외), 그 가맹점을 자동 등록. [되돌리기] 한 번에 일괄 정리·자동 등록까지 전부 복구
   - 추천 버튼은 진하게 + 작은 표시('추천' / '지난번 운영비'), 반대 버튼은 투명도 40%
@@ -43,7 +47,7 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 지난 문자: 두 판 모두 메시지 앱 공유(ACTION_SEND/SEND_MULTIPLE → `takeShared`)·붙여넣기. 전용판은 추가로 SMS+MMS 1년치 조회(MMS date 는 초 단위, 발신번호는 addr type=137, 본문은 part ct=text/plain)
 
 앱이 꺼져 있을 때 들어온 문자는 네이티브 inbox 에 쌓였다가 앱이 켜지면 `drainInbox` 로 Dart 저장소로 옮겨진다.
-테스트: `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
+테스트: `test/check_test.dart`(확인 필요 규칙 a~e), `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
 
 ## 빌드 / 배포
 - `flutter test`, `flutter build apk --release --flavor public` / `--flavor full`

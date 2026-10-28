@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'budget.dart';
+import 'check.dart';
 import 'expense.dart';
 import 'flavor.dart';
 import 'ignored_screen.dart';
@@ -13,6 +14,7 @@ import 'menu_screen.dart';
 import 'native.dart';
 import 'ocr_screen.dart';
 import 'paste_screen.dart';
+import 'review_screens.dart';
 import 'sms_parser.dart';
 import 'update_check.dart';
 import 'vendor.dart';
@@ -256,6 +258,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   PeriodMode _period = PeriodMode.single; // 보기 기간. 앱을 켤 때마다 1개월
   PeriodView _view = PeriodView(DateTime.now()); // 지금 보는 달 (홀짝·짝홀이면 두 달 합산 단계도)
   DateTime get _month => _view.month;
+
+  /// 메인 상태가 바뀔 때마다 올라간다. 메뉴에서 연 미분류·확인 필요 화면이 이걸 듣고 다시 그린다.
+  final _changes = ValueNotifier<int>(0);
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _changes.value++;
+  }
+
+  /// 확인 필요 내역 (실수 의심 자동 검사)
+  List<CheckIssue> get _issues =>
+      findIssues(_items, _vendors, now: DateTime.now(), okKeys: widget.store.checkOk);
   PermStatus _perms = const PermStatus();
   bool _importing = false;
 
@@ -284,6 +299,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _changes.dispose();
     super.dispose();
   }
 
@@ -633,11 +649,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onSettings: _openSettings,
         onListener: Native.openNotificationAccessSettings,
         onUpdate: () => _checkUpdate(manual: true),
-        ignoredCount: () => _items.where((e) => e.category == kIgnored).length,
+        counts: () => (
+          pending: _items.where((e) => e.category == null).length,
+          check: _issues.length,
+          ignored: _items.where((e) => e.category == kIgnored).length,
+        ),
+        onUnclassified: _openUnclassified,
+        onCheck: _openCheck,
         onIgnored: _openIgnored,
       ),
     ));
   }
+
+  Widget _smallButton(String cat, Recommendation? rec, VoidCallback onPressed, {String? label}) =>
+      _CategoryButton.of(cat, rec, onPressed, small: true, label: label);
+
+  /// 메뉴 > 미분류 내역. 메인 분류 대기와 같은 동작 (같은 업체 일괄 정리 팝업·되돌리기 포함).
+  Future<void> _openUnclassified() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => UnclassifiedScreen(
+          items: _items,
+          changes: _changes,
+          recommend: _vendors.recommend,
+          onClassify: (e, cat) => _classify(e, cat, askBulk: cat != kIgnored),
+          button: _smallButton,
+        ),
+      ));
+
+  /// 메뉴 > 확인 필요 내역.
+  Future<void> _openCheck() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => CheckScreen(
+          issues: () => _issues,
+          changes: _changes,
+          onChange: (e, cat) => _classify(e, cat),
+          onOk: (i) async {
+            // 중복 의심은 묶음 전체를 맞다고 기억
+            await widget.store.addCheckOk([for (final g in i.group) '${i.rule.name}|${g.id}']);
+            if (mounted) setState(() {});
+          },
+          button: _smallButton,
+        ),
+      ));
 
   /// 메뉴 > 무시한 내역. 되살리면 메인 목록에도 바로 반영된다.
   Future<void> _openIgnored() async {
@@ -741,6 +792,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
     final period = PeriodSummary.of(_budgets, _items, months);
+    // 확인 필요 한 줄: 닫은 뒤에는 새 건이 생겼을 때만 다시
+    final issues = _issues;
+    final closed = widget.store.checkBannerClosed;
+    final showCheck = issues.any((i) => !closed.contains(i.key));
 
     return Scaffold(
       appBar: AppBar(
@@ -775,6 +830,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               const SizedBox(height: 12),
             ],
+            if (showCheck)
+              _CheckBanner(
+                count: issues.length,
+                onOpen: _openCheck,
+                onClose: () async {
+                  await widget.store.setCheckBannerClosed(issues.map((i) => i.key));
+                  setState(() {});
+                },
+              ),
             _MonthStrip(
               year: _month.year,
               selected: months,
@@ -977,10 +1041,11 @@ class _CategoryButton extends StatelessWidget {
   });
 
   /// [rec] 기준으로 [category] 버튼을 만든다.
-  factory _CategoryButton.of(String category, Recommendation? rec, VoidCallback onPressed, {bool small = false}) {
+  factory _CategoryButton.of(String category, Recommendation? rec, VoidCallback onPressed,
+      {bool small = false, String? label}) {
     final car = category == kCar;
     return _CategoryButton(
-      label: categoryLabel(category),
+      label: label ?? categoryLabel(category),
       bg: car ? kCarColor : kOpsColor,
       fg: car ? Colors.white : kOpsText,
       onPressed: onPressed,
@@ -1126,6 +1191,41 @@ class _MonthHeader extends StatelessWidget {
       arrow(Icons.arrow_right, onNext, '다음'),
     ]);
   }
+}
+
+/// 메인 표 위 작은 한 줄 "확인이 필요한 내역 N건 ›" (닫기 가능)
+class _CheckBanner extends StatelessWidget {
+  final int count;
+  final VoidCallback onOpen, onClose;
+  const _CheckBanner({required this.count, required this.onOpen, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Material(
+          color: kSubBg,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onOpen,
+            child: Row(children: [
+              const SizedBox(width: 12),
+              const Icon(Icons.error_outline, size: 16, color: kOverText),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text('확인이 필요한 내역 $count건 ›',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kText)),
+              ),
+              IconButton(
+                tooltip: '닫기',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close, size: 16, color: kSubText),
+                onPressed: onClose,
+              ),
+            ]),
+          ),
+        ),
+      );
 }
 
 /// 월 진행 표시줄 (1~12). 보는 달은 골드 동그라미, 홀짝·짝홀 묶음은 연회색 캡슐,

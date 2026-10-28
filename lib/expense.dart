@@ -152,6 +152,19 @@ class Store {
   String? get updateSkippedTag => _prefs.getString(_kUpdateSkipped);
   Future<void> setUpdateSkippedTag(String tag) => _prefs.setString(_kUpdateSkipped, tag);
 
+  static const _kCheckOk = 'check_ok_v1';
+  static const _kCheckBannerClosed = 'check_banner_closed_v1';
+
+  /// 확인 필요 내역에서 [이대로 맞아요] 한 키 (규칙|내역 id). 다시 표시하지 않는다.
+  Set<String> get checkOk => (_prefs.getStringList(_kCheckOk) ?? const []).toSet();
+  Future<void> addCheckOk(Iterable<String> keys) =>
+      _prefs.setStringList(_kCheckOk, {...checkOk, ...keys}.toList());
+
+  /// 메인 '확인이 필요한 내역' 줄을 닫을 때 있던 키. 이 밖의 새 건이 생기면 다시 보인다.
+  Set<String> get checkBannerClosed => (_prefs.getStringList(_kCheckBannerClosed) ?? const []).toSet();
+  Future<void> setCheckBannerClosed(Iterable<String> keys) =>
+      _prefs.setStringList(_kCheckBannerClosed, keys.toList());
+
   static const _kCleanedV1 = 'merchant_cleanup_v1';
 
   List<Expense> loadItems() {
