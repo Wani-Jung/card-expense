@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'category_badge.dart';
 import 'check.dart';
 import 'expense.dart';
 import 'layout.dart';
@@ -43,7 +44,13 @@ class MonthDivider extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
         child: Row(children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368), fontWeight: FontWeight.w600)),
+          // 긴 머리줄(월 · 건수 · 합계)도 좁은 화면에서 넘치지 않게
+          Flexible(
+            child: Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368), fontWeight: FontWeight.w600)),
+          ),
           const SizedBox(width: 8),
           const Expanded(child: Divider(height: 1)),
         ]),
@@ -252,4 +259,106 @@ class CheckScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 메뉴 > 내역 관리 > 확인한 내역. 차량비·운영비로 분류가 끝난 전체 내역(대기·무시 제외, 승인취소 포함).
+/// 위쪽 가맹점 검색(부분 일치) + [전체] [차량비] [운영비] 칩, 월별 묶음 최신순, 월 머리줄에 건수·합계(취소 차감, 칩·검색 기준).
+/// 항목을 누르면 메인과 같은 편집 시트.
+class ConfirmedScreen extends StatefulWidget {
+  final List<Expense> items;
+  final Listenable changes;
+  final Future<void> Function(Expense e) onTap;
+  const ConfirmedScreen({super.key, required this.items, required this.changes, required this.onTap});
+
+  @override
+  State<ConfirmedScreen> createState() => _ConfirmedScreenState();
+}
+
+class _ConfirmedScreenState extends State<ConfirmedScreen> {
+  String? _cat; // null = 전체
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.changes,
+    builder: (context, _) {
+      final q = _query.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '');
+      final list =
+          widget.items
+              .where((e) => e.category == kCar || e.category == kOps)
+              .where((e) => _cat == null || e.category == _cat)
+              .where((e) => q.isEmpty || e.merchant.toLowerCase().replaceAll(RegExp(r'\s+'), '').contains(q))
+              .toList()
+            ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+      final any = widget.items.any((e) => e.category == kCar || e.category == kOps);
+      // 월별 건수·합계
+      final byMonth = <String, ({int n, int sum})>{};
+      for (final e in list) {
+        final k = '${e.dateTime.year}-${e.dateTime.month}';
+        final cur = byMonth[k] ?? (n: 0, sum: 0);
+        byMonth[k] = (n: cur.n + 1, sum: cur.sum + e.signedAmount);
+      }
+      Widget chip(String label, String? cat) =>
+          ChoiceChip(label: Text(label), selected: _cat == cat, onSelected: (_) => setState(() => _cat = cat));
+      return Scaffold(
+        appBar: AppBar(title: Text('확인한 내역 (${list.length}건)')),
+        body: !any
+            ? const Center(
+                child: Text('확인한 내역이 없어요', style: TextStyle(color: Colors.black45)),
+              )
+            : ListView(
+                padding: EdgeInsets.only(bottom: listBottomPad(context)),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: '가맹점 검색',
+                        prefixIcon: Icon(Icons.search),
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (v) => setState(() => _query = v),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Wrap(spacing: 8, children: [chip('전체', null), chip('차량비', kCar), chip('운영비', kOps)]),
+                  ),
+                  if (list.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Center(
+                        child: Text('조건에 맞는 내역이 없어요', style: TextStyle(color: Colors.black45)),
+                      ),
+                    ),
+                  for (final (i, e) in list.indexed) ...[
+                    if (i == 0 || !list[i - 1].inMonth(e.dateTime))
+                      Builder(
+                        builder: (_) {
+                          final m = byMonth['${e.dateTime.year}-${e.dateTime.month}']!;
+                          return MonthDivider('${e.dateTime.year}년 ${e.dateTime.month}월 · ${m.n}건 · 합계 ${won(m.sum)}');
+                        },
+                      ),
+                    ListTile(
+                      onTap: () => widget.onTap(e),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                      leading: CategoryBadge(e.category),
+                      title: Text(e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant),
+                      subtitle: Text('${fmtDateTime(e.dateTime)}${e.isCancel ? ' · 승인취소' : ''}'),
+                      trailing: Text(
+                        won(e.signedAmount),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: e.isCancel ? Colors.red : null,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+      );
+    },
+  );
 }

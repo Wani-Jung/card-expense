@@ -5,10 +5,11 @@ import 'flavor.dart';
 import 'layout.dart';
 
 /// 우측 상단 톱니 → 메뉴 화면. 섹션 제목 없이 한 목록, 항목 사이엔 얇은 구분선만.
-/// '결제내역 입력'·'내역 관리'는 그 자리에서 펼친다. 접힌 상태 7개는 스크롤 없이 한 화면에.
-/// 내역 넣기·업데이트 확인은 메뉴를 닫고 메인 화면에서 실행해 결과가 메인에 보이게 한다.
+/// '결제내역 입력'·'내역 관리'는 그 자리에서 펼친다 (펼침 항목은 한 번에 하나만). 접힌 상태 7개는 스크롤 없이 한 화면에.
+/// 모든 항목은 메뉴를 닫지 않고 메뉴 위에 화면을 띄운다 → 뒤로가기 하면 메뉴로. 돌아오면 건수·설명을 다시 읽고
+/// 펼침 상태는 그대로. 1년치 불러오기·업데이트 확인도 메뉴에 머문 채 진행 표시와 결과 창을 띄운다.
 class MenuScreen extends StatefulWidget {
-  final VoidCallback onImport, onPaste, onOcr, onVendors;
+  final Future<void> Function() onImport, onPaste, onOcr, onVendors;
 
   /// 업데이트 확인. 메뉴를 닫지 않고, 확인하는 동안 항목 오른쪽에 작은 로딩 표시
   final Future<void> Function() onUpdate;
@@ -28,9 +29,9 @@ class MenuScreen extends StatefulWidget {
   final String Function() quizSummary;
   final Future<void> Function() onQuiz;
 
-  /// 내역 관리 건수 (미분류, 확인 필요, 무시한). 각 화면에서 돌아오면 다시 센다.
-  final ({int pending, int check, int ignored}) Function() counts;
-  final Future<void> Function() onUnclassified, onCheck, onIgnored;
+  /// 내역 관리 건수 (미분류, 확인 필요, 무시한, 확인한 = 차량비·운영비로 분류된 전체). 각 화면에서 돌아오면 다시 센다.
+  final ({int pending, int check, int ignored, int confirmed}) Function() counts;
+  final Future<void> Function() onUnclassified, onCheck, onIgnored, onConfirmed;
 
   const MenuScreen({
     super.key,
@@ -50,6 +51,7 @@ class MenuScreen extends StatefulWidget {
     required this.onUnclassified,
     required this.onCheck,
     required this.onIgnored,
+    required this.onConfirmed,
   });
 
   @override
@@ -57,11 +59,12 @@ class MenuScreen extends StatefulWidget {
 }
 
 class _MenuScreenState extends State<MenuScreen> {
-  bool _inputOpen = false;
-  bool _checking = false; // 업데이트 확인 중
+  /// 펼친 항목 (한 번에 하나만). 기본 접힘, 확인 필요가 1건 이상이면 내역 관리를 펼친 채 시작
+  late String? _expanded = widget.counts().check > 0 ? 'manage' : null;
+  void _toggle(String key) => setState(() => _expanded = _expanded == key ? null : key);
 
-  /// 기본 접힘. 확인 필요가 1건 이상이면 펼친 상태로 시작
-  late bool _manageOpen = widget.counts().check > 0;
+  /// 진행 중인 항목 (오른쪽 작은 로딩): 'import' 1년치 불러오기, 'update' 업데이트 확인
+  final _busy = <String>{};
   late final Future<PackageInfo> _info = PackageInfo.fromPlatform();
 
   static const _subBg = Color(0xFFF8F9FA);
@@ -69,22 +72,31 @@ class _MenuScreenState extends State<MenuScreen> {
   @override
   Widget build(BuildContext context) {
     final w = widget;
-    // 메뉴를 닫고 메인에서 실행
-    VoidCallback closeThen(VoidCallback f) => () {
-      Navigator.pop(context);
-      f();
-    };
-    // 화면을 열고, 돌아오면 건수·설명 다시 읽기
+    // 메뉴 위에 화면을 띄우고, 돌아오면 건수·설명 다시 읽기 (펼침 상태는 그대로)
     VoidCallback openThen(Future<void> Function() f) => () async {
       await f();
       if (mounted) setState(() {});
     };
+    // 메뉴에 머문 채 실행, 끝날 때까지 오른쪽에 작은 로딩
+    VoidCallback? busyThen(String key, Future<void> Function() f) => _busy.contains(key)
+        ? null
+        : () async {
+            setState(() => _busy.add(key));
+            try {
+              await f();
+            } finally {
+              if (mounted) setState(() => _busy.remove(key));
+            }
+          };
+    Widget? spinner(String key) => _busy.contains(key)
+        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+        : null;
 
-    // 건수 배지: 0건이면 회색, 1건 이상이면 진하게
-    Widget badge(int n) => Container(
+    // 건수 배지: 0건이면 회색. [alert](미분류·확인 필요, 내역 관리 합계)는 1건 이상이면 빨강, 나머지는 검정
+    Widget badge(int n, {bool alert = false}) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
       decoration: BoxDecoration(
-        color: n == 0 ? const Color(0xFFF1F3F4) : const Color(0xFF1F1F1F),
+        color: n == 0 ? const Color(0xFFF1F3F4) : (alert ? const Color(0xFFD93025) : const Color(0xFF1F1F1F)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -133,34 +145,45 @@ class _MenuScreenState extends State<MenuScreen> {
             Icons.add_card,
             '결제내역 입력',
             '문자 불러오기 · 붙여넣기 · 캡처 업로드',
-            () => setState(() => _inputOpen = !_inputOpen),
-            trailing: chevron(_inputOpen),
+            () => _toggle('input'),
+            trailing: chevron(_expanded == 'input'),
           ),
-          if (_inputOpen) ...[
-            if (isFullEdition) sub(Icons.history, '지난 문자 1년치 불러오기', importOn ? closeThen(w.onImport) : null),
-            sub(Icons.content_paste, '문자 붙여넣기', closeThen(w.onPaste)),
-            sub(Icons.image_search, '문자 캡처화면 업로드', closeThen(w.onOcr)),
+          if (_expanded == 'input') ...[
+            if (isFullEdition)
+              sub(
+                Icons.history,
+                '지난 문자 1년치 불러오기',
+                importOn ? busyThen('import', w.onImport) : null,
+                trailing: spinner('import'),
+              ),
+            sub(Icons.content_paste, '문자 붙여넣기', openThen(w.onPaste)),
+            sub(Icons.image_search, '문자 캡처화면 업로드', openThen(w.onOcr)),
           ],
           line,
           item(
             Icons.fact_check_outlined,
             '내역 관리',
             '미분류 · 확인 필요 · 무시한 내역',
-            () => setState(() => _manageOpen = !_manageOpen),
+            () => _toggle('manage'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
-              children: [badge(c.pending + c.check), const SizedBox(width: 4), chevron(_manageOpen)],
+              children: [
+                badge(c.pending + c.check, alert: true),
+                const SizedBox(width: 4),
+                chevron(_expanded == 'manage'),
+              ],
             ),
           ),
-          if (_manageOpen) ...[
-            sub(Icons.inbox_outlined, '미분류 내역', openThen(w.onUnclassified), trailing: badge(c.pending)),
-            sub(Icons.rule, '확인 필요 내역', openThen(w.onCheck), trailing: badge(c.check)),
+          if (_expanded == 'manage') ...[
+            sub(Icons.inbox_outlined, '미분류 내역', openThen(w.onUnclassified), trailing: badge(c.pending, alert: true)),
+            sub(Icons.rule, '확인 필요 내역', openThen(w.onCheck), trailing: badge(c.check, alert: true)),
             sub(Icons.visibility_off_outlined, '무시한 내역', openThen(w.onIgnored), trailing: badge(c.ignored)),
+            sub(Icons.task_alt, '확인한 내역', openThen(w.onConfirmed), trailing: badge(c.confirmed)),
           ],
           line,
           item(Icons.quiz_outlined, '안전 OX', w.quizSummary(), openThen(w.onQuiz)),
           line,
-          item(Icons.storefront, '등록 업체·추천 키워드', '가맹점 이름으로 차량비/운영비를 추천해요', w.onVendors),
+          item(Icons.storefront, '등록 업체·추천 키워드', '가맹점 이름으로 차량비/운영비를 추천해요', openThen(w.onVendors)),
           line,
           item(Icons.credit_card, '카드 문자 설정', w.cardSummary(), openThen(w.onSettings)),
           line,
@@ -172,19 +195,8 @@ class _MenuScreenState extends State<MenuScreen> {
               Icons.system_update,
               '업데이트 확인',
               '현재 ${snap.hasData ? 'v${snap.data!.version}' : ''} · $editionLabel',
-              _checking
-                  ? null
-                  : () async {
-                      setState(() => _checking = true);
-                      try {
-                        await w.onUpdate();
-                      } finally {
-                        if (mounted) setState(() => _checking = false);
-                      }
-                    },
-              trailing: _checking
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : null,
+              busyThen('update', w.onUpdate),
+              trailing: spinner('update'),
             ),
           ),
           // 크레딧: 목록 항목이 아니라 맨 아래 작은 회색 글씨 (누르는 반응 없음)

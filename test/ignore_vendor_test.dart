@@ -66,6 +66,7 @@ void main() {
         changes: ValueNotifier(0),
         onChange: (e, cat) async => e.category = cat,
         onReviveOffset: (_) async {},
+        onRevive: (e) async => e.category = null,
         onReviveDuplicate: (e) async {
           revived = e;
           e

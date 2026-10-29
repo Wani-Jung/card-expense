@@ -172,9 +172,13 @@ class Store {
   static const _kVendors = 'vendor_book_v1';
 
   /// 업체 관리. 처음이면 기본 키워드가 들어간 상태로 시작한다.
+  /// 기존 기기는 기본 키워드 세트가 새 버전이면 새 기본 키워드를 한 번 추가하고 저장한다.
   VendorBook loadVendors() {
     final s = _prefs.getString(_kVendors);
-    return s == null ? VendorBook.initial() : VendorBook.fromJson(jsonDecode(s) as Map<String, dynamic>);
+    if (s == null) return VendorBook.initial();
+    final book = VendorBook.fromJson(jsonDecode(s) as Map<String, dynamic>);
+    if (book.upgradeDefaults()) saveVendors(book);
+    return book;
   }
 
   Future<void> saveVendors(VendorBook v) => _prefs.setString(_kVendors, jsonEncode(v.toJson()));

@@ -163,13 +163,27 @@ class _VendorScreenState extends State<VendorScreen> {
           header('추천 키워드', '가맹점 이름에 키워드가 들어 있으면 그 분류를 추천해요'),
           if (keywords.isEmpty)
             const ListTile(title: Text('등록된 키워드가 없어요', style: TextStyle(color: Colors.black45))),
-          for (final k in List.of(keywords))
-            _row(k.keyword, k.category, k.isDefault ? '기본 키워드' : null,
-                onCategory: (cat) async {
-                  final i = keywords.indexOf(k);
-                  if (i >= 0) keywords[i] = k.withCategory(cat);
-                },
-                onRemove: () => keywords.remove(k)),
+          // 직접 등록 키워드 → 기본 키워드(차량비 / 운영비로 묶어서)
+          for (final (title, list) in [
+            ('직접 등록', [for (final k in keywords) if (!k.isDefault) k]),
+            ('기본 키워드 · 차량비', [for (final k in keywords) if (k.isDefault && k.category == kCar) k]),
+            ('기본 키워드 · 운영비', [for (final k in keywords) if (k.isDefault && k.category == kOps) k]),
+          ])
+            if (list.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                child: Text('$title (${list.length})',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF5F6368))),
+              ),
+              for (final k in list)
+                _row(k.keyword, k.category, k.isDefault ? '기본 키워드' : null,
+                    onCategory: (cat) async {
+                      final i = keywords.indexOf(k);
+                      if (i >= 0) keywords[i] = k.withCategory(cat);
+                    },
+                    // 기본 키워드를 지우면 기억해서 업데이트 때 되살리지 않는다
+                    onRemove: () => _book.removeKeyword(k)),
+            ],
           header('자동 등록된 업체', '분류할 때 고른 카테고리를 기억해요. 같은 가맹점이 또 오면 추천해요'),
           if (learned.isEmpty)
             const ListTile(title: Text('아직 없어요', style: TextStyle(color: Colors.black45))),

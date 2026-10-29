@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/vendor.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,7 +22,7 @@ void main() {
       expect(b.recommend('s oil 셀프')?.category, kCar);
       expect(b.recommend('SOIL')?.category, kCar);
       expect(b.recommend('GS칼텍스(주)월산')?.category, kCar);
-      expect(b.recommend('홍성칼국수'), isNull);
+      expect(b.recommend('홍성면옥'), isNull);
     });
 
     test('직접 등록 키워드도 대소문자 무시', () {
@@ -30,8 +32,8 @@ void main() {
     });
 
     test('기본 키워드는 지울 수 있다', () {
-      final b = VendorBook.initial()..keywords.removeWhere((k) => k.keyword == '주차');
-      expect(b.recommend('강남역 공영주차장'), isNull);
+      final b = VendorBook.initial()..keywords.removeWhere((k) => k.keyword == '파킹');
+      expect(b.recommend('강남파킹'), isNull);
     });
   });
 
@@ -65,7 +67,7 @@ void main() {
     });
 
     test('업체 기억·되돌리기', () {
-      final b = VendorBook.initial();
+      final b = VendorBook({}, []);
       final prev = b.learn('홍성칼국수', kOps);
       expect(prev, isNull);
       expect(b.recommend('홍성 칼국수')!.badge, '지난번 운영비');
@@ -81,7 +83,8 @@ void main() {
       final b = VendorBook.initial()..learn('홍성칼국수', kOps);
       final back = VendorBook.fromJson(b.toJson());
       expect(back.recommend('홍성칼국수')!.category, kOps);
-      expect(back.keywords.length, kDefaultCarKeywords.length);
+      expect(back.keywords.length, kDefaultCarKeywords.length + kDefaultOpsKeywords.length);
+      expect(back.defaultsVersion, kDefaultKeywordsVersion);
     });
   });
 
@@ -116,5 +119,65 @@ void main() {
     final items = [picked, manual, pending, dup, offset, done];
     expect(sameVendorPending(items, picked), [pending]);
     expect(sameVendorPending(items, picked, includeIgnored: true), [manual, pending]);
+  });
+
+  group('기본 키워드 확장 (v2)', () {
+    test('새 운영비·차량비 기본 키워드로 추천', () {
+      final b = VendorBook.initial();
+      expect(b.recommend('스타벅스 강남점')!.category, kOps);
+      expect(b.recommend('홍성칼국수')!.category, kOps);
+      expect(b.recommend('GS25 월산점')!.category, kOps);
+      expect(b.recommend('하나로마트 홍성')!.category, kOps);
+      expect(b.recommend('블루핸즈 홍성점')!.category, kCar);
+      expect(b.recommend('한국도로공사 하이패스')!.category, kCar);
+      expect(b.recommend('스타벅스')!.source, RecSource.defaultKeyword);
+      // 중복은 한 번만
+      final keys = [for (final k in b.keywords) keywordKey(k.keyword)];
+      expect(keys.toSet().length, keys.length);
+      expect(kDefaultCarKeywords, containsAll(kDefaultCarKeywordsV1));
+    });
+
+    test('영문 3자 이하 키워드(LPG)는 가맹점 이름 앞부분 일치만', () {
+      final b = VendorBook({}, [const KeywordRule('LPG', kCar, isDefault: true)]);
+      expect(b.recommend('LPG충전소 홍성')!.category, kCar);
+      expect(b.recommend('lpg 가스')!.category, kCar);
+      expect(b.recommend('HELPGO 마켓'), isNull); // 중간에 lpg 가 있어도 아님
+      // 직접 등록한 짧은 영문도 같은 규칙
+      final u = VendorBook({}, [const KeywordRule('cu', kOps)]);
+      expect(u.recommend('CU 홍성점')!.category, kOps);
+      expect(u.recommend('SCUBA 다이빙'), isNull);
+    });
+
+    test('기존 설치: 새 기본 키워드는 한 번만 추가, 예전 기본 키워드·지운 키워드는 되살리지 않음', () {
+      // v1 기기: 기본 15개 중 '주차' 를 지웠고 직접 등록 '커피'(차량비로 등록) 가 있음
+      final v1 = {
+        'learned': {},
+        'keywords': [
+          for (final k in kDefaultCarKeywordsV1)
+            if (k != '주차') {'keyword': k, 'category': 'car', 'isDefault': true},
+          {'keyword': '커피', 'category': 'car', 'isDefault': false},
+        ],
+      };
+      final b = VendorBook.fromJson(jsonDecode(jsonEncode(v1)) as Map<String, dynamic>);
+      expect(b.defaultsVersion, 1);
+      expect(b.upgradeDefaults(), isTrue);
+      final words = [for (final k in b.keywords) k.keyword];
+      expect(words, isNot(contains('주차'))); // 지웠던 v1 기본 키워드는 그대로 없음
+      expect(words, contains('스타벅스'));
+      expect(words, contains('블루핸즈'));
+      expect(words.where((w) => w == '커피'), hasLength(1)); // 이미 있으면 건너뜀
+      expect(b.keywords.firstWhere((k) => k.keyword == '커피').category, kCar); // 사용자 값 그대로
+      final n = b.keywords.length;
+      expect(b.upgradeDefaults(), isFalse); // 한 번만
+      expect(b.keywords.length, n);
+
+      // v2 기기에서 기본 키워드를 지우면 기억 → 저장·불러오기 후에도 유지, 다음 업그레이드에서도 안 돌아옴
+      b.removeKeyword(b.keywords.firstWhere((k) => k.keyword == '스타벅스'));
+      final back = VendorBook.fromJson(jsonDecode(jsonEncode(b.toJson())) as Map<String, dynamic>);
+      expect(back.removedDefaults, contains(keywordKey('스타벅스')));
+      back.defaultsVersion = 1; // (가정) 다시 업그레이드가 돌아도
+      back.upgradeDefaults();
+      expect([for (final k in back.keywords) k.keyword], isNot(contains('스타벅스')));
+    });
   });
 }

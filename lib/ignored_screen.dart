@@ -17,7 +17,11 @@ class IgnoredScreen extends StatefulWidget {
   /// 카테고리 변경 + 저장 (메인 화면 상태를 같이 바꾼다, 알림·[되돌리기]도 메인이 띄운다)
   final Future<void> Function(Expense e, String? category) onChange;
 
-  /// '취소로 상쇄' 묶음 [되살리기]: 두 건 함께 원래 분류로 ([원승인, 취소])
+  /// 되살리기 3종은 모두 미분류(분류 대기)로 보낸다. 알림·[보기]·[되돌리기]는 메인이 띄운다.
+  /// [대기로 되돌리기] (승인취소 묶음이면 짝도)
+  final Future<void> Function(Expense e) onRevive;
+
+  /// '취소로 상쇄' 묶음 [되살리기]: 두 건 함께 미분류로 ([원승인, 취소])
   final Future<void> Function(List<Expense> group) onReviveOffset;
 
   /// 중복으로 무시한 건 [중복 아님 · 되살리기]: 분류 대기로, 그 쌍은 다시 중복 의심에 안 뜨게
@@ -34,6 +38,7 @@ class IgnoredScreen extends StatefulWidget {
     required this.onChange,
     required this.onReviveDuplicate,
     required this.onReviveOffset,
+    required this.onRevive,
     required this.carButton,
     required this.opsButton,
   });
@@ -43,10 +48,6 @@ class IgnoredScreen extends StatefulWidget {
 }
 
 class _IgnoredScreenState extends State<IgnoredScreen> {
-  void _snack(Expense e, String what) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text('${e.merchant.isEmpty ? won(e.signedAmount) : e.merchant} · $what')));
-
   Future<void> _set(Expense e, String? cat) async {
     await widget.onChange(e, cat);
     if (mounted) setState(() {});
@@ -54,9 +55,12 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
 
   Future<void> _revive(Expense e) async {
     await widget.onReviveDuplicate(e);
-    if (!mounted) return;
-    setState(() {});
-    _snack(e, '분류 대기로 되살렸어요');
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toPending(Expense e) async {
+    await widget.onRevive(e);
+    if (mounted) setState(() {});
   }
 
   Widget _outlined(String label, VoidCallback onPressed) => SizedBox(
@@ -74,9 +78,7 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
 
   Future<void> _reviveOffset(List<Expense> group) async {
     await widget.onReviveOffset(group);
-    if (!mounted) return;
-    setState(() {});
-    _snack(group.first, '승인·취소 ${group.length}건을 되살렸어요');
+    if (mounted) setState(() {});
   }
 
   /// '취소로 상쇄' 묶음 한 카드: 승인 + 취소, 합계 0원. 차량비/운영비 버튼 없음
@@ -159,7 +161,7 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
               else ...[
                 widget.carButton(rec, () => _set(e, kCar)),
                 widget.opsButton(rec, () => _set(e, kOps)),
-                _outlined('대기로 되돌리기', () => _set(e, null)),
+                _outlined('대기로 되돌리기', () => _toPending(e)),
               ],
             ],
           ),

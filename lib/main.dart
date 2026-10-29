@@ -447,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final byId = _byId;
     for (final id in ids) {
       final e = byId[id];
-      if (e != null && e.category == kIgnored) e.category = null;
+      if (e != null && e.category == kIgnored) _setCategory(e, null);
     }
     await widget.store.saveItems(_items);
     if (mounted) setState(() {});
@@ -588,7 +588,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       kCar => '차량비로 분류했어요',
       kOps => '운영비로 분류했어요',
       kIgnored => '무시했어요',
-      _ => '분류 대기로 되돌렸어요',
+      _ => '미분류로 되돌렸어요',
     };
     final who = e.merchant.isEmpty ? won(e.signedAmount) : e.merchant;
     ScaffoldMessenger.of(context)
@@ -640,19 +640,59 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _toast('${i.e.merchant.isEmpty ? won(i.e.amount) : i.e.merchant} · 승인·취소 2건을 무시 목록으로 옮겼어요');
   }
 
-  /// 무시한 내역 '취소로 상쇄' [되살리기]: 묶음 두 건을 원래 분류로. 다시 승인 후 취소에 안 뜨게 기억
-  Future<void> _reviveOffset(List<Expense> group) async {
+  /// 무시한 내역의 되살리기 3종 공통: [targets] 를 분류 대기(= 미분류 내역)로 보내고 사유 필드를 지운다.
+  /// [okKeys] (중복 쌍·취소 묶음)는 다시 확인 필요에 안 뜨게 기억 — [되돌리기] 해도 기억은 남는다.
+  /// 스낵바 '미분류 내역으로 옮겼어요' + [보기](미분류 내역) + 5초 [되돌리기](원래 무시 상태·사유 그대로).
+  Future<void> _reviveToPending(List<Expense> targets, {List<String> okKeys = const []}) async {
+    final before = {for (final t in targets) t: (t.category, t.ignoreReason, t.dupOf, t.ignoredFrom)};
+    if (okKeys.isNotEmpty) await widget.store.addCheckOk(okKeys);
     setState(() {
-      for (final t in group) {
-        t
-          ..category = t.ignoredFrom
-          ..ignoreReason = null
-          ..ignoredFrom = null;
+      for (final t in targets) {
+        _setCategory(t, null);
       }
     });
-    await widget.store.addCheckOk(['${CheckRule.cancelled.name}|${group.map((g) => g.id).join('+')}']);
     await widget.store.saveItems(_items);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Row(children: [
+          Expanded(
+            child: Text(targets.length > 1 ? '${targets.length}건을 미분류 내역으로 옮겼어요' : '미분류 내역으로 옮겼어요'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: kGold),
+            onPressed: () {
+              messenger.hideCurrentSnackBar();
+              _openUnclassified();
+            },
+            child: const Text('보기'),
+          ),
+        ]),
+        duration: const Duration(seconds: 5),
+        persist: false,
+        action: SnackBarAction(
+          label: '되돌리기',
+          onPressed: () async {
+            setState(() {
+              before.forEach((t, b) {
+                t
+                  ..category = b.$1
+                  ..ignoreReason = b.$2
+                  ..dupOf = b.$3
+                  ..ignoredFrom = b.$4;
+              });
+            });
+            await widget.store.saveItems(_items);
+          },
+        ),
+      ));
   }
+
+  /// 무시한 내역 '취소로 상쇄' [되살리기]: 묶음 두 건을 미분류로. 다시 승인 후 취소에 안 뜨게 기억
+  Future<void> _reviveOffset(List<Expense> group) => _reviveToPending(group,
+      okKeys: ['${CheckRule.cancelled.name}|${group.map((g) => g.id).join('+')}']);
 
   Future<void> _delete(Expense e) async {
     setState(() => _items.remove(e));
@@ -820,10 +860,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           pending: _items.where((e) => e.category == null).length,
           check: _issues.length,
           ignored: _items.where((e) => e.category == kIgnored).length,
+          confirmed: _items.where((e) => e.category == kCar || e.category == kOps).length,
         ),
         onUnclassified: _openUnclassified,
         onCheck: _openCheck,
         onIgnored: _openIgnored,
+        onConfirmed: _openConfirmed,
       ),
     ));
   }
@@ -869,12 +911,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 메인 분류 대기와 같은 동작: 같은 업체 일괄 정리(직접 무시 건 포함)·등록 업체 기억·묶음 짝·되돌리기
         onChange: (e, cat) => _classify(e, cat, askBulk: cat != null, bulkIgnored: true),
         onReviveOffset: _reviveOffset,
-        onReviveDuplicate: (e) async {
-          // 되살린 쌍은 다시 중복 의심에 안 뜨게
-          if (e.dupOf != null) await widget.store.addCheckOk([dupPairKey(e.id, e.dupOf!)]);
-          setState(() => _setCategory(e, null));
-          await widget.store.saveItems(_items);
+        // [대기로 되돌리기]: 미분류로 (승인취소 묶음이면 짝도 같이)
+        onRevive: (e) {
+          final p = pairsById(_items)[e.id];
+          final partner = p?.partnerOf(e);
+          return _reviveToPending([e, if (partner != null && partner.category == kIgnored) partner]);
         },
+        // [중복 아님 · 되살리기]: 미분류로, 그 쌍은 다시 중복 의심에 안 뜨게
+        onReviveDuplicate: (e) =>
+            _reviveToPending([e], okKeys: [if (e.dupOf != null) dupPairKey(e.id, e.dupOf!)]),
         carButton: (rec, onPressed) => _CategoryButton.of(kCar, rec, onPressed, small: true),
         opsButton: (rec, onPressed) => _CategoryButton.of(kOps, rec, onPressed, small: true),
       ),
@@ -882,8 +927,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (mounted) setState(() {});
   }
 
-  void _openVendors() {
-    Navigator.of(context).push(MaterialPageRoute(
+  Future<void> _openVendors() => Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => VendorScreen(
         book: _vendors,
         onChanged: () async {
@@ -892,7 +936,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         },
       ),
     ));
-  }
+
+  /// 메뉴 > 내역 관리 > 확인한 내역. 누르면 메인과 같은 편집 시트 (분류 변경·무시·미분류로, 묶음 짝까지)
+  Future<void> _openConfirmed() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ConfirmedScreen(items: _items, changes: _changes, onTap: _editSheet),
+      ));
 
   /// 메뉴 > 권한 설정
   Future<void> _openPermissions() => Navigator.of(context).push(MaterialPageRoute(
@@ -1133,14 +1181,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ]),
               const SizedBox(height: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.undo),
-                label: const Text('대기로 되돌리기'),
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _classify(e, null);
-                },
-              ),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.undo),
+                    label: const Text('미분류로 되돌리기'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _classify(e, null);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.visibility_off_outlined),
+                    label: const Text('무시'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _classify(e, kIgnored);
+                    },
+                  ),
+                ),
+              ]),
               TextButton.icon(
                 icon: const Icon(Icons.delete_outline, color: Colors.red),
                 label: const Text('삭제', style: TextStyle(color: Colors.red)),

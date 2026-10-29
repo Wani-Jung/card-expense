@@ -135,11 +135,15 @@ void main() {
     expect(find.text('미분류 내역'), findsNothing);
     await tester.tap(find.text('내역 관리'));
     await tester.pumpAndSettle();
-    expect(find.text('0건'), findsNWidgets(4)); // 합계 + 하위 3개
+    expect(find.text('0건'), findsNWidgets(5)); // 합계 + 하위 4개 (확인한 내역 포함)
     await tester.tap(find.text('결제내역 입력'));
     await tester.pumpAndSettle();
     expect(find.text('문자 붙여넣기'), findsOneWidget);
     expect(find.text('문자 캡처화면 업로드'), findsOneWidget);
+    // 펼침은 하나만: 결제내역 입력을 펼치면 내역 관리는 접힘 → 다시 펼침
+    expect(find.text('미분류 내역'), findsNothing);
+    await tester.tap(find.text('내역 관리'));
+    await tester.pumpAndSettle();
 
     for (final (t, empty) in [('미분류 내역', '미분류 내역이 없어요'), ('확인 필요 내역', '확인이 필요한 내역이 없어요'), ('무시한 내역', '무시한 내역이 없어요')]) {
       await tester.tap(find.text(t));
