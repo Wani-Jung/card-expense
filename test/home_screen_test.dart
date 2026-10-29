@@ -6,6 +6,7 @@ import 'package:card_expense/quiz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 메인 화면이 그려지는지 (표·월 진행 표시줄·◀ ▶), 넘김·표시줄 터치가 동작하는지.
@@ -13,8 +14,10 @@ void main() {
   setUp(() {
     TestWidgetsFlutterBinding.ensureInitialized();
     // 네이티브 채널은 빈 응답
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('card_expense/native'), (_) async => null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('card_expense/native'),
+      (_) async => null,
+    );
     SharedPreferences.setMockInitialValues({
       'card_digits': '0000',
       'sender_number': '1588-1600',
@@ -110,24 +113,21 @@ void main() {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    const titles = [
-      '결제내역 입력',
-      '내역 관리',
-      '등록 업체·추천 키워드',
-      '카드 문자 설정',
-      '권한 설정',
-      '업데이트 확인',
-      '오늘의 안전 OX',
-      '제작자',
-    ];
+    const titles = ['결제내역 입력', '내역 관리', '안전 OX', '등록 업체·추천 키워드', '카드 문자 설정', '권한 설정', '업데이트 확인'];
     for (final t in titles) {
       expect(find.text(t), findsOneWidget);
     }
-    for (final gone in ['내역 넣기', '정산', '업체 관리', '설정', '앱 정보', '이번 달 내역 복사', '현재 버전', '알림 접근 설정']) {
+    for (final gone in ['내역 넣기', '정산', '업체 관리', '설정', '앱 정보', '이번 달 내역 복사', '현재 버전', '알림 접근 설정', '제작자']) {
       expect(find.text(gone), findsNothing);
     }
     // 스크롤 없이 마지막 항목이 하단 바(48dp) 위에 보임
-    expect(tester.getBottomLeft(find.text('wani')).dy, lessThan(780 - 48));
+    // 크레딧: 가운데 정렬, 하단 바(48dp) 위, 누르는 반응 없음
+    final credit = find.text('Made by wani');
+    expect(tester.getBottomLeft(credit).dy, lessThan(780 - 48));
+    expect(tester.getCenter(credit).dx, closeTo(360 / 2, 1));
+    expect(find.ancestor(of: credit, matching: find.byType(InkWell)), findsNothing);
+    expect(find.ancestor(of: credit, matching: find.byType(ListTile)), findsNothing);
+    expect(find.text('오늘의 문제를 풀어보세요'), findsOneWidget);
     expect(find.text('카드 0000 · 발신 1588-1600'), findsOneWidget);
     expect(find.text('알림 감지 권한 필요'), findsOneWidget);
 
@@ -141,11 +141,7 @@ void main() {
     expect(find.text('문자 붙여넣기'), findsOneWidget);
     expect(find.text('문자 캡처화면 업로드'), findsOneWidget);
 
-    for (final (t, empty) in [
-      ('미분류 내역', '미분류 내역이 없어요'),
-      ('확인 필요 내역', '확인이 필요한 내역이 없어요'),
-      ('무시한 내역', '무시한 내역이 없어요'),
-    ]) {
+    for (final (t, empty) in [('미분류 내역', '미분류 내역이 없어요'), ('확인 필요 내역', '확인이 필요한 내역이 없어요'), ('무시한 내역', '무시한 내역이 없어요')]) {
       await tester.tap(find.text(t));
       await tester.pumpAndSettle();
       expect(find.text(empty), findsOneWidget);
@@ -174,15 +170,15 @@ void main() {
 
   testWidgets('무시한 내역에서 차량비 고르면 같은 업체 무시·대기 건 일괄 정리, 되돌리기', (tester) async {
     Map<String, Object?> item(String id, String merchant, String? cat, int day, [String? reason]) => {
-          'id': id,
-          'amount': 10000,
-          'dateTime': DateTime(DateTime.now().year, DateTime.now().month, day, 12).toIso8601String(),
-          'merchant': merchant,
-          'isCancel': false,
-          'raw': '',
-          'category': cat,
-          'ignoreReason': ?reason,
-        };
+      'id': id,
+      'amount': 10000,
+      'dateTime': DateTime(DateTime.now().year, DateTime.now().month, day, 12).toIso8601String(),
+      'merchant': merchant,
+      'isCancel': false,
+      'raw': '',
+      'category': cat,
+      'ignoreReason': ?reason,
+    };
     SharedPreferences.setMockInitialValues({
       'card_digits': '0000',
       'sender_number': '1588-1600',
@@ -213,9 +209,9 @@ void main() {
     expect(find.text('직접 무시 (2건)'), findsNothing);
     expect(find.text('중복으로 무시 (1건)'), findsOneWidget);
     Map<String, String?> cats() => {
-          for (final e in jsonDecode(prefs.getString('expenses_v1')!) as List)
-            (e as Map)['id'] as String: e['category'] as String?,
-        };
+      for (final e in jsonDecode(prefs.getString('expenses_v1')!) as List)
+        (e as Map)['id'] as String: e['category'] as String?,
+    };
     expect(cats(), {'a': 'car', 'b': 'car', 'c': 'car', 'd': 'ignored'});
 
     await tester.tap(find.text('되돌리기'));
@@ -255,22 +251,51 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('오늘의 안전 OX ·'), findsNothing);
 
-    // 메뉴: 통계 표시, [지금 한 문제 풀기]로 수동 출제
+    // 메뉴 '안전 OX' → 안전 OX 화면 → 한 문제 더 풀기 (오늘 푼 문제는 안 나옴)
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('지금까지 1문제 · 정답률 '), findsOneWidget);
-    await tester.tap(find.text('오늘의 안전 OX'));
+    expect(find.textContaining('연속 1일 · 정답률 '), findsOneWidget);
+    await tester.tap(find.text('안전 OX'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('지금 한 문제 풀기'));
-    await waitQuiz(tester);
-    expect(find.textContaining('오늘의 안전 OX ·'), findsOneWidget);
-    // 바깥 터치로 바로 닫힘
-    await tester.tapAt(const Offset(200, 40));
+    expect(find.text('지난 문제 다시 보기'), findsOneWidget);
+    expect(find.text('안전 OX 챌린지'), findsOneWidget);
+    final firstId = (jsonDecode(prefs.getStringList('quiz_log_v1')!.single) as Map)['id'];
+    await tester.tap(find.text('한 문제 더 풀기'));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
     await tester.pumpAndSettle();
-    expect(find.textContaining('오늘의 안전 OX ·'), findsNothing);
+    await tester.tap(find.text('X'));
+    await tester.pumpAndSettle();
+    expect(find.text('다음 문제'), findsOneWidget);
+    expect(find.text('그만하기'), findsOneWidget);
+    final log = prefs.getStringList('quiz_log_v1')!;
+    expect(log, hasLength(2));
+    final extra = jsonDecode(log.last) as Map;
+    expect(extra['s'], 'extra');
+    expect(extra['id'], isNot(firstId));
   });
 
-  testWidgets('오늘의 안전 OX: 메뉴에서 끄면 안 뜸', (tester) async {
+  testWidgets('업데이트 확인을 눌러도 메뉴 화면에 그대로', (tester) async {
+    PackageInfo.setMockInitialValues(
+      appName: 'card_expense',
+      packageName: 'com.wani.card_expense',
+      version: '1.17.0',
+      buildNumber: '1',
+      buildSignature: '',
+    );
+    await pumpHome(tester);
+    await tester.tap(find.byTooltip('메뉴'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('업데이트 확인'));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.pumpAndSettle();
+    // 메인으로 돌아가지 않음
+    expect(find.text('메뉴'), findsOneWidget);
+    expect(find.text('결제내역 입력'), findsOneWidget);
+    // 결과(테스트에서는 네트워크 없음 → 실패 안내)는 메뉴 위 스낵바로
+    expect(find.textContaining('업데이트 정보를 확인하지 못했어요'), findsOneWidget);
+  });
+
+  testWidgets('오늘의 안전 OX: 예전에 꺼 둔 기기도 뜸 (스위치 삭제)', (tester) async {
     SharedPreferences.setMockInitialValues({
       'card_digits': '0000',
       'sender_number': '1588-1600',
@@ -279,7 +304,9 @@ void main() {
     });
     await pumpHome(tester);
     await tester.pump(const Duration(milliseconds: 350));
-    await waitQuiz(tester, tries: 5);
-    expect(find.textContaining('오늘의 안전 OX ·'), findsNothing);
+    await waitQuiz(tester);
+    expect(find.textContaining('오늘의 안전 OX ·'), findsOneWidget);
+    await tester.tap(find.byTooltip('닫기'));
+    await tester.pumpAndSettle();
   });
 }

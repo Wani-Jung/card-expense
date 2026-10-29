@@ -12,13 +12,13 @@ QuizQuestion _q(String id, {bool active = true}) =>
 QuizBank _bank(List<QuizQuestion> qs, {int version = 1}) => QuizBank(version, '2026-10-29', qs);
 
 String _json(int version, List<String> ids) => jsonEncode({
-      'version': version,
-      'updated': '2026-10-29',
-      'questions': [
-        for (final id in ids)
-          {'id': id, 'category': '분야', 'question': '문제', 'answer': true, 'explain': '', 'basis': '', 'active': true},
-      ],
-    });
+  'version': version,
+  'updated': '2026-10-29',
+  'questions': [
+    for (final id in ids)
+      {'id': id, 'category': '분야', 'question': '문제', 'answer': true, 'explain': '', 'basis': '', 'active': true},
+  ],
+});
 
 Future<QuizStore> _store([Map<String, Object> init = const {}]) async {
   SharedPreferences.setMockInitialValues(init);
@@ -27,8 +27,8 @@ Future<QuizStore> _store([Map<String, Object> init = const {}]) async {
 
 void main() {
   group('하루 1회 판정', () {
-    QuizDecision d({String? last, bool enabled = true, int count = 5, bool blocked = false, String today = '2026-10-29'}) =>
-        decideQuiz(today: today, lastDay: last, enabled: enabled, activeCount: count, blocked: blocked);
+    QuizDecision d({String? last, int count = 5, bool blocked = false, String today = '2026-10-29'}) =>
+        decideQuiz(today: today, lastDay: last, activeCount: count, blocked: blocked);
 
     test('그날 처음이면 띄우고, 같은 날 다시 열면 안 뜸', () {
       expect(d(last: null), QuizDecision.show);
@@ -40,12 +40,13 @@ void main() {
       expect(quizDay(DateTime(2026, 10, 29, 23, 59)), '2026-10-29');
       expect(quizDay(DateTime(2026, 10, 30, 0, 0)), '2026-10-30');
       expect(quizDay(DateTime(2027, 1, 1)), '2027-01-01');
-      expect(d(last: quizDay(DateTime(2026, 10, 29, 23, 59)), today: quizDay(DateTime(2026, 10, 30, 0, 1))),
-          QuizDecision.show);
+      expect(
+        d(last: quizDay(DateTime(2026, 10, 29, 23, 59)), today: quizDay(DateTime(2026, 10, 30, 0, 1))),
+        QuizDecision.show,
+      );
     });
 
-    test('꺼 둠·활성 문항 0개면 안 뜸, 다른 팝업이 먼저 뜬 날은 건너뜀', () {
-      expect(d(enabled: false), QuizDecision.disabled);
+    test('활성 문항 0개면 안 뜸, 다른 팝업이 먼저 뜬 날은 건너뜀', () {
       expect(d(count: 0), QuizDecision.noQuestions);
       expect(d(blocked: true), QuizDecision.skipToday);
       // 이미 띄운 날이면 팝업 여부와 상관없이 그대로
@@ -138,14 +139,125 @@ void main() {
     });
   });
 
-  test('기록·통계: 기기에만 날짜·문항·선택·정답 여부', () async {
-    final s = await _store();
-    expect(s.statsText, '지금까지 0문제 · 정답률 -');
-    await s.record(const QuizRecord('2026-10-29', 'q1', true, true));
-    await s.record(const QuizRecord('2026-10-30', 'q2', false, false));
+  test('기록·통계: 기기에만 날짜·문항·선택·정답 여부, v1.16 기록 이어짐', () async {
+    // v1.16 형식(출처 없음) 기록이 남아 있는 기기
+    final s = await _store({
+      'quiz_log_v1': [
+        jsonEncode({'d': '2026-10-30', 'id': 'q1', 'c': true, 'ok': true}),
+      ],
+    });
+    expect(s.records.single.src, kQuizDaily);
+    await s.record(const QuizRecord('2026-10-31', 'q2', false, false, src: kQuizExtra));
     await s.record(const QuizRecord('2026-10-31', 'q3', true, true));
-    expect(s.statsText, '지금까지 3문제 · 정답률 67%');
-    expect(s.records.first.toJson(), {'d': '2026-10-29', 'id': 'q1', 'c': true, 'ok': true});
-    expect(s.enabled, isTrue);
+    expect(s.solvedCount, 3);
+    expect(s.percent, 67);
+    expect(s.menuText('2026-10-31'), '연속 2일 · 정답률 67%');
+    expect(s.records[1].toJson(), {'d': '2026-10-31', 'id': 'q2', 'c': false, 'ok': false, 's': 'extra'});
+    expect((await _store()).menuText('2026-10-31'), '오늘의 문제를 풀어보세요');
+  });
+
+  test('스위치 삭제: 예전에 꺼 둔 기기(quiz_enabled_v1=false)도 그날 처음이면 뜸', () async {
+    final s = await _store({'quiz_enabled_v1': false});
+    expect(decideQuiz(today: '2026-10-31', lastDay: s.lastDay, activeCount: 5, blocked: false), QuizDecision.show);
+  });
+
+  group('연속 일수', () {
+    test('오늘까지 이어지면 오늘 포함, 오늘 아직이면 어제까지', () {
+      expect(quizStreak(['2026-10-29', '2026-10-30', '2026-10-31'], '2026-10-31'), 3);
+      expect(quizStreak(['2026-10-29', '2026-10-30'], '2026-10-31'), 2);
+    });
+
+    test('날짜가 끊기면 거기서 멈춤, 이틀 비면 0', () {
+      expect(quizStreak(['2026-10-27', '2026-10-29', '2026-10-30'], '2026-10-30'), 2);
+      expect(quizStreak(['2026-10-27', '2026-10-28'], '2026-10-30'), 0);
+      expect(quizStreak([], '2026-10-30'), 0);
+    });
+
+    test('월·연도 경계와 같은 날 여러 번', () {
+      expect(quizStreak(['2026-12-31', '2027-01-01', '2027-01-01'], '2027-01-01'), 2);
+      expect(quizStreak(['2026-02-28', '2026-03-01'], '2026-03-01'), 2);
+    });
+
+    test('추가 문제·챌린지만 푼 날은 연속에 안 들어감', () async {
+      final s = await _store();
+      await s.record(const QuizRecord('2026-10-30', 'q1', true, true));
+      await s.record(const QuizRecord('2026-10-31', 'q2', true, true, src: kQuizExtra));
+      expect(s.streak('2026-10-31'), 1);
+    });
+  });
+
+  group('오늘 푼 문제 제외 출제', () {
+    test('오늘 푼 문제(오늘의 문제·추가·챌린지)는 안 나오고, 다 풀면 null (소진)', () async {
+      final s = await _store();
+      final bank = _bank([for (var i = 1; i <= 4; i++) _q('q$i')]);
+      await s.record(const QuizRecord('2026-10-31', 'q1', true, true));
+      await s.record(const QuizRecord('2026-10-31', 'q2', true, true, src: kQuizChallenge, run: 'c1'));
+      await s.record(const QuizRecord('2026-10-30', 'q3', true, true)); // 어제 푼 건 괜찮음
+      final today = s.solvedOn('2026-10-31');
+      expect(today, {'q1', 'q2'});
+      final got = <String>{};
+      for (var i = 0; i < 2; i++) {
+        final q = (await s.next(bank, exclude: {...today, ...got}))!;
+        got.add(q.id);
+      }
+      expect(got, {'q3', 'q4'});
+      expect(await s.next(bank, exclude: {...today, ...got}), isNull);
+    });
+
+    test('셔플백에 남은 게 전부 오늘 푼 문제여도 다른 문제를 낸다', () async {
+      final s = await _store();
+      final bank = _bank([for (var i = 1; i <= 3; i++) _q('q$i')]);
+      final rnd = Random(5);
+      final first = (await s.next(bank, random: rnd))!.id; // 남은 순서 2개
+      final rest = bank.active.map((q) => q.id).where((id) => id != first).toSet();
+      final q = await s.next(bank, exclude: rest, random: rnd);
+      expect(q!.id, first);
+    });
+  });
+
+  group('챌린지', () {
+    ChallengeRun run(String id, int ok, int ms, {int n = 20}) => ChallengeRun(id: id, at: 0, n: n, correct: ok, ms: ms);
+
+    test('최고 기록: 정답률 높은 순 → 같으면 시간 짧은 순, 문항 수별 따로', () async {
+      expect(isBetterRun(run('a', 18, 200000), run('b', 17, 90000)), isTrue);
+      expect(isBetterRun(run('a', 17, 90000), run('b', 17, 100000)), isTrue);
+      expect(isBetterRun(run('a', 17, 100000), run('b', 17, 90000)), isFalse);
+      expect(isBetterRun(run('a', 17, 90000), run('b', 17, 90000)), isFalse);
+      expect(isBetterRun(run('a', 1, 1), null), isTrue);
+
+      final s = await _store();
+      await s.saveRun(run('r1', 15, 100000), const []);
+      await s.saveRun(run('r2', 18, 150000), const []);
+      await s.saveRun(run('r3', 18, 120000), const []);
+      await s.saveRun(run('r4', 30, 300000, n: 30), const []);
+      expect(s.best(20)!.id, 'r3');
+      expect(s.best(30)!.id, 'r4');
+      expect(s.best(50), isNull);
+      expect(s.best(20, except: 'r3')!.id, 'r2');
+    });
+
+    test('활성 문항 수보다 큰 문항 수는 비활성', () {
+      expect(challengeSizeEnabled(20, 91), isTrue);
+      expect(challengeSizeEnabled(50, 91), isTrue);
+      expect(challengeSizeEnabled(30, 25), isFalse);
+      expect(challengeSizeEnabled(20, 20), isTrue);
+    });
+
+    test('문제는 활성 문항에서 중복 없이 랜덤, 회차·문제별 기록 저장', () async {
+      final bank = _bank([for (var i = 1; i <= 30; i++) _q('q$i'), _q('off', active: false)]);
+      final set = QuizStore.challengeSet(bank, 20, random: Random(1));
+      expect(set, hasLength(20));
+      expect(set.map((q) => q.id).toSet(), hasLength(20));
+      expect(set.any((q) => q.id == 'off'), isFalse);
+
+      final s = await _store();
+      await s.saveRun(run('c9', 1, 5000, n: 2), [
+        const QuizRecord('2026-10-31', 'q1', true, true, src: kQuizChallenge, run: 'c9'),
+        const QuizRecord('2026-10-31', 'q2', true, false, src: kQuizChallenge, run: 'c9'),
+      ]);
+      expect(s.runs.single.id, 'c9');
+      expect(s.records.where((r) => r.run == 'c9'), hasLength(2));
+      expect(quizDuration(134000), '2분 14초');
+    });
   });
 }

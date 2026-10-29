@@ -91,4 +91,7 @@ class Native {
   static Future<void> openNotificationAccessSettings() =>
       _ch.invokeMethod('openNotificationAccessSettings');
   static Future<void> openAppSettings() => _ch.invokeMethod('openAppSettings');
+
+  /// 안드로이드 공유 시트로 텍스트 공유 (챌린지 결과)
+  static Future<void> shareText(String text) => _ch.invokeMethod('shareText', {'text': text});
 }

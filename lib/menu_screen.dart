@@ -8,7 +8,10 @@ import 'layout.dart';
 /// '결제내역 입력'·'내역 관리'는 그 자리에서 펼친다. 접힌 상태 7개는 스크롤 없이 한 화면에.
 /// 내역 넣기·업데이트 확인은 메뉴를 닫고 메인 화면에서 실행해 결과가 메인에 보이게 한다.
 class MenuScreen extends StatefulWidget {
-  final VoidCallback onImport, onPaste, onOcr, onVendors, onUpdate;
+  final VoidCallback onImport, onPaste, onOcr, onVendors;
+
+  /// 업데이트 확인. 메뉴를 닫지 않고, 확인하는 동안 항목 오른쪽에 작은 로딩 표시
+  final Future<void> Function() onUpdate;
 
   /// (전용판) 권한 설정에서 문자 읽기를 끄면 1년치 불러오기를 흐리게
   final bool Function() importEnabled;
@@ -21,10 +24,8 @@ class MenuScreen extends StatefulWidget {
   final Future<void> Function() onPermissions;
   final String Function() permSummary;
 
-  /// 오늘의 안전 OX: 켜기/끄기 스위치, 설명 "지금까지 N문제 · 정답률 NN%", [지금 한 문제 풀기]
-  final bool Function() quizEnabled;
-  final Future<void> Function(bool on) onQuizEnabled;
-  final String Function() quizStats;
+  /// 안전 OX: 설명 "연속 N일 · 정답률 NN%", 누르면 안전 OX 화면
+  final String Function() quizSummary;
   final Future<void> Function() onQuiz;
 
   /// 내역 관리 건수 (미분류, 확인 필요, 무시한). 각 화면에서 돌아오면 다시 센다.
@@ -43,9 +44,7 @@ class MenuScreen extends StatefulWidget {
     required this.cardSummary,
     required this.onPermissions,
     required this.permSummary,
-    required this.quizEnabled,
-    required this.onQuizEnabled,
-    required this.quizStats,
+    required this.quizSummary,
     required this.onQuiz,
     required this.counts,
     required this.onUnclassified,
@@ -59,7 +58,7 @@ class MenuScreen extends StatefulWidget {
 
 class _MenuScreenState extends State<MenuScreen> {
   bool _inputOpen = false;
-  bool _quizOpen = false;
+  bool _checking = false; // 업데이트 확인 중
 
   /// 기본 접힘. 확인 필요가 1건 이상이면 펼친 상태로 시작
   late bool _manageOpen = widget.counts().check > 0;
@@ -159,6 +158,8 @@ class _MenuScreenState extends State<MenuScreen> {
             sub(Icons.visibility_off_outlined, '무시한 내역', openThen(w.onIgnored), trailing: badge(c.ignored)),
           ],
           line,
+          item(Icons.quiz_outlined, '안전 OX', w.quizSummary(), openThen(w.onQuiz)),
+          line,
           item(Icons.storefront, '등록 업체·추천 키워드', '가맹점 이름으로 차량비/운영비를 추천해요', w.onVendors),
           line,
           item(Icons.credit_card, '카드 문자 설정', w.cardSummary(), openThen(w.onSettings)),
@@ -171,26 +172,28 @@ class _MenuScreenState extends State<MenuScreen> {
               Icons.system_update,
               '업데이트 확인',
               '현재 ${snap.hasData ? 'v${snap.data!.version}' : ''} · $editionLabel',
-              closeThen(w.onUpdate),
+              _checking
+                  ? null
+                  : () async {
+                      setState(() => _checking = true);
+                      try {
+                        await w.onUpdate();
+                      } finally {
+                        if (mounted) setState(() => _checking = false);
+                      }
+                    },
+              trailing: _checking
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : null,
             ),
           ),
-          line,
-          item(
-            Icons.quiz_outlined,
-            '오늘의 안전 OX',
-            w.quizStats(),
-            () => setState(() => _quizOpen = !_quizOpen),
-            trailing: Switch(
-              value: w.quizEnabled(),
-              onChanged: (v) async {
-                await w.onQuizEnabled(v);
-                if (mounted) setState(() {});
-              },
+          // 크레딧: 목록 항목이 아니라 맨 아래 작은 회색 글씨 (누르는 반응 없음)
+          const Padding(
+            padding: EdgeInsets.only(top: 32, bottom: 8),
+            child: Center(
+              child: Text('Made by wani', style: TextStyle(fontSize: 12, color: Color(0xFF9AA0A6))),
             ),
           ),
-          if (_quizOpen) sub(Icons.play_circle_outline, '지금 한 문제 풀기', openThen(w.onQuiz)),
-          line,
-          item(Icons.person_outline, '제작자', 'wani', null),
         ],
       ),
     );

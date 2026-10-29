@@ -53,10 +53,13 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 지난 문자: 두 판 모두 메시지 앱 공유(ACTION_SEND/SEND_MULTIPLE → `takeShared`)·붙여넣기. 전용판은 추가로 SMS+MMS 1년치 조회(MMS date 는 초 단위, 발신번호는 addr type=137, 본문은 part ct=text/plain)
 
 앱이 꺼져 있을 때 들어온 문자는 네이티브 inbox 에 쌓였다가 앱이 켜지면 `drainInbox` 로 Dart 저장소로 옮겨진다.
-- `lib/quiz.dart` / `lib/quiz_sheet.dart` — 오늘의 안전 OX. 문제 풀 = assets `quiz/questions.json`(내장) vs 기기 캐시(원격 raw.githubusercontent 의 main `quiz/questions.json`, version 이 높을 때만, 하루 1회·3초·실패 무시) 중 높은 버전. 첫 프레임 + 300ms 뒤 하루 1회(`quiz_last_day_v1`) 판정: 첫 실행 설정 직후·다른 팝업(업데이트 창 등)이 먼저 뜬 날은 건너뜀, 메뉴 스위치(`quiz_enabled_v1`, 기본 켜짐) 꺼짐·활성 문항 0개면 안 뜸. 셔플백(`quiz_bag_v1`/`quiz_known_v1`, 새 문항은 남은 순서에 섞음). 기록 `quiz_log_v1`(날짜·id·선택·정답 여부, 기기에만). 자동 업데이트 창은 퀴즈 시트가 닫힌 뒤에 뜸
-- 메뉴 '오늘의 안전 OX'(제작자 위): 스위치 + '지금까지 N문제 · 정답률 NN%', 눌러 펼치면 [지금 한 문제 풀기](하루 1회와 별개)
+- `lib/quiz.dart` / `lib/quiz_sheet.dart` — 오늘의 안전 OX. 문제 풀 = assets `quiz/questions.json`(내장) vs 기기 캐시(원격 raw.githubusercontent 의 main `quiz/questions.json`, version 이 높을 때만, 하루 1회·3초·실패 무시) 중 높은 버전. 첫 프레임 + 300ms 뒤 하루 1회(`quiz_last_day_v1`) 판정: 첫 실행 설정 직후·다른 팝업(업데이트 창 등)이 먼저 뜬 날은 건너뜀, 활성 문항 0개면 안 뜸 (끄는 스위치는 v1.17 에서 삭제, 예전 `quiz_enabled_v1` 은 무시).
+  오늘 이미 푼 문제(모든 출처)는 오늘 다시 안 냄. 셔플백(`quiz_bag_v1`/`quiz_known_v1`, 새 문항은 남은 순서에 섞음). 기록 `quiz_log_v1`(날짜·id·선택·정답 여부·출처 `s`(없으면 오늘의 문제)/`extra`/`challenge`·회차 `r`, 기기에만), 챌린지 회차 `quiz_runs_v1`. 자동 업데이트 창은 퀴즈 시트가 닫힌 뒤에 뜸
+- 메뉴 '안전 OX'(내역 관리 아래, 설명 '연속 N일 · 정답률 NN%' / '오늘의 문제를 풀어보세요') → `lib/quiz_screens.dart` 안전 OX 화면: 요약 카드(푼 문제·정답률·연속) + 지난 문제 다시 보기(날짜 구분, [전체]/[틀린 문제만], 챌린지는 회차 1줄) / 한 문제 더 풀기(오늘 푼 문제 제외, 소진 안내) / 챌린지(20·30·50, 활성 문항보다 크면 비활성, 0.6초 표시 후 자동 다음, 최고 기록 = 정답률 → 시간, 결과 공유는 네이티브 `shareText`)
+- 연속 일수 = 오늘의 문제를 푼 날이 이어진 일수 (오늘 아직이면 어제까지)
+- 메뉴 '업데이트 확인'은 메뉴를 닫지 않음(항목 오른쪽 로딩, 결과는 메뉴 위). 메뉴 맨 아래 크레딧 'Made by wani'(가운데, 12, #9AA0A6, 누르는 반응 없음)
 
-테스트: `test/quiz_test.dart`(하루 1회·날짜 경계·셔플백·새 문항·active=false·원격 실패/캐시), `test/check_test.dart`(확인 필요 규칙 a~e, 중복 쌍 기억), `test/cancel_test.dart`(승인취소 묶음·바로잡기), `test/ignore_vendor_test.dart`(무시 사유·무시한 내역 화면·업체 관리 목록), `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
+테스트: `test/quiz_test.dart`(하루 1회·날짜 경계·셔플백·새 문항·active=false·원격 실패/캐시·연속 일수·오늘 푼 문제 제외·챌린지 최고 기록), `test/quiz_screens_test.dart`(챌린지 진행·결과·그만두기, 지난 문제, 한 문제 더), `test/check_test.dart`(확인 필요 규칙 a~e, 중복 쌍 기억), `test/cancel_test.dart`(승인취소 묶음·바로잡기), `test/ignore_vendor_test.dart`(무시 사유·무시한 내역 화면·업체 관리 목록), `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
 
 ## 빌드 / 배포
 - `flutter test`, `flutter build apk --release --flavor public` / `--flavor full`

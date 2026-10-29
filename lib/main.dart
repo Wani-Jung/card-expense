@@ -21,6 +21,7 @@ import 'ocr_screen.dart';
 import 'paste_screen.dart';
 import 'permission_screen.dart';
 import 'quiz.dart';
+import 'quiz_screens.dart';
 import 'quiz_sheet.dart';
 import 'review_screens.dart';
 import 'sms_parser.dart';
@@ -340,7 +341,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final d = decideQuiz(
       today: today,
       lastDay: _quiz.lastDay,
-      enabled: _quiz.enabled,
       activeCount: bank.active.length,
       // 첫 실행 설정 직후, 다른 팝업이 먼저 떴거나 메인 위에 다른 화면·창이 있으면 그날은 건너뜀
       blocked: widget.firstRun || _popupShown || !(ModalRoute.of(context)?.isCurrent ?? true),
@@ -356,14 +356,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 퀴즈 시트 띄우기 (하루 1회 자동 / 메뉴 '지금 한 문제 풀기')
   Future<void> _openQuiz() async {
     if (_quizSheet != null) return;
-    final q = await _quiz.next(await _bank());
+    // 오늘 이미 푼 문제(추가 문제·챌린지 포함)는 빼고
+    final q = await _quiz.next(await _bank(), exclude: _quiz.solvedOn(quizDay(DateTime.now())));
     if (!mounted) return;
     if (q == null) {
       _toast('풀 수 있는 문제가 없어요');
       return;
     }
     final sheet = showQuizSheet(context, q,
-        onAnswer: (c) => _quiz.record(QuizRecord(quizDay(DateTime.now()), q.id, c, c == q.answer)));
+        onAnswer: (c) => _quiz.record(QuizRecord(quizDay(DateTime.now()), q.id, c, c == q.answer,
+            src: kQuizDaily, at: DateTime.now().millisecondsSinceEpoch)));
     _quizSheet = sheet;
     await sheet;
     _quizSheet = null;
@@ -808,10 +810,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         cardSummary: () => '카드 ${widget.digits} · 발신 ${widget.sender}',
         onPermissions: _openPermissions,
         permSummary: _permSummary,
-        quizEnabled: () => _quiz.enabled,
-        onQuizEnabled: _quiz.setEnabled,
-        quizStats: () => _quiz.statsText,
-        onQuiz: _openQuiz,
+        quizSummary: () => _quiz.menuText(quizDay(DateTime.now())),
+        onQuiz: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => QuizHomeScreen(store: _quiz, bank: _bank),
+            )),
+        // 메뉴에 그대로 있고, 결과(스낵바·업데이트 창)도 메뉴 위에서
         onUpdate: () => _checkUpdate(manual: true),
         counts: () => (
           pending: _items.where((e) => e.category == null).length,
