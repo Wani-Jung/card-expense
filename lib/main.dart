@@ -460,7 +460,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// [되돌리기] 한 번이면 같이 정리된 건과 등록 업체까지 전부 원래대로.
   ///
   /// 무시하면 사유도 저장한다 ([dupOf] 가 있으면 '중복', 없으면 '직접 무시'). 무시를 풀면 사유를 지운다.
-  Future<void> _classify(Expense e, String? cat, {bool askBulk = false, String? dupOf}) async {
+  ///
+  /// [bulkIgnored] (무시한 내역에서 고를 때): 일괄 정리에 같은 가맹점의 '직접 무시' 건도 넣는다.
+  Future<void> _classify(Expense e, String? cat,
+      {bool askBulk = false, bool bulkIgnored = false, String? dupOf}) async {
     if (e.category == cat) return;
     final isChoice = cat == kCar || cat == kOps;
     // 승인취소 묶음은 한 건씩 따로 분류·무시하지 않는다
@@ -470,12 +473,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }.toList();
     var targets = withPartners([e]);
     if (askBulk && isChoice) {
-      final others = sameVendorPending(_items, e);
+      final others = sameVendorPending(_items, e, includeIgnored: bulkIgnored);
       if (others.isNotEmpty) {
         final all = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            content: Text("'${e.merchant}' 대기 내역 ${others.length}건도 ${categoryLabel(cat!)}로 정리할까요?"),
+            content: Text("'${e.merchant}' ${bulkIgnored ? '무시·대기' : '대기'} 내역 ${others.length}건도 "
+                "${categoryLabel(cat!)}로 정리할까요?"),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('이번 건만')),
               FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('모두 정리')),
@@ -771,21 +775,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (_) => IgnoredScreen(
         items: _items,
         recommend: _vendors.recommend,
-        onChange: (e, cat) async {
-          // 묶인 짝이 같이 무시돼 있으면 함께 (한 건씩 따로 분류하지 않게)
-          final p = pairsById(_items)[e.id];
-          final partner = p?.partnerOf(e);
-          setState(() {
-            _setCategory(e, cat);
-            if (partner != null && partner.category == kIgnored) _setCategory(partner, cat);
-          });
-          await widget.store.saveItems(_items);
-          // 메인에서 고를 때처럼 그 가맹점을 등록 업체로 기억
-          if ((cat == kCar || cat == kOps) && e.merchant.trim().isNotEmpty) {
-            _vendors.learn(e.merchant, cat!);
-            await widget.store.saveVendors(_vendors);
-          }
-        },
+        changes: _changes,
+        // 메인 분류 대기와 같은 동작: 같은 업체 일괄 정리(직접 무시 건 포함)·등록 업체 기억·묶음 짝·되돌리기
+        onChange: (e, cat) => _classify(e, cat, askBulk: cat != null, bulkIgnored: true),
         onReviveOffset: _reviveOffset,
         onReviveDuplicate: (e) async {
           // 되살린 쌍은 다시 중복 의심에 안 뜨게

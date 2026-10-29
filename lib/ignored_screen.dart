@@ -11,7 +11,10 @@ class IgnoredScreen extends StatefulWidget {
   final List<Expense> items;
   final Recommendation? Function(String merchant) recommend;
 
-  /// 카테고리 변경 + 저장 (메인 화면 상태를 같이 바꾼다)
+  /// 메인 상태가 바뀔 때 올라간다 ([되돌리기] 등으로 바뀌면 다시 그린다)
+  final Listenable changes;
+
+  /// 카테고리 변경 + 저장 (메인 화면 상태를 같이 바꾼다, 알림·[되돌리기]도 메인이 띄운다)
   final Future<void> Function(Expense e, String? category) onChange;
 
   /// '취소로 상쇄' 묶음 [되살리기]: 두 건 함께 원래 분류로 ([원승인, 취소])
@@ -27,6 +30,7 @@ class IgnoredScreen extends StatefulWidget {
     super.key,
     required this.items,
     required this.recommend,
+    required this.changes,
     required this.onChange,
     required this.onReviveDuplicate,
     required this.onReviveOffset,
@@ -45,13 +49,7 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
 
   Future<void> _set(Expense e, String? cat) async {
     await widget.onChange(e, cat);
-    if (!mounted) return;
-    setState(() {});
-    _snack(e, switch (cat) {
-      kCar => '차량비로 분류했어요',
-      kOps => '운영비로 분류했어요',
-      _ => '분류 대기로 되돌렸어요',
-    });
+    if (mounted) setState(() {});
   }
 
   Future<void> _revive(Expense e) async {
@@ -62,17 +60,17 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
   }
 
   Widget _outlined(String label, VoidCallback onPressed) => SizedBox(
-        height: 30,
-        child: OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            minimumSize: const Size(0, 30),
-            textStyle: const TextStyle(fontSize: 12),
-          ),
-          onPressed: onPressed,
-          child: Text(label),
-        ),
-      );
+    height: 30,
+    child: OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        minimumSize: const Size(0, 30),
+        textStyle: const TextStyle(fontSize: 12),
+      ),
+      onPressed: onPressed,
+      child: Text(label),
+    ),
+  );
 
   Future<void> _reviveOffset(List<Expense> group) async {
     await widget.onReviveOffset(group);
@@ -84,24 +82,33 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
   /// '취소로 상쇄' 묶음 한 카드: 승인 + 취소, 합계 0원. 차량비/운영비 버튼 없음
   Widget _offsetTile(List<Expense> group) {
     final head = group.first;
-    String line(Expense e) =>
-        '${fmtDateTime(e.dateTime)} ${e.isCancel ? '취소' : '승인'} ${won(e.signedAmount)}';
+    String line(Expense e) => '${fmtDateTime(e.dateTime)} ${e.isCancel ? '취소' : '승인'} ${won(e.signedAmount)}';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-            child: Text(head.merchant.isEmpty ? '(가맹점 미상)' : head.merchant,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  head.merchant.isEmpty ? '(가맹점 미상)' : head.merchant,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Text(
+                won(group.fold(0, (s, e) => s + e.signedAmount)),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
-          Text(won(group.fold(0, (s, e) => s + e.signedAmount)), style: const TextStyle(fontWeight: FontWeight.bold)),
-        ]),
-        const SizedBox(height: 4),
-        for (final e in group) Text(line(e), style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
-        const Text('취소로 상쇄 · 합계 0원', style: TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
-        const SizedBox(height: 10),
-        _outlined('되살리기', () => _reviveOffset(group)),
-      ]),
+          const SizedBox(height: 4),
+          for (final e in group) Text(line(e), style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
+          const Text('취소로 상쇄 · 합계 0원', style: TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
+          const SizedBox(height: 10),
+          _outlined('되살리기', () => _reviveOffset(group)),
+        ],
+      ),
     );
   }
 
@@ -119,38 +126,53 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
     final rec = dup ? null : widget.recommend(e.merchant);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-            child: Text(
-              '${fmtDateTime(e.dateTime)} · ${e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant}',
-              style: const TextStyle(fontSize: 13),
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${fmtDateTime(e.dateTime)} · ${e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+              Text(won(e.signedAmount), style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
           ),
-          Text(won(e.signedAmount), style: const TextStyle(fontWeight: FontWeight.bold)),
-        ]),
-        if (dup)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text('중복이라 무시함 · ${_originalText(e)}',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
-          ),
-        const SizedBox(height: 10),
-        Wrap(spacing: 6, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
           if (dup)
-            _outlined('중복 아님 · 되살리기', () => _revive(e))
-          else ...[
-            widget.carButton(rec, () => _set(e, kCar)),
-            widget.opsButton(rec, () => _set(e, kOps)),
-            _outlined('대기로 되돌리기', () => _set(e, null)),
-          ],
-        ]),
-      ]),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '중복이라 무시함 · ${_originalText(e)}',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368)),
+              ),
+            ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (dup)
+                _outlined('중복 아님 · 되살리기', () => _revive(e))
+              else ...[
+                widget.carButton(rec, () => _set(e, kCar)),
+                widget.opsButton(rec, () => _set(e, kOps)),
+                _outlined('대기로 되돌리기', () => _set(e, null)),
+              ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      ListenableBuilder(listenable: widget.changes, builder: (context, _) => _build(context));
+
+  Widget _build(BuildContext context) {
     final items = widget.items.where((e) => e.category == kIgnored).toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
     final manual = items.where((e) => !e.ignoredAsDuplicate && !e.ignoredAsOffset).toList();
@@ -167,13 +189,15 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
       offsets.add(g);
     }
     Widget header(String t) => Padding(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 2),
-          child: Text(t, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-        );
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 2),
+      child: Text(t, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+    );
     return Scaffold(
       appBar: AppBar(title: Text('무시한 내역 (${items.length}건)')),
       body: items.isEmpty
-          ? const Center(child: Text('무시한 내역이 없어요', style: TextStyle(color: Colors.black45)))
+          ? const Center(
+              child: Text('무시한 내역이 없어요', style: TextStyle(color: Colors.black45)),
+            )
           : ListView(
               padding: EdgeInsets.only(bottom: listBottomPad(context)),
               children: [

@@ -105,4 +105,16 @@ void main() {
       expect(sameVendorPending([picked, _e('', null, minute: 1)], picked), isEmpty);
     });
   });
+
+  test('무시한 내역에서 고를 때: 직접 무시 건도 일괄 대상, 중복·상쇄 무시는 제외', () {
+    final picked = _e('고야커피', kIgnored, minute: 1);
+    final manual = _e('고야 커피', kIgnored, minute: 2);
+    final pending = _e('고야커피', null, minute: 3);
+    final dup = _e('고야커피', kIgnored, minute: 4)..ignoreReason = kIgnoreDuplicate;
+    final offset = _e('고야커피', kIgnored, minute: 5)..ignoreReason = kIgnoreOffset;
+    final done = _e('고야커피', kOps, minute: 6);
+    final items = [picked, manual, pending, dup, offset, done];
+    expect(sameVendorPending(items, picked), [pending]);
+    expect(sameVendorPending(items, picked, includeIgnored: true), [manual, pending]);
+  });
 }

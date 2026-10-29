@@ -63,6 +63,7 @@ void main() {
       home: IgnoredScreen(
         items: items,
         recommend: (_) => null,
+        changes: ValueNotifier(0),
         onChange: (e, cat) async => e.category = cat,
         onReviveOffset: (_) async {},
         onReviveDuplicate: (e) async {

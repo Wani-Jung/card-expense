@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/main.dart';
 import 'package:flutter/material.dart';
@@ -147,5 +149,57 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('알림 감지 꺼짐'), findsOneWidget);
+  });
+
+  testWidgets('무시한 내역에서 차량비 고르면 같은 업체 무시·대기 건 일괄 정리, 되돌리기', (tester) async {
+    Map<String, Object?> item(String id, String merchant, String? cat, int day, [String? reason]) => {
+          'id': id,
+          'amount': 10000,
+          'dateTime': DateTime(DateTime.now().year, DateTime.now().month, day, 12).toIso8601String(),
+          'merchant': merchant,
+          'isCancel': false,
+          'raw': '',
+          'category': cat,
+          'ignoreReason': ?reason,
+        };
+    SharedPreferences.setMockInitialValues({
+      'card_digits': '0000',
+      'sender_number': '1588-1600',
+      'update_checked_at': DateTime.now().millisecondsSinceEpoch,
+      'expenses_v1': jsonEncode([
+        item('a', '고야커피', 'ignored', 1),
+        item('b', '고야커피', 'ignored', 2),
+        item('c', '고야커피', null, 3),
+        item('d', '고야커피', 'ignored', 4, 'duplicate'),
+      ]),
+    });
+    await pumpHome(tester);
+    final prefs = await SharedPreferences.getInstance();
+    await tester.tap(find.byTooltip('메뉴'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('내역 관리'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('무시한 내역'));
+    await tester.pumpAndSettle();
+    expect(find.text('직접 무시 (2건)'), findsOneWidget);
+
+    await tester.tap(find.text('차량비').first);
+    await tester.pumpAndSettle();
+    expect(find.text("'고야커피' 무시·대기 내역 2건도 차량비로 정리할까요?"), findsOneWidget);
+    await tester.tap(find.text('모두 정리'));
+    await tester.pumpAndSettle();
+    // 직접 무시 2건 + 대기 1건이 차량비로, 중복으로 무시한 건은 그대로
+    expect(find.text('직접 무시 (2건)'), findsNothing);
+    expect(find.text('중복으로 무시 (1건)'), findsOneWidget);
+    Map<String, String?> cats() => {
+          for (final e in jsonDecode(prefs.getString('expenses_v1')!) as List)
+            (e as Map)['id'] as String: e['category'] as String?,
+        };
+    expect(cats(), {'a': 'car', 'b': 'car', 'c': 'car', 'd': 'ignored'});
+
+    await tester.tap(find.text('되돌리기'));
+    await tester.pumpAndSettle();
+    expect(find.text('직접 무시 (2건)'), findsOneWidget);
+    expect(cats(), {'a': 'ignored', 'b': 'ignored', 'c': null, 'd': 'ignored'});
   });
 }

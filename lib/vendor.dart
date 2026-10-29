@@ -2,8 +2,21 @@ import 'expense.dart';
 
 /// 처음 설치하면 업체 관리 목록에 들어가는 차량비 기본 키워드. 사용자가 지울 수 있다.
 const kDefaultCarKeywords = [
-  '주유소', '주유', '충전소', '셀프', '오일', '에너지', '칼텍스', 'S-OIL', '에쓰오일', '오일뱅크',
-  '세차', '정비', '카센터', '타이어', '주차',
+  '주유소',
+  '주유',
+  '충전소',
+  '셀프',
+  '오일',
+  '에너지',
+  '칼텍스',
+  'S-OIL',
+  '에쓰오일',
+  '오일뱅크',
+  '세차',
+  '정비',
+  '카센터',
+  '타이어',
+  '주차',
 ];
 
 /// 키워드 비교용: 대소문자·공백·하이픈·점 무시. "S-OIL", "S OIL", "s-oil" → "soil"
@@ -32,8 +45,7 @@ class LearnedVendor {
   final String category;
   const LearnedVendor(this.name, this.category);
   Map<String, dynamic> toJson() => {'name': name, 'category': category};
-  factory LearnedVendor.fromJson(Map<String, dynamic> j) =>
-      LearnedVendor(j['name'] as String, j['category'] as String);
+  factory LearnedVendor.fromJson(Map<String, dynamic> j) => LearnedVendor(j['name'] as String, j['category'] as String);
 }
 
 enum RecSource { learned, keyword, defaultKeyword }
@@ -99,20 +111,24 @@ class VendorBook {
   }
 
   Map<String, dynamic> toJson() => {
-        'learned': learned.map((k, v) => MapEntry(k, v.toJson())),
-        'keywords': keywords.map((k) => k.toJson()).toList(),
-      };
+    'learned': learned.map((k, v) => MapEntry(k, v.toJson())),
+    'keywords': keywords.map((k) => k.toJson()).toList(),
+  };
 
   factory VendorBook.fromJson(Map<String, dynamic> j) => VendorBook(
-        (j['learned'] as Map<String, dynamic>? ?? {})
-            .map((k, v) => MapEntry(k, LearnedVendor.fromJson(v as Map<String, dynamic>))),
-        [for (final k in (j['keywords'] as List? ?? [])) KeywordRule.fromJson(k as Map<String, dynamic>)],
-      );
+    (j['learned'] as Map<String, dynamic>? ?? {}).map(
+      (k, v) => MapEntry(k, LearnedVendor.fromJson(v as Map<String, dynamic>)),
+    ),
+    [for (final k in (j['keywords'] as List? ?? [])) KeywordRule.fromJson(k as Map<String, dynamic>)],
+  );
 }
 
-/// 일괄 정리 대상: [picked] 와 같은 가맹점인 다른 '분류 대기' 건. 무시한 건·분류된 건은 건드리지 않는다.
-List<Expense> sameVendorPending(List<Expense> items, Expense picked) {
+/// 일괄 정리 대상: [picked] 와 같은 가맹점인 다른 '분류 대기' 건. 분류된 건은 건드리지 않는다.
+/// [includeIgnored] (무시한 내역에서 고를 때): '직접 무시' 건도 포함. '중복'·'취소로 상쇄'로 무시한 건은 이유가 있어 뺀다.
+List<Expense> sameVendorPending(List<Expense> items, Expense picked, {bool includeIgnored = false}) {
   final mk = merchantKey(picked.merchant);
   if (mk.isEmpty) return [];
-  return items.where((e) => !identical(e, picked) && e.category == null && merchantKey(e.merchant) == mk).toList();
+  bool target(Expense e) =>
+      e.category == null || (includeIgnored && e.category == kIgnored && !e.ignoredAsDuplicate && !e.ignoredAsOffset);
+  return items.where((e) => !identical(e, picked) && target(e) && merchantKey(e.merchant) == mk).toList();
 }
