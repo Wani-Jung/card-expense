@@ -119,13 +119,7 @@ class MainActivity : FlutterActivity() {
                     openAppSettings()
                     result.success(null)
                 }
-                "shareText" -> {
-                    val send = Intent(Intent.ACTION_SEND)
-                        .setType("text/plain")
-                        .putExtra(Intent.EXTRA_TEXT, call.argument<String>("text") ?: "")
-                    startActivity(Intent.createChooser(send, null))
-                    result.success(null)
-                }
+                "cacheDir" -> result.success(cacheDir.absolutePath)
                 else -> result.notImplemented()
             }
         }

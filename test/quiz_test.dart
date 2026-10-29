@@ -260,4 +260,78 @@ void main() {
       expect(quizDuration(134000), '2분 14초');
     });
   });
+
+  test('등급 경계: 100 / 90 / 80 / 60%', () {
+    String g(int ok, int n) => quizGrade(ok, n).label;
+    expect(g(20, 20), '안전 마스터');
+    expect(quizGrade(20, 20).emoji, '🏆');
+    expect(g(19, 20), '안전 달인'); // 95%
+    expect(g(18, 20), '안전 달인'); // 90%
+    expect(g(17, 20), '안전 베테랑'); // 85%
+    expect(g(16, 20), '안전 베테랑'); // 80%
+    expect(g(15, 20), '안전 실무자'); // 75%
+    expect(g(12, 20), '안전 실무자'); // 60%
+    expect(g(11, 20), '안전 새내기'); // 55%
+    expect(g(0, 20), '안전 새내기');
+    expect(g(27, 30), '안전 달인'); // 90%
+    expect(g(26, 30), '안전 베테랑'); // 86.7%
+    expect(g(29, 50), '안전 새내기'); // 58%
+  });
+
+  group('점수 기록 지우기', () {
+    test('지울 것: 내 답·정답 여부·챌린지 점수·시간·최고 기록 / 남길 것: 문제·날짜·출처·회차·연속·이름', () async {
+      final s = await _store();
+      await s.setName('홍길동');
+      await s.record(const QuizRecord('2026-10-30', 'q1', true, true));
+      await s.record(const QuizRecord('2026-10-31', 'q2', false, false, src: kQuizExtra, at: 5));
+      await s.saveRun(const ChallengeRun(id: 'c1', at: 9, n: 1, correct: 1, ms: 3000), [
+        const QuizRecord('2026-10-31', 'q3', true, true, src: kQuizChallenge, run: 'c1', at: 9),
+      ]);
+      expect(s.best(1), isNotNull);
+      await s.clearScores();
+
+      final rs = s.records;
+      expect(rs.map((r) => (r.day, r.id, r.src)), [
+        ('2026-10-30', 'q1', kQuizDaily),
+        ('2026-10-31', 'q2', kQuizExtra),
+        ('2026-10-31', 'q3', kQuizChallenge),
+      ]);
+      expect(rs.every((r) => r.choice == null && r.correct == null), isTrue);
+      expect(rs.last.run, 'c1');
+      expect(rs[1].at, 5);
+      expect(s.percent, isNull);
+      expect(s.hasScores, isFalse);
+      expect(s.runs.single.id, 'c1');
+      expect(s.runs.single.scored, isFalse);
+      expect(s.best(1), isNull);
+      // 남는 것
+      expect(s.solvedCount, 3);
+      expect(s.streak('2026-10-31'), 1);
+      expect(s.solvedOn('2026-10-31'), {'q2', 'q3'});
+      expect(s.name, '홍길동');
+      expect(s.menuText('2026-10-31'), '연속 1일');
+    });
+
+    test('지운 뒤 새로 푼 문제부터 다시 집계', () async {
+      final s = await _store();
+      await s.record(const QuizRecord('2026-10-30', 'q1', true, false));
+      await s.clearScores();
+      await s.record(const QuizRecord('2026-10-31', 'q2', true, true));
+      await s.record(const QuizRecord('2026-10-31', 'q3', true, false, src: kQuizExtra));
+      expect(s.percent, 50);
+      expect(s.hasScores, isTrue);
+      expect(s.menuText('2026-10-31'), '연속 2일 · 정답률 50%');
+      await s.saveRun(const ChallengeRun(id: 'c2', at: 1, n: 20, correct: 10, ms: 1000), const []);
+      expect(s.best(20)!.id, 'c2');
+    });
+  });
+
+  test('결과 카드 이름: 처음엔 null(물어봄), 비워 두면 빈칸으로 저장', () async {
+    final s = await _store();
+    expect(s.name, isNull);
+    await s.setName('  ');
+    expect(s.name, '');
+    await s.setName(' 홍길동 ');
+    expect(s.name, '홍길동');
+  });
 }

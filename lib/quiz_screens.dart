@@ -1,7 +1,12 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:share_plus/share_plus.dart';
 
+import 'challenge_card.dart';
 import 'layout.dart';
 import 'native.dart';
 import 'quiz.dart';
@@ -27,6 +32,33 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
     if (mounted) setState(() {}); // 돌아오면 요약 다시
   }
 
+  /// 점수 기록 지우기 (되돌리기 없음). 푼 문제·날짜·출처·연속 일수·이름은 남는다.
+  Future<void> _clearScores() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: const Text(
+          '점수 기록을 지울까요?\n정답 여부·내 답·정답률·챌린지 기록·최고 기록이 지워져요.\n푼 문제와 날짜는 남아서 다시 볼 수 있어요.\n\n지운 기록은 되돌릴 수 없어요.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD93025)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('지우기'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.store.clearScores();
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('점수 기록을 지웠어요')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.store;
@@ -34,7 +66,10 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
     Widget stat(String value, String label) => Expanded(
       child: Column(
         children: [
-          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kQuizNavy)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kQuizNavy),
+          ),
           const SizedBox(height: 2),
           Text(label, style: const TextStyle(fontSize: 12, color: _grey)),
         ],
@@ -73,6 +108,17 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
             '안전 OX 챌린지',
             '20~50문제, 시간과 정답률로 기록에 도전',
             ChallengeStartScreen(store: s, bank: widget.bank),
+          ),
+          const SizedBox(height: 32),
+          Center(
+            child: TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF9AA0A6),
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+              onPressed: _clearScores,
+              child: const Text('점수 기록 지우기'),
+            ),
           ),
         ],
       ),
@@ -116,6 +162,9 @@ class _QuizHistoryScreenState extends State<QuizHistoryScreen> {
     final bank = _bank;
     final records = widget.store.records;
     final runs = {for (final r in widget.store.runs) r.id: r};
+    // 점수 기록을 지운 뒤(점수 있는 기록이 없으면)는 [틀린 문제만] 칩을 숨긴다
+    final scored = widget.store.hasScores;
+    if (!scored) _wrongOnly = false;
     // 최신순: 저장 순서가 시간순이므로 뒤집는다. 챌린지 문제들은 회차 하나로 묶는다.
     final entries = <({String day, QuizRecord? one, ChallengeRun? run, List<QuizRecord> answers})>[];
     final seenRun = <String>{};
@@ -123,10 +172,10 @@ class _QuizHistoryScreenState extends State<QuizHistoryScreen> {
       if (r.src == kQuizChallenge && r.run != null) {
         if (!seenRun.add(r.run!)) continue;
         final answers = records.where((x) => x.run == r.run).toList();
-        if (_wrongOnly && answers.every((a) => a.correct)) continue;
+        if (_wrongOnly && !answers.any((a) => a.correct == false)) continue;
         entries.add((day: r.day, one: null, run: runs[r.run], answers: answers));
       } else {
-        if (_wrongOnly && r.correct) continue;
+        if (_wrongOnly && r.correct != false) continue;
         entries.add((day: r.day, one: r, run: null, answers: const []));
       }
     }
@@ -137,24 +186,7 @@ class _QuizHistoryScreenState extends State<QuizHistoryScreen> {
           : ListView(
               padding: EdgeInsets.only(bottom: listBottomPad(context)),
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                  child: Wrap(
-                    spacing: 8,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('전체'),
-                        selected: !_wrongOnly,
-                        onSelected: (_) => setState(() => _wrongOnly = false),
-                      ),
-                      ChoiceChip(
-                        label: const Text('틀린 문제만'),
-                        selected: _wrongOnly,
-                        onSelected: (_) => setState(() => _wrongOnly = true),
-                      ),
-                    ],
-                  ),
-                ),
+                if (scored) _FilterChips(wrongOnly: _wrongOnly, onChanged: (v) => setState(() => _wrongOnly = v)),
                 if (entries.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(40),
@@ -170,12 +202,7 @@ class _QuizHistoryScreenState extends State<QuizHistoryScreen> {
                   if (e.one != null)
                     QuizRecordTile(record: e.one!, question: bank.byId(e.one!.id))
                   else
-                    _RunTile(
-                      run: e.run,
-                      answers: _wrongOnly ? e.answers.where((a) => !a.correct).toList() : e.answers,
-                      all: e.answers,
-                      bank: bank,
-                    ),
+                    _RunTile(run: e.run, answers: e.answers, bank: bank),
                 ],
               ],
             ),
@@ -192,7 +219,10 @@ class _DayDivider extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
     child: Row(
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: _grey, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: _grey, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(width: 8),
         const Expanded(child: Divider(height: 1)),
       ],
@@ -219,7 +249,8 @@ class _QuizRecordTileState extends State<QuizRecordTile> {
     final r = widget.record;
     final q = widget.question;
     String ox(bool v) => v ? 'O' : 'X';
-    final color = r.correct ? kQuizOk : kQuizMiss;
+    final scored = r.correct != null && r.choice != null;
+    final color = !scored ? _grey : (r.correct! ? kQuizOk : kQuizMiss);
     return InkWell(
       onTap: q == null ? null : () => setState(() => _open = !_open),
       child: Padding(
@@ -231,10 +262,14 @@ class _QuizRecordTileState extends State<QuizRecordTile> {
             const SizedBox(height: 6),
             Row(
               children: [
-                Icon(r.correct ? Icons.check_circle : Icons.info_outline, size: 16, color: color),
-                const SizedBox(width: 4),
+                if (scored) ...[
+                  Icon(r.correct! ? Icons.check_circle : Icons.info_outline, size: 16, color: color),
+                  const SizedBox(width: 4),
+                ],
                 Text(
-                  '내 답 ${ox(r.choice)} → 정답 ${q == null ? '-' : ox(q.answer)}',
+                  scored
+                      ? '내 답 ${ox(r.choice!)} → 정답 ${q == null ? '-' : ox(q.answer)}'
+                      : '정답 ${q == null ? '-' : ox(q.answer)}',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
                 ),
                 const Spacer(),
@@ -261,12 +296,68 @@ class _QuizRecordTileState extends State<QuizRecordTile> {
   }
 }
 
-/// 챌린지 회차 1줄 (일시·문항 수·정답률·시간). 누르면 그 회차 문제들.
+/// [전체] [틀린 문제만] 칩
+class _FilterChips extends StatelessWidget {
+  final bool wrongOnly;
+  final ValueChanged<bool> onChanged;
+  const _FilterChips({required this.wrongOnly, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+    child: Wrap(
+      spacing: 8,
+      children: [
+        ChoiceChip(label: const Text('전체'), selected: !wrongOnly, onSelected: (_) => onChanged(false)),
+        ChoiceChip(label: const Text('틀린 문제만'), selected: wrongOnly, onSelected: (_) => onChanged(true)),
+      ],
+    ),
+  );
+}
+
+/// 챌린지 회차 문제 목록 (내 답·정답, 누르면 해설·근거). 위에 [전체] [틀린 문제만], 기본은 전체.
+/// 점수 기록을 지운 회차면 칩 없이 문제만.
+class RunAnswersList extends StatefulWidget {
+  final List<QuizRecord> answers;
+  final QuizBank bank;
+  const RunAnswersList({super.key, required this.answers, required this.bank});
+
+  @override
+  State<RunAnswersList> createState() => _RunAnswersListState();
+}
+
+class _RunAnswersListState extends State<RunAnswersList> {
+  bool _wrongOnly = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scored = widget.answers.any((a) => a.correct != null);
+    final list = _wrongOnly ? widget.answers.where((a) => a.correct == false).toList() : widget.answers;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (scored) _FilterChips(wrongOnly: _wrongOnly, onChanged: (v) => setState(() => _wrongOnly = v)),
+        if (list.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              '틀린 문제가 없어요',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black45),
+            ),
+          ),
+        for (final a in list) QuizRecordTile(record: a, question: widget.bank.byId(a.id), showSource: false),
+      ],
+    );
+  }
+}
+
+/// 챌린지 회차 1줄 (시각·문항 수·정답률·시간). 누르면 그 회차 문제들. 점수를 지운 회차는 '챌린지 · N문제'.
 class _RunTile extends StatefulWidget {
   final ChallengeRun? run;
-  final List<QuizRecord> answers, all;
+  final List<QuizRecord> answers;
   final QuizBank bank;
-  const _RunTile({required this.run, required this.answers, required this.all, required this.bank});
+  const _RunTile({required this.run, required this.answers, required this.bank});
 
   @override
   State<_RunTile> createState() => _RunTileState();
@@ -278,19 +369,22 @@ class _RunTileState extends State<_RunTile> {
   @override
   Widget build(BuildContext context) {
     final run = widget.run;
-    final n = run?.n ?? widget.all.length;
-    final ok = run?.correct ?? widget.all.where((a) => a.correct).length;
+    final n = run?.n ?? widget.answers.length;
+    final scored = run != null ? run.scored : widget.answers.every((a) => a.correct != null);
+    final ok = run?.correct ?? widget.answers.where((a) => a.correct == true).length;
     final at = run == null ? null : DateTime.fromMillisecondsSinceEpoch(run.at);
-    final time = at == null
-        ? ''
-        : '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')} · ';
+    final time = at == null ? '' : '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
     return Column(
       children: [
         ListTile(
           leading: const Icon(Icons.emoji_events_outlined, color: kQuizGold),
-          title: Text('챌린지 $n문제 · 정답률 ${n == 0 ? 0 : (ok * 100 / n).round()}%'),
+          title: Text(scored ? '챌린지 $n문제 · 정답률 ${n == 0 ? 0 : (ok * 100 / n).round()}%' : '챌린지 · $n문제'),
           subtitle: Text(
-            '$time$ok/$n 정답${run == null ? '' : ' · ${quizDuration(run.ms)}'}',
+            [
+              if (time.isNotEmpty) time,
+              if (scored) '$ok/$n 정답',
+              if (scored && run?.ms != null) quizDuration(run!.ms!),
+            ].join(' · '),
             style: const TextStyle(fontSize: 12),
           ),
           trailing: Icon(_open ? Icons.expand_less : Icons.expand_more),
@@ -299,12 +393,7 @@ class _RunTileState extends State<_RunTile> {
         if (_open)
           ColoredBox(
             color: const Color(0xFFF8F9FA),
-            child: Column(
-              children: [
-                for (final a in widget.answers)
-                  QuizRecordTile(record: a, question: widget.bank.byId(a.id), showSource: false),
-              ],
-            ),
+            child: RunAnswersList(answers: widget.answers, bank: widget.bank),
           ),
       ],
     );
@@ -428,9 +517,11 @@ class _ChallengeStartScreenState extends State<ChallengeStartScreen> {
 
   Future<void> _start() async {
     final bank = _bank!;
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => ChallengeRunScreen(store: widget.store, bank: bank, n: _n!)));
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChallengeRunScreen(store: widget.store, bank: bank, n: _n!),
+      ),
+    );
     if (mounted) setState(() {}); // 최고 기록 다시
   }
 
@@ -481,17 +572,40 @@ class _ChallengeStartScreenState extends State<ChallengeStartScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 3),
                     child: Row(
                       children: [
-                        SizedBox(width: 56, child: Text('$n문제', style: const TextStyle(color: _grey))),
+                        SizedBox(
+                          width: 56,
+                          child: Text('$n문제', style: const TextStyle(color: _grey)),
+                        ),
                         Expanded(
                           child: Text(switch (widget.store.best(n)) {
                             null => '-',
-                            final b => '${b.percent}% (${b.correct}/${b.n}) · ${quizDuration(b.ms)}',
+                            final b => '${b.percent}% (${b.correct}/${b.n}) · ${quizDuration(b.ms!)}',
                           }),
                         ),
                       ],
                     ),
                   ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Text('결과 카드 이름', style: TextStyle(color: _grey)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        (widget.store.name ?? '').isEmpty ? '(없음 · 날짜만)' : widget.store.name!,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        await askCardName(context, widget.store);
+                        if (mounted) setState(() {});
+                      },
+                      child: const Text('바꾸기'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
                 quizGoldButton('시작', _n == null ? () {} : _start),
               ],
             ),
@@ -569,7 +683,7 @@ class _ChallengeRunScreenState extends State<ChallengeRunScreen> {
       id: id,
       at: _startedAt,
       n: _qs.length,
-      correct: answers.where((a) => a.correct).length,
+      correct: answers.where((a) => a.correct == true).length,
       ms: _watch.elapsedMilliseconds,
     );
     final prevBest = widget.store.best(run.n);
@@ -685,12 +799,34 @@ class _ChallengeRunScreenState extends State<ChallengeRunScreen> {
   }
 }
 
-/// 결과 공유 문구
-String challengeShareText(ChallengeRun r) =>
-    '🦺 안전 OX 챌린지 ${r.n}문제\n정답률 ${r.percent}% (${r.correct}/${r.n}) · ${quizDuration(r.ms)}\n공감카드 관리에서 도전해보세요!';
+/// 결과 카드에 넣을 이름 묻기 (선택). 비우면 날짜만. 처음 공유할 때와 챌린지 시작 화면 [바꾸기]에서.
+Future<void> askCardName(BuildContext context, QuizStore store) async {
+  final ctrl = TextEditingController(text: store.name ?? '');
+  final v = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('결과 카드에 넣을 이름'),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        maxLength: 12,
+        decoration: const InputDecoration(hintText: '예) 홍길동 (비우면 날짜만)', border: OutlineInputBorder()),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, ''), child: const Text('비워 두기')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('저장')),
+      ],
+    ),
+  );
+  // 창 밖을 눌러 닫아도 다시 묻지 않게 지금 값(처음이면 빈칸)으로 저장
+  await store.setName(v ?? store.name ?? '');
+}
 
-/// 결과: 정답률·정답 수·걸린 시간·문항당 평균, 최고 기록 배지, [틀린 문제 보기] [다시 도전] [결과 공유]
-class ChallengeResultScreen extends StatelessWidget {
+/// 결과 이미지와 함께 보내는 짧은 문구
+String challengeShareText(ChallengeRun r) => '안전 OX 챌린지 ${r.percent}%! 공감카드 관리에서 도전해보세요';
+
+/// 결과: 위쪽 결과 카드(그대로 공유 이미지) + [문제 전체 보기] [다시 도전] [결과 이미지 공유]
+class ChallengeResultScreen extends StatefulWidget {
   final QuizStore store;
   final QuizBank bank;
   final ChallengeRun run;
@@ -708,82 +844,105 @@ class ChallengeResultScreen extends StatelessWidget {
   });
 
   @override
+  State<ChallengeResultScreen> createState() => _ChallengeResultScreenState();
+}
+
+class _ChallengeResultScreenState extends State<ChallengeResultScreen> {
+  final _cardKey = GlobalKey();
+  bool _sharing = false;
+
+  /// 결과 카드를 PNG(pixelRatio 3)로 → 임시 파일 → 공유 시트. 저장소 권한 없이, 공유 뒤 임시 파일 삭제.
+  Future<void> _share() async {
+    if (_sharing) return;
+    setState(() => _sharing = true);
+    File? file;
+    try {
+      if (widget.store.name == null) {
+        await askCardName(context, widget.store);
+        if (!mounted) return;
+        setState(() {}); // 이름이 들어간 카드로 다시 그린 뒤 찍는다
+        await WidgetsBinding.instance.endOfFrame;
+      }
+      final boundary = _cardKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 3);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      final dir = await Native.cacheDir() ?? Directory.systemTemp.path;
+      file = File('$dir/safety_ox_${widget.run.id}.png');
+      await file.writeAsBytes(bytes!.buffer.asUint8List(), flush: true);
+      // share_plus 가 자기 캐시로 복사해서 넘기므로 여기 파일은 바로 지워도 된다
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'image/png')],
+          text: challengeShareText(widget.run),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('공유하지 못했어요: $e')));
+      }
+    } finally {
+      try {
+        if (file != null && file.existsSync()) file.deleteSync();
+      } catch (_) {}
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final wrong = [
-      for (var i = 0; i < answers.length; i++)
-        if (!answers[i].correct) (q: questions[i], choice: answers[i].choice),
-    ];
-    final avg = run.n == 0 ? 0 : run.ms / 1000 / run.n;
+    final w = widget;
     return Scaffold(
       appBar: AppBar(title: const Text('챌린지 결과')),
       body: ListView(
-        padding: EdgeInsets.fromLTRB(20, 24, 20, listBottomPad(context)),
+        padding: EdgeInsets.fromLTRB(20, 12, 20, listBottomPad(context)),
         children: [
-          if (newBest)
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFFFFF8E6), borderRadius: BorderRadius.circular(14)),
-                child: const Text(
-                  '최고 기록 달성!',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3E2700)),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: RepaintBoundary(
+                key: _cardKey,
+                child: ChallengeResultCard(
+                  run: w.run,
+                  name: w.store.name,
+                  date: DateTime.fromMillisecondsSinceEpoch(w.run.at),
+                  newBest: w.newBest,
                 ),
               ),
             ),
-          Text(
-            '${run.percent}%',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 56, fontWeight: FontWeight.bold, color: kQuizNavy),
           ),
-          Text(
-            '${run.correct}/${run.n} 정답',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '걸린 시간 ${quizDuration(run.ms)} · 문항당 평균 ${avg.toStringAsFixed(1)}초',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: _grey),
-          ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 20),
           OutlinedButton(
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-            onPressed: wrong.isEmpty
-                ? null
-                : () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => Scaffold(
-                        appBar: AppBar(title: Text('틀린 문제 ${wrong.length}개')),
-                        body: ListView(
-                          padding: EdgeInsets.fromLTRB(16, 8, 16, listBottomPad(context)),
-                          children: [
-                            for (final w in wrong) ...[
-                              Text(w.q.question, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 6),
-                              quizResultBox(w.q, w.choice),
-                              const SizedBox(height: 20),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => Scaffold(
+                  appBar: AppBar(title: Text('문제 전체 보기 (${w.answers.length}문제)')),
+                  body: ListView(
+                    padding: EdgeInsets.only(bottom: listBottomPad(context)),
+                    children: [RunAnswersList(answers: w.answers, bank: w.bank)],
                   ),
-            child: Text(wrong.isEmpty ? '모두 맞혔어요' : '틀린 문제 보기'),
+                ),
+              ),
+            ),
+            child: const Text('문제 전체 보기'),
           ),
           const SizedBox(height: 8),
           quizGoldButton(
             '다시 도전',
             () => Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => ChallengeRunScreen(store: store, bank: bank, n: run.n)),
+              MaterialPageRoute(
+                builder: (_) => ChallengeRunScreen(store: w.store, bank: w.bank, n: w.run.n),
+              ),
             ),
           ),
           const SizedBox(height: 8),
           TextButton.icon(
-            icon: const Icon(Icons.share_outlined),
-            label: const Text('결과 공유'),
-            onPressed: () => Native.shareText(challengeShareText(run)),
+            icon: _sharing
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.share_outlined),
+            label: const Text('결과 이미지 공유'),
+            onPressed: _sharing ? null : _share,
           ),
         ],
       ),

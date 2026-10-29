@@ -106,9 +106,10 @@ String quizSourceLabel(String src) => switch (src) {
 };
 
 /// 푼 기록 한 건 (기기에만 저장). [src] 가 없는 v1.16 기록은 오늘의 문제로 본다. [run] 은 챌린지 회차 id.
+/// '점수 기록 지우기' 뒤에는 [choice]·[correct] 가 null (푼 문제·날짜·출처만 남음).
 class QuizRecord {
   final String day, id;
-  final bool choice, correct;
+  final bool? choice, correct;
   final String src;
   final String? run;
 
@@ -118,8 +119,8 @@ class QuizRecord {
   Map<String, dynamic> toJson() => {
     'd': day,
     'id': id,
-    'c': choice,
-    'ok': correct,
+    'c': ?choice,
+    'ok': ?correct,
     if (src != kQuizDaily) 's': src,
     'r': ?run,
     't': ?at,
@@ -127,32 +128,44 @@ class QuizRecord {
   factory QuizRecord.fromJson(Map<String, dynamic> j) => QuizRecord(
     j['d'] as String,
     j['id'] as String,
-    j['c'] as bool,
-    j['ok'] as bool,
+    j['c'] as bool?,
+    j['ok'] as bool?,
     src: j['s'] as String? ?? kQuizDaily,
     run: j['r'] as String?,
     at: (j['t'] as num?)?.toInt(),
   );
 }
 
-/// 챌린지 한 회차 결과
+/// 챌린지 한 회차 결과. '점수 기록 지우기' 뒤에는 [correct]·[ms] 가 null (회차·문항 수만 남음).
 class ChallengeRun {
   final String id;
   final int at; // 시작 시각 ms
-  final int n, correct;
-  final int ms; // 걸린 시간
+  final int n;
+  final int? correct;
+  final int? ms; // 걸린 시간
   const ChallengeRun({required this.id, required this.at, required this.n, required this.correct, required this.ms});
 
-  int get percent => n == 0 ? 0 : (correct * 100 / n).round();
+  bool get scored => correct != null && ms != null;
+  int get percent => n == 0 || correct == null ? 0 : (correct! * 100 / n).round();
 
-  Map<String, dynamic> toJson() => {'id': id, 'at': at, 'n': n, 'ok': correct, 'ms': ms};
+  Map<String, dynamic> toJson() => {'id': id, 'at': at, 'n': n, 'ok': ?correct, 'ms': ?ms};
   factory ChallengeRun.fromJson(Map<String, dynamic> j) => ChallengeRun(
     id: j['id'] as String,
     at: (j['at'] as num).toInt(),
     n: (j['n'] as num).toInt(),
-    correct: (j['ok'] as num).toInt(),
-    ms: (j['ms'] as num).toInt(),
+    correct: (j['ok'] as num?)?.toInt(),
+    ms: (j['ms'] as num?)?.toInt(),
   );
+}
+
+/// 결과 카드 등급. 100% 🏆 안전 마스터 / 90% 이상 🥇 안전 달인 / 80% 이상 🦺 안전 베테랑 /
+/// 60% 이상 👷 안전 실무자 / 60% 미만 📘 안전 새내기 (반올림 없이 정답 수/문항 수로 판정)
+({String emoji, String label}) quizGrade(int correct, int n) {
+  if (n > 0 && correct >= n) return (emoji: '🏆', label: '안전 마스터');
+  if (correct * 10 >= n * 9) return (emoji: '🥇', label: '안전 달인');
+  if (correct * 10 >= n * 8) return (emoji: '🦺', label: '안전 베테랑');
+  if (correct * 10 >= n * 6) return (emoji: '👷', label: '안전 실무자');
+  return (emoji: '📘', label: '안전 새내기');
 }
 
 /// 챌린지 문항 수 선택지
@@ -163,10 +176,11 @@ bool challengeSizeEnabled(int n, int activeCount) => n <= activeCount;
 
 /// 최고 기록 비교: 정답률 높은 순 → 같으면 시간 짧은 순 (문항 수가 같은 회차끼리)
 bool isBetterRun(ChallengeRun a, ChallengeRun? b) {
-  if (b == null) return true;
-  final ra = a.correct * b.n, rb = b.correct * a.n; // 정답률 비교 (나눗셈 없이)
+  if (!a.scored) return false;
+  if (b == null || !b.scored) return true;
+  final ra = a.correct! * b.n, rb = b.correct! * a.n; // 정답률 비교 (나눗셈 없이)
   if (ra != rb) return ra > rb;
-  return a.ms < b.ms;
+  return a.ms! < b.ms!;
 }
 
 /// "2분 14초"
@@ -203,6 +217,7 @@ class QuizStore {
   static const _kKnown = 'quiz_known_v1';
   static const _kLog = 'quiz_log_v1';
   static const _kRuns = 'quiz_runs_v1';
+  static const _kName = 'quiz_name_v1';
   static const _kCache = 'quiz_cache_v1';
   static const _kFetchedAt = 'quiz_fetched_at_v1';
 
@@ -283,10 +298,31 @@ class QuizStore {
   }
 
   int get solvedCount => records.length;
+
+  /// 정답률: 점수가 남아 있는 기록만 (지운 뒤 새로 푼 문제부터 다시 집계). 없으면 null
   int? get percent {
-    final rs = records;
-    return rs.isEmpty ? null : (rs.where((r) => r.correct).length * 100 / rs.length).round();
+    final rs = records.where((r) => r.correct != null).toList();
+    return rs.isEmpty ? null : (rs.where((r) => r.correct!).length * 100 / rs.length).round();
   }
+
+  /// 점수가 남은 기록이 하나라도 있는지 ([틀린 문제만] 칩을 보일지)
+  bool get hasScores => records.any((r) => r.correct != null);
+
+  /// 점수 기록 지우기 (되돌리기 없음). 내 답·정답 여부·챌린지 점수·시간(→ 정답률·최고 기록)을 지운다.
+  /// 푼 문제 id·날짜·출처·챌린지 회차, 연속 일수, 오늘 푼 문제 제외, 결과 카드 이름은 남는다.
+  Future<void> clearScores() async {
+    await _p.setStringList(_kLog, [
+      for (final r in records)
+        jsonEncode(QuizRecord(r.day, r.id, null, null, src: r.src, run: r.run, at: r.at).toJson()),
+    ]);
+    await _p.setStringList(_kRuns, [
+      for (final r in runs) jsonEncode(ChallengeRun(id: r.id, at: r.at, n: r.n, correct: null, ms: null).toJson()),
+    ]);
+  }
+
+  /// 결과 카드에 넣는 이름 (선택). 한 번도 안 물었으면 null, 비워 두기로 했으면 ''
+  String? get name => _p.getString(_kName);
+  Future<void> setName(String v) => _p.setString(_kName, v.trim());
 
   int streak(String today) => quizStreak(records.where((r) => r.src == kQuizDaily).map((r) => r.day), today);
 
@@ -294,7 +330,8 @@ class QuizStore {
   String menuText(String today) {
     final s = streak(today);
     if (s == 0) return '오늘의 문제를 풀어보세요';
-    return '연속 $s일 · 정답률 ${percent ?? 0}%';
+    final p = percent;
+    return p == null ? '연속 $s일' : '연속 $s일 · 정답률 $p%';
   }
 
   // ---------------- 문제 풀 ----------------

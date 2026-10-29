@@ -92,6 +92,12 @@ class Native {
       _ch.invokeMethod('openNotificationAccessSettings');
   static Future<void> openAppSettings() => _ch.invokeMethod('openAppSettings');
 
-  /// 안드로이드 공유 시트로 텍스트 공유 (챌린지 결과)
-  static Future<void> shareText(String text) => _ch.invokeMethod('shareText', {'text': text});
+  /// 앱 전용 캐시 폴더 (공유 이미지 임시 파일용, 저장소 권한 필요 없음). 못 받으면 null
+  static Future<String?> cacheDir() async {
+    try {
+      return await _ch.invokeMethod<String>('cacheDir');
+    } catch (_) {
+      return null;
+    }
+  }
 }
