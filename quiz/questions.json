@@ -1,0 +1,906 @@
+{
+ "version": 1,
+ "updated": "2026-10-29",
+ "questions": [
+  {
+   "id": "q001",
+   "category": "위험성평가",
+   "question": "최초 위험성평가는 건설공사 착공일로부터 1개월 이내에 착수해야 한다.",
+   "answer": true,
+   "explain": "2023년 개정으로 '착공 후 1개월 이내 착수'가 명확해졌어요.",
+   "basis": "사업장 위험성평가에 관한 지침 제15조",
+   "active": true
+  },
+  {
+   "id": "q002",
+   "category": "위험성평가",
+   "question": "최초 위험성평가는 착공일로부터 3개월 이내에 착수하면 된다.",
+   "answer": false,
+   "explain": "1개월 이내에 착수해야 해요.",
+   "basis": "사업장 위험성평가에 관한 지침 제15조",
+   "active": true
+  },
+  {
+   "id": "q003",
+   "category": "위험성평가",
+   "question": "정기 위험성평가는 매년 실시한다.",
+   "answer": true,
+   "explain": "최초평가 결과를 매년 재검토하는 게 정기평가예요.",
+   "basis": "사업장 위험성평가에 관한 지침 제15조",
+   "active": true
+  },
+  {
+   "id": "q004",
+   "category": "위험성평가",
+   "question": "정기 위험성평가는 반기마다 실시한다.",
+   "answer": false,
+   "explain": "정기평가는 매년이에요.",
+   "basis": "사업장 위험성평가에 관한 지침 제15조",
+   "active": true
+  },
+  {
+   "id": "q005",
+   "category": "위험성평가",
+   "question": "수시 위험성평가는 매월 1회 정기적으로 실시해야 한다.",
+   "answer": false,
+   "explain": "수시평가는 주기가 아니라 설비 도입·공법 변경·재해 발생 등 사유가 생길 때 해요.",
+   "basis": "사업장 위험성평가에 관한 지침 제15조",
+   "active": true
+  },
+  {
+   "id": "q006",
+   "category": "위험성평가",
+   "question": "위험성평가 결과와 조치사항 기록은 3년간 보존해야 한다.",
+   "answer": true,
+   "explain": "위험성평가 기록 보존기간은 3년이에요.",
+   "basis": "산업안전보건법 시행규칙 제37조",
+   "active": true
+  },
+  {
+   "id": "q007",
+   "category": "위험성평가",
+   "question": "위험성평가 기록의 보존기간은 2년이다.",
+   "answer": false,
+   "explain": "3년이에요.",
+   "basis": "산업안전보건법 시행규칙 제37조",
+   "active": true
+  },
+  {
+   "id": "q008",
+   "category": "위험성평가",
+   "question": "위험성평가 기록에는 유해·위험요인, 위험성 결정 내용, 그에 따른 조치 내용을 포함해야 한다.",
+   "answer": true,
+   "explain": "세 가지가 기록 필수 항목이에요.",
+   "basis": "산업안전보건법 시행규칙 제37조",
+   "active": true
+  },
+  {
+   "id": "q009",
+   "category": "위험성평가",
+   "question": "매월 1회 이상 평가, 주 1회 결과 협의, 매 작업일 TBM을 하면 정기·수시평가를 실시한 것으로 본다.",
+   "answer": true,
+   "explain": "상시평가 제도예요.",
+   "basis": "사업장 위험성평가에 관한 지침 제15조",
+   "active": true
+  },
+  {
+   "id": "q010",
+   "category": "위험성평가",
+   "question": "상시평가로 인정받으려면 TBM을 주 1회 이상 하면 된다.",
+   "answer": false,
+   "explain": "TBM은 매 작업일마다 해야 해요.",
+   "basis": "사업장 위험성평가에 관한 지침 제15조",
+   "active": true
+  },
+  {
+   "id": "q011",
+   "category": "위험성평가",
+   "question": "2023년 개정 지침에서는 3단계 판단법(상·중·하)으로도 위험성을 결정할 수 있다.",
+   "answer": true,
+   "explain": "체크리스트·OPS·3단계 판단법 등 쉬운 방법도 인정돼요.",
+   "basis": "사업장 위험성평가에 관한 지침(2023 개정)",
+   "active": true
+  },
+  {
+   "id": "q012",
+   "category": "위험성평가",
+   "question": "도급인은 수급인이 실시한 위험성평가 결과를 검토하고 필요하면 개선을 요청해야 한다.",
+   "answer": true,
+   "explain": "도급 사업에서는 도급인이 수급인 평가를 검토해요.",
+   "basis": "사업장 위험성평가에 관한 지침 제5조",
+   "active": false
+  },
+  {
+   "id": "q013",
+   "category": "산안관리비",
+   "question": "산업안전보건관리비는 총공사금액 2천만원 이상 건설공사에 계상한다.",
+   "answer": true,
+   "explain": "산재보험 적용 공사 중 2천만원 이상이 대상이에요.",
+   "basis": "건설업 산업안전보건관리비 계상 및 사용기준",
+   "active": true
+  },
+  {
+   "id": "q014",
+   "category": "산안관리비",
+   "question": "산업안전보건관리비 사용명세서는 분기마다 작성하면 된다.",
+   "answer": false,
+   "explain": "매월 작성하고 공사 종료 후 1년간 보존해요.",
+   "basis": "건설업 산업안전보건관리비 계상 및 사용기준",
+   "active": false
+  },
+  {
+   "id": "q015",
+   "category": "산안관리비",
+   "question": "산업안전보건관리비 사용명세서는 공사 종료 후 1년간 보존한다.",
+   "answer": true,
+   "explain": "보존기간은 공사 종료 후 1년이에요.",
+   "basis": "산업안전보건법 제72조",
+   "active": true
+  },
+  {
+   "id": "q016",
+   "category": "산안관리비",
+   "question": "산업안전보건관리비 사용명세서의 보존기간은 공사 종료 후 3년이다.",
+   "answer": false,
+   "explain": "공사 종료 후 1년이에요.",
+   "basis": "산업안전보건법 제72조",
+   "active": true
+  },
+  {
+   "id": "q017",
+   "category": "산안관리비",
+   "question": "공정률 50% 이상 70% 미만이면 산업안전보건관리비를 30% 이상 사용하면 된다.",
+   "answer": false,
+   "explain": "공정률 50~70% 미만 50%, 70~90% 미만 70%, 90% 이상 90% 이상이에요.",
+   "basis": "건설업 산업안전보건관리비 계상 및 사용기준 별표3",
+   "active": true
+  },
+  {
+   "id": "q018",
+   "category": "산안관리비",
+   "question": "공정률 70% 이상 90% 미만 구간의 산업안전보건관리비 최소 사용비율은 80%다.",
+   "answer": false,
+   "explain": "70% 이상이에요.",
+   "basis": "건설업 산업안전보건관리비 계상 및 사용기준 별표3",
+   "active": true
+  },
+  {
+   "id": "q019",
+   "category": "산안관리비",
+   "question": "공정률 90% 이상이면 산업안전보건관리비를 90% 이상 사용해야 한다.",
+   "answer": true,
+   "explain": "90% 이상 구간은 90% 이상 사용이에요.",
+   "basis": "건설업 산업안전보건관리비 계상 및 사용기준 별표3",
+   "active": true
+  },
+  {
+   "id": "q020",
+   "category": "산안관리비",
+   "question": "산업안전보건관리비 계상 대상액은 재료비와 직접노무비의 합이다.",
+   "answer": true,
+   "explain": "대상액에 공사 종류·규모별 요율을 곱해 계상해요.",
+   "basis": "건설업 산업안전보건관리비 계상 및 사용기준",
+   "active": true
+  },
+  {
+   "id": "q021",
+   "category": "산안관리비",
+   "question": "산업안전보건관리비 계상 대상액에는 간접노무비도 포함된다.",
+   "answer": false,
+   "explain": "대상액은 재료비+직접노무비예요.",
+   "basis": "건설업 산업안전보건관리비 계상 및 사용기준",
+   "active": true
+  },
+  {
+   "id": "q022",
+   "category": "산안관리비",
+   "question": "발주자는 수급인이 사용하지 않은 산업안전보건관리비에 대해 반환을 요구할 수 있다.",
+   "answer": true,
+   "explain": "목적 외 사용·미사용 금액은 반환 요구 대상이에요.",
+   "basis": "산업안전보건법 제72조",
+   "active": true
+  },
+  {
+   "id": "q023",
+   "category": "산안관리비",
+   "question": "전담 안전관리자의 인건비는 산업안전보건관리비로 사용할 수 있다.",
+   "answer": true,
+   "explain": "안전관리자 인건비는 대표적 사용 항목이에요.",
+   "basis": "건설업 산업안전보건관리비 계상 및 사용기준",
+   "active": true
+  },
+  {
+   "id": "q024",
+   "category": "안전보건대장",
+   "question": "기본안전보건대장은 설계자가 작성한다.",
+   "answer": false,
+   "explain": "계획 단계에서 발주자가 기본안전보건대장 작성이에요.",
+   "basis": "산업안전보건법 제67조",
+   "active": true
+  },
+  {
+   "id": "q025",
+   "category": "안전보건대장",
+   "question": "설계안전보건대장은 설계자가 작성하도록 하고 발주자가 확인한다.",
+   "answer": true,
+   "explain": "설계 단계 = 설계자 작성, 발주자 확인이에요.",
+   "basis": "산업안전보건법 제67조",
+   "active": true
+  },
+  {
+   "id": "q026",
+   "category": "안전보건대장",
+   "question": "공사안전보건대장은 발주자가 직접 작성해야 한다.",
+   "answer": false,
+   "explain": "시공 단계 = 건설공사도급인이 작성하고 발주자가 이행을 확인해요.",
+   "basis": "산업안전보건법 제67조",
+   "active": true
+  },
+  {
+   "id": "q027",
+   "category": "안전보건대장",
+   "question": "안전보건대장 작성 의무는 공사비 20억원 이상 건설공사부터 적용된다.",
+   "answer": false,
+   "explain": "공사비 50억원 이상 건설공사가 대상이에요.",
+   "basis": "산업안전보건법 시행령 제55조",
+   "active": true
+  },
+  {
+   "id": "q028",
+   "category": "유해위험방지계획서",
+   "question": "건설공사 유해위험방지계획서는 공사 착공 전날까지 공단에 제출해야 한다.",
+   "answer": true,
+   "explain": "착공 전날까지 한국산업안전보건공단에 제출해요.",
+   "basis": "산업안전보건법 시행규칙 제42조",
+   "active": true
+  },
+  {
+   "id": "q029",
+   "category": "유해위험방지계획서",
+   "question": "공단은 유해위험방지계획서 접수일로부터 30일 이내에 심사 결과를 통지한다.",
+   "answer": false,
+   "explain": "15일 이내에 통지해요.",
+   "basis": "산업안전보건법 시행규칙 제45조",
+   "active": false
+  },
+  {
+   "id": "q030",
+   "category": "유해위험방지계획서",
+   "question": "유해위험방지계획서 대상 건설공사는 공사 중 1년 이내마다 공단의 확인을 받으면 된다.",
+   "answer": false,
+   "explain": "공사 중 6개월 이내마다 이행 여부 확인을 받아요.",
+   "basis": "산업안전보건법 시행규칙 제46조",
+   "active": false
+  },
+  {
+   "id": "q031",
+   "category": "유해위험방지계획서",
+   "question": "건설공사 유해위험방지계획서를 작성할 때는 건설안전 분야 자격자 등의 의견을 들어야 한다.",
+   "answer": true,
+   "explain": "건설안전기술사 등 자격자 의견을 들어 작성해요.",
+   "basis": "산업안전보건법 시행규칙 제42조",
+   "active": false
+  },
+  {
+   "id": "q032",
+   "category": "유해위험방지계획서",
+   "question": "지상높이 31m 이상 건축물 건설공사는 유해위험방지계획서 제출 대상이다.",
+   "answer": true,
+   "explain": "31m 이상 건축물이 대상이에요.",
+   "basis": "산업안전보건법 시행령 제42조",
+   "active": true
+  },
+  {
+   "id": "q033",
+   "category": "유해위험방지계획서",
+   "question": "연면적 1만㎡ 이상 건축물 건설공사는 유해위험방지계획서 제출 대상이다.",
+   "answer": false,
+   "explain": "연면적 3만㎡ 이상이 대상이에요.",
+   "basis": "산업안전보건법 시행령 제42조",
+   "active": true
+  },
+  {
+   "id": "q034",
+   "category": "유해위험방지계획서",
+   "question": "연면적 5천㎡ 이상 냉동·냉장 창고시설의 설비·단열공사는 유해위험방지계획서 제출 대상이다.",
+   "answer": true,
+   "explain": "화재 위험 때문에 대상에 포함돼요.",
+   "basis": "산업안전보건법 시행령 제42조",
+   "active": true
+  },
+  {
+   "id": "q035",
+   "category": "유해위험방지계획서",
+   "question": "깊이 5m 이상 굴착공사는 유해위험방지계획서 제출 대상이다.",
+   "answer": false,
+   "explain": "굴착 깊이 10m 이상이 대상이에요.",
+   "basis": "산업안전보건법 시행령 제42조",
+   "active": true
+  },
+  {
+   "id": "q036",
+   "category": "유해위험방지계획서",
+   "question": "최대 지간길이 30m 이상 교량 건설공사는 유해위험방지계획서 제출 대상이다.",
+   "answer": false,
+   "explain": "최대 지간길이 50m 이상 교량이 대상이에요.",
+   "basis": "산업안전보건법 시행령 제42조",
+   "active": true
+  },
+  {
+   "id": "q037",
+   "category": "작업계획서",
+   "question": "높이 2m 이상 지반 굴착작업은 작업계획서 작성 대상이다.",
+   "answer": true,
+   "explain": "굴착면 높이 2m 이상 굴착작업이 대상이에요.",
+   "basis": "안전보건규칙 제38조",
+   "active": true
+  },
+  {
+   "id": "q038",
+   "category": "작업계획서",
+   "question": "차량계 건설기계를 사용하는 작업은 작업계획서 작성 대상이다.",
+   "answer": true,
+   "explain": "굴착기 등 차량계 건설기계 작업이 대상이에요.",
+   "basis": "안전보건규칙 제38조",
+   "active": true
+  },
+  {
+   "id": "q039",
+   "category": "작업계획서",
+   "question": "중량물 취급작업은 작업계획서 작성 대상이 아니다.",
+   "answer": false,
+   "explain": "중량물 취급작업도 작업계획서 대상이에요.",
+   "basis": "안전보건규칙 제38조",
+   "active": true
+  },
+  {
+   "id": "q040",
+   "category": "작업계획서",
+   "question": "타워크레인 설치·조립·해체 작업은 작업계획서 작성 대상이다.",
+   "answer": true,
+   "explain": "타워크레인 설치·해체 작업이 대상이에요.",
+   "basis": "안전보건규칙 제38조",
+   "active": true
+  },
+  {
+   "id": "q041",
+   "category": "작업계획서",
+   "question": "높이 5m 이상 또는 최대지간 30m 이상 교량의 상부구조 설치·해체 작업은 작업계획서 대상이다.",
+   "answer": true,
+   "explain": "교량작업 작업계획서 대상 기준이에요.",
+   "basis": "안전보건규칙 제38조",
+   "active": true
+  },
+  {
+   "id": "q042",
+   "category": "작업계획서",
+   "question": "구축물 해체작업은 작업계획서 작성 대상이다.",
+   "answer": true,
+   "explain": "건물 등 해체작업이 대상이에요.",
+   "basis": "안전보건규칙 제38조",
+   "active": true
+  },
+  {
+   "id": "q043",
+   "category": "작업계획서",
+   "question": "터널 굴착작업은 작업계획서 작성 대상이다.",
+   "answer": true,
+   "explain": "터널 굴착작업이 대상이에요.",
+   "basis": "안전보건규칙 제38조",
+   "active": true
+  },
+  {
+   "id": "q044",
+   "category": "작업계획서",
+   "question": "차량계 건설기계 작업계획서에는 기계의 종류·능력, 운행경로, 작업방법이 포함돼야 한다.",
+   "answer": true,
+   "explain": "세 항목이 필수 내용이에요.",
+   "basis": "안전보건규칙 별표4",
+   "active": true
+  },
+  {
+   "id": "q045",
+   "category": "선임·보고",
+   "question": "안전관리자를 선임하면 선임일부터 14일 이내에 지방고용노동관서에 보고해야 한다.",
+   "answer": true,
+   "explain": "선임 보고 기한은 14일이에요.",
+   "basis": "산업안전보건법 시행령 제16조",
+   "active": true
+  },
+  {
+   "id": "q046",
+   "category": "선임·보고",
+   "question": "안전관리자 선임 보고 기한은 선임일부터 30일 이내다.",
+   "answer": false,
+   "explain": "14일 이내예요.",
+   "basis": "산업안전보건법 시행령 제16조",
+   "active": true
+  },
+  {
+   "id": "q047",
+   "category": "선임·보고",
+   "question": "안전관리자는 선임 후 3개월 이내에 신규 직무교육을 받아야 한다.",
+   "answer": true,
+   "explain": "신규교육은 선임 후 3개월 이내예요.",
+   "basis": "산업안전보건법 시행규칙 제29조",
+   "active": true
+  },
+  {
+   "id": "q048",
+   "category": "선임·보고",
+   "question": "안전관리자 보수교육은 신규교육 이수 후 매 2년마다 받는다.",
+   "answer": true,
+   "explain": "2년마다 보수교육이에요.",
+   "basis": "산업안전보건법 시행규칙 제29조",
+   "active": true
+  },
+  {
+   "id": "q049",
+   "category": "선임·보고",
+   "question": "안전관리자 보수교육 주기는 매 3년이다.",
+   "answer": false,
+   "explain": "매 2년이에요.",
+   "basis": "산업안전보건법 시행규칙 제29조",
+   "active": true
+  },
+  {
+   "id": "q050",
+   "category": "선임·보고",
+   "question": "건설업은 공사금액 50억원 이상 현장부터 안전관리자를 선임해야 한다.",
+   "answer": true,
+   "explain": "2023.7.1부터 50억원 이상으로 확대됐어요.",
+   "basis": "산업안전보건법 시행령 별표3",
+   "active": true
+  },
+  {
+   "id": "q051",
+   "category": "선임·보고",
+   "question": "공사금액 20억원 이상 건설업 사업장은 안전보건관리책임자를 둬야 한다.",
+   "answer": true,
+   "explain": "건설업 안전보건관리책임자 기준은 20억원 이상이에요.",
+   "basis": "산업안전보건법 시행령 별표2",
+   "active": true
+  },
+  {
+   "id": "q052",
+   "category": "선임·보고",
+   "question": "도급 건설공사의 안전보건총괄책임자 지정 대상은 공사금액 50억원 이상이다.",
+   "answer": false,
+   "explain": "관계수급인 공사금액 포함 20억원 이상이에요.",
+   "basis": "산업안전보건법 시행령 제52조",
+   "active": true
+  },
+  {
+   "id": "q053",
+   "category": "선임·보고",
+   "question": "안전보건관리규정은 작성 사유가 발생한 날부터 60일 이내에 작성하면 된다.",
+   "answer": false,
+   "explain": "30일 이내에 작성해야 해요.",
+   "basis": "산업안전보건법 시행규칙 제25조",
+   "active": true
+  },
+  {
+   "id": "q054",
+   "category": "선임·보고",
+   "question": "건설업 안전보건관리규정 작성 대상은 상시근로자 50명 이상 사업장이다.",
+   "answer": false,
+   "explain": "상시근로자 100명 이상이 대상이에요.",
+   "basis": "산업안전보건법 시행규칙 별표2",
+   "active": false
+  },
+  {
+   "id": "q055",
+   "category": "회의·점검",
+   "question": "산업안전보건위원회 정기회의는 분기마다 개최한다.",
+   "answer": true,
+   "explain": "정기회의는 분기마다예요.",
+   "basis": "산업안전보건법 시행령 제37조",
+   "active": true
+  },
+  {
+   "id": "q056",
+   "category": "회의·점검",
+   "question": "산업안전보건위원회 회의록은 2년간 보존해야 한다.",
+   "answer": true,
+   "explain": "회의록 보존기간은 2년이에요.",
+   "basis": "산업안전보건법 제164조",
+   "active": true
+  },
+  {
+   "id": "q057",
+   "category": "회의·점검",
+   "question": "노사협의체 정기회의는 2개월마다 개최한다.",
+   "answer": true,
+   "explain": "노사협의체는 2개월마다예요.",
+   "basis": "산업안전보건법 시행령 제65조",
+   "active": true
+  },
+  {
+   "id": "q058",
+   "category": "회의·점검",
+   "question": "노사협의체 정기회의는 분기마다 개최한다.",
+   "answer": false,
+   "explain": "2개월마다예요. 분기마다는 산업안전보건위원회예요.",
+   "basis": "산업안전보건법 시행령 제65조",
+   "active": true
+  },
+  {
+   "id": "q059",
+   "category": "회의·점검",
+   "question": "도급인과 관계수급인으로 구성된 안전보건협의체 회의는 격월 1회 이상 개최하면 된다.",
+   "answer": false,
+   "explain": "협의체 회의는 매월 1회 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 제79조",
+   "active": true
+  },
+  {
+   "id": "q060",
+   "category": "회의·점검",
+   "question": "건설업 도급인은 관계수급인 등과 합동 안전보건점검을 2개월에 1회 이상 해야 한다.",
+   "answer": true,
+   "explain": "건설업 합동점검은 2개월에 1회 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 제82조",
+   "active": true
+  },
+  {
+   "id": "q061",
+   "category": "회의·점검",
+   "question": "건설업 합동 안전보건점검 주기는 분기 1회 이상이다.",
+   "answer": false,
+   "explain": "2개월에 1회 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 제82조",
+   "active": true
+  },
+  {
+   "id": "q062",
+   "category": "회의·점검",
+   "question": "건설업 도급인은 관계수급인 작업장을 주 1회 이상 순회점검하면 된다.",
+   "answer": false,
+   "explain": "건설업 순회점검은 2일에 1회 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 제80조",
+   "active": true
+  },
+  {
+   "id": "q063",
+   "category": "회의·점검",
+   "question": "공사금액 120억원(토목 150억원) 이상 건설공사는 산업안전보건위원회 설치 대상이다.",
+   "answer": true,
+   "explain": "건설업 산업안전보건위원회 기준이에요.",
+   "basis": "산업안전보건법 시행령 별표9",
+   "active": true
+  },
+  {
+   "id": "q064",
+   "category": "회의·점검",
+   "question": "노사협의체 구성 대상은 공사금액 120억원(토목 150억원) 이상 건설공사다.",
+   "answer": true,
+   "explain": "노사협의체 대상 기준이에요.",
+   "basis": "산업안전보건법 시행령 제63조",
+   "active": true
+  },
+  {
+   "id": "q065",
+   "category": "안전교육",
+   "question": "건설업 기초안전보건교육은 4시간이다.",
+   "answer": true,
+   "explain": "건설 일용근로자가 처음 받는 4시간 교육이에요.",
+   "basis": "산업안전보건법 시행규칙 별표4",
+   "active": true
+  },
+  {
+   "id": "q066",
+   "category": "안전교육",
+   "question": "관리감독자 정기교육은 연간 8시간 이상이다.",
+   "answer": false,
+   "explain": "관리감독자는 연 16시간 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 별표4",
+   "active": true
+  },
+  {
+   "id": "q067",
+   "category": "안전교육",
+   "question": "사무직 외 근로자의 정기교육은 매반기 12시간 이상이다.",
+   "answer": true,
+   "explain": "사무직은 매반기 6시간, 그 밖의 근로자는 매반기 12시간 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 별표4",
+   "active": true
+  },
+  {
+   "id": "q068",
+   "category": "안전교육",
+   "question": "사무직 외 근로자의 정기교육은 매분기 6시간 이상이다.",
+   "answer": false,
+   "explain": "매반기 12시간 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 별표4",
+   "active": true
+  },
+  {
+   "id": "q069",
+   "category": "안전교육",
+   "question": "일용근로자 채용 시 교육은 1시간 이상이다.",
+   "answer": true,
+   "explain": "일용근로자 채용 시 교육은 1시간 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 별표4",
+   "active": true
+  },
+  {
+   "id": "q070",
+   "category": "안전교육",
+   "question": "일용근로자가 아닌 근로자의 채용 시 교육은 4시간 이상이다.",
+   "answer": false,
+   "explain": "8시간 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 별표4",
+   "active": true
+  },
+  {
+   "id": "q071",
+   "category": "안전교육",
+   "question": "특별교육 대상 작업에 종사하는 일용근로자의 특별교육은 2시간 이상이다.",
+   "answer": true,
+   "explain": "일용근로자 2시간 이상(타워크레인 신호작업은 8시간)이에요.",
+   "basis": "산업안전보건법 시행규칙 별표4",
+   "active": true
+  },
+  {
+   "id": "q072",
+   "category": "안전교육",
+   "question": "특별교육 대상 작업에 종사하는 일반 근로자(일용 제외)의 특별교육은 8시간 이상이다.",
+   "answer": false,
+   "explain": "16시간 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 별표4",
+   "active": true
+  },
+  {
+   "id": "q073",
+   "category": "재해보고",
+   "question": "3일 이상 휴업 산업재해는 발생일로부터 1개월 이내에 산업재해조사표를 제출해야 한다.",
+   "answer": true,
+   "explain": "1개월 이내 제출이에요.",
+   "basis": "산업안전보건법 시행규칙 제73조",
+   "active": true
+  },
+  {
+   "id": "q074",
+   "category": "재해보고",
+   "question": "산업재해조사표 제출 기한은 재해 발생일로부터 15일 이내다.",
+   "answer": false,
+   "explain": "1개월 이내예요.",
+   "basis": "산업안전보건법 시행규칙 제73조",
+   "active": true
+  },
+  {
+   "id": "q075",
+   "category": "재해보고",
+   "question": "산업재해조사표는 근로자대표의 확인을 받아야 하고, 근로자대표가 없으면 재해자 본인의 확인을 받는다.",
+   "answer": true,
+   "explain": "근로자대표(없으면 재해자) 확인이 필요해요.",
+   "basis": "산업안전보건법 시행규칙 제73조",
+   "active": true
+  },
+  {
+   "id": "q076",
+   "category": "서류보존",
+   "question": "산업재해 발생 원인 등 기록은 5년간 보존해야 한다.",
+   "answer": false,
+   "explain": "산업재해 기록 보존기간은 3년이에요.",
+   "basis": "산업안전보건법 시행규칙 제72조",
+   "active": true
+  },
+  {
+   "id": "q077",
+   "category": "서류보존",
+   "question": "안전관리자 등의 선임 관련 서류는 3년간 보존해야 한다.",
+   "answer": true,
+   "explain": "선임 서류 보존기간은 3년이에요.",
+   "basis": "산업안전보건법 제164조",
+   "active": true
+  },
+  {
+   "id": "q078",
+   "category": "서류보존",
+   "question": "일반건강진단 결과표는 3년간 보존하면 된다.",
+   "answer": false,
+   "explain": "건강진단 결과는 5년 보존이에요(발암성물질 관련은 30년).",
+   "basis": "산업안전보건법 시행규칙 제241조",
+   "active": true
+  },
+  {
+   "id": "q079",
+   "category": "서류보존",
+   "question": "작업환경측정 결과 서류는 5년간 보존해야 한다.",
+   "answer": true,
+   "explain": "5년 보존이에요(고용노동부장관 고시 발암성 물질은 30년).",
+   "basis": "산업안전보건법 제164조",
+   "active": true
+  },
+  {
+   "id": "q080",
+   "category": "서류보존",
+   "question": "작업환경측정은 1년에 1회 이상 실시하면 된다.",
+   "answer": false,
+   "explain": "정기 측정은 6개월에 1회 이상이에요.",
+   "basis": "산업안전보건법 시행규칙 제190조",
+   "active": true
+  },
+  {
+   "id": "q081",
+   "category": "서류보존",
+   "question": "작업환경측정 결과는 시료채취 완료일부터 30일 이내에 관할 관서에 보고한다.",
+   "answer": true,
+   "explain": "30일 이내 보고예요.",
+   "basis": "산업안전보건법 시행규칙 제188조",
+   "active": false
+  },
+  {
+   "id": "q082",
+   "category": "중대재해처벌법",
+   "question": "경영책임자는 유해·위험요인 확인·개선 절차가 이행되는지 반기 1회 이상 점검해야 한다.",
+   "answer": true,
+   "explain": "반기 1회 이상 점검·필요 조치예요.",
+   "basis": "중대재해처벌법 시행령 제4조",
+   "active": true
+  },
+  {
+   "id": "q083",
+   "category": "중대재해처벌법",
+   "question": "경영책임자는 안전보건관리책임자 등의 업무 수행을 반기 1회 이상 평가·관리해야 한다.",
+   "answer": true,
+   "explain": "반기 1회 이상 평가 기준을 마련해 평가해요.",
+   "basis": "중대재해처벌법 시행령 제4조",
+   "active": true
+  },
+  {
+   "id": "q084",
+   "category": "중대재해처벌법",
+   "question": "중대재해처벌법상 안전보건 이행 점검 주기는 분기 1회 이상이다.",
+   "answer": false,
+   "explain": "시행령에 정한 점검 주기는 반기 1회 이상이에요.",
+   "basis": "중대재해처벌법 시행령 제4조",
+   "active": true
+  },
+  {
+   "id": "q085",
+   "category": "중대재해처벌법",
+   "question": "시공능력 순위 상위 500위 이내 건설사업자는 안전보건 전담조직을 둬야 한다.",
+   "answer": false,
+   "explain": "상시근로자 500명 이상 또는 시공능력 200위 이내 건설사가 대상이에요.",
+   "basis": "중대재해처벌법 시행령 제4조",
+   "active": true
+  },
+  {
+   "id": "q086",
+   "category": "중대재해처벌법",
+   "question": "도급 시 수급인의 안전보건 관리 역량을 판단하는 기준과 절차를 마련해야 한다.",
+   "answer": true,
+   "explain": "도급·용역 시 역량 평가 기준, 관리비용, 공기 기준을 마련해요.",
+   "basis": "중대재해처벌법 시행령 제4조",
+   "active": true
+  },
+  {
+   "id": "q087",
+   "category": "중대재해처벌법",
+   "question": "중대산업재해 대비 비상 매뉴얼을 마련하고 반기 1회 이상 점검해야 한다.",
+   "answer": true,
+   "explain": "작업중지·대피·구호 조치 매뉴얼을 반기 1회 이상 점검해요.",
+   "basis": "중대재해처벌법 시행령 제4조",
+   "active": true
+  },
+  {
+   "id": "q088",
+   "category": "건설기술진흥법",
+   "question": "지하 10m 이상을 굴착하는 건설공사는 안전관리계획 수립 대상이다.",
+   "answer": true,
+   "explain": "굴착 깊이 10m 이상이 대상이에요.",
+   "basis": "건설기술진흥법 시행령 제98조",
+   "active": true
+  },
+  {
+   "id": "q089",
+   "category": "건설기술진흥법",
+   "question": "10층 이상 16층 미만 건축물 건설공사는 안전관리계획 수립 대상이다.",
+   "answer": true,
+   "explain": "10~16층 미만 건축물도 대상이에요.",
+   "basis": "건설기술진흥법 시행령 제98조",
+   "active": true
+  },
+  {
+   "id": "q090",
+   "category": "건설기술진흥법",
+   "question": "안전관리계획은 착공 후 30일 이내에 제출하면 된다.",
+   "answer": false,
+   "explain": "착공 전에 발주청·인허가기관에 제출해 승인받아야 해요.",
+   "basis": "건설기술진흥법 제62조",
+   "active": true
+  },
+  {
+   "id": "q091",
+   "category": "건설기술진흥법",
+   "question": "건설기술진흥법상 건설사업자는 매일 공사 착수 전 근로자에게 안전교육을 해야 한다.",
+   "answer": true,
+   "explain": "분야별 안전관리책임자 등이 매일 착수 전 안전교육을 해요.",
+   "basis": "건설기술진흥법 시행령 제103조",
+   "active": false
+  },
+  {
+   "id": "q092",
+   "category": "건설기술진흥법",
+   "question": "높이 20m 이상 비계는 관계전문가의 구조적 안전성 확인 대상이다.",
+   "answer": false,
+   "explain": "31m 이상 비계가 대상이에요.",
+   "basis": "건설기술진흥법 시행령 제101조의2",
+   "active": true
+  },
+  {
+   "id": "q093",
+   "category": "건설기술진흥법",
+   "question": "높이 5m 이상 거푸집·동바리는 관계전문가의 구조적 안전성 확인 대상이다.",
+   "answer": true,
+   "explain": "5m 이상 거푸집·동바리가 대상이에요.",
+   "basis": "건설기술진흥법 시행령 제101조의2",
+   "active": true
+  },
+  {
+   "id": "q094",
+   "category": "건설기술진흥법",
+   "question": "높이 2m 이상 흙막이 지보공은 관계전문가의 구조적 안전성 확인 대상이다.",
+   "answer": true,
+   "explain": "2m 이상 흙막이 지보공이 대상이에요.",
+   "basis": "건설기술진흥법 시행령 제101조의2",
+   "active": true
+  },
+  {
+   "id": "q095",
+   "category": "건설기술진흥법",
+   "question": "설계안전성검토(DFS)는 안전관리계획 수립 대상 공사의 실시설계 때 수행한다.",
+   "answer": true,
+   "explain": "실시설계 단계에서 위험요소를 줄이는 제도예요.",
+   "basis": "건설기술진흥법 시행령 제75조의2",
+   "active": true
+  },
+  {
+   "id": "q096",
+   "category": "건설기술진흥법",
+   "question": "건설기술진흥법의 안전관리비와 산업안전보건법의 산업안전보건관리비는 같은 비용이다.",
+   "answer": false,
+   "explain": "근거 법령과 용도가 다른 별개 비용이에요.",
+   "basis": "건설기술진흥법 제63조, 산업안전보건법 제72조",
+   "active": true
+  },
+  {
+   "id": "q097",
+   "category": "건설기술진흥법",
+   "question": "1종·2종 시설물 건설공사는 건설기술진흥법상 안전관리계획 수립 대상이다.",
+   "answer": true,
+   "explain": "1·2종 시설물 건설공사는 대상이에요.",
+   "basis": "건설기술진흥법 시행령 제98조",
+   "active": true
+  },
+  {
+   "id": "q098",
+   "category": "선임·보고",
+   "question": "안전보건관리책임자는 선임 후 6개월 이내에 신규 직무교육을 받으면 된다.",
+   "answer": false,
+   "explain": "선임 후 3개월 이내에 받아야 해요.",
+   "basis": "산업안전보건법 제32조, 시행규칙 제29조",
+   "active": true
+  },
+  {
+   "id": "q099",
+   "category": "기술지도",
+   "question": "공사금액 1억원 이상 120억원(토목 150억원) 미만 공사는 건설재해예방전문지도기관의 기술지도를 받아야 한다.",
+   "answer": true,
+   "explain": "해당 규모 공사는 기술지도 계약 대상이에요.",
+   "basis": "산업안전보건법 시행령 제59조",
+   "active": true
+  },
+  {
+   "id": "q100",
+   "category": "기술지도",
+   "question": "건설재해예방 기술지도는 월 2회 이상 실시한다.",
+   "answer": true,
+   "explain": "기술지도 횟수는 월 2회 이상이에요.",
+   "basis": "산업안전보건법 시행령 별표18",
+   "active": false
+  }
+ ]
+}

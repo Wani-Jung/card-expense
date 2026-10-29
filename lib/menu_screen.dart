@@ -21,6 +21,12 @@ class MenuScreen extends StatefulWidget {
   final Future<void> Function() onPermissions;
   final String Function() permSummary;
 
+  /// 오늘의 안전 OX: 켜기/끄기 스위치, 설명 "지금까지 N문제 · 정답률 NN%", [지금 한 문제 풀기]
+  final bool Function() quizEnabled;
+  final Future<void> Function(bool on) onQuizEnabled;
+  final String Function() quizStats;
+  final Future<void> Function() onQuiz;
+
   /// 내역 관리 건수 (미분류, 확인 필요, 무시한). 각 화면에서 돌아오면 다시 센다.
   final ({int pending, int check, int ignored}) Function() counts;
   final Future<void> Function() onUnclassified, onCheck, onIgnored;
@@ -37,6 +43,10 @@ class MenuScreen extends StatefulWidget {
     required this.cardSummary,
     required this.onPermissions,
     required this.permSummary,
+    required this.quizEnabled,
+    required this.onQuizEnabled,
+    required this.quizStats,
+    required this.onQuiz,
     required this.counts,
     required this.onUnclassified,
     required this.onCheck,
@@ -49,6 +59,7 @@ class MenuScreen extends StatefulWidget {
 
 class _MenuScreenState extends State<MenuScreen> {
   bool _inputOpen = false;
+  bool _quizOpen = false;
 
   /// 기본 접힘. 확인 필요가 1건 이상이면 펼친 상태로 시작
   late bool _manageOpen = widget.counts().check > 0;
@@ -163,6 +174,21 @@ class _MenuScreenState extends State<MenuScreen> {
               closeThen(w.onUpdate),
             ),
           ),
+          line,
+          item(
+            Icons.quiz_outlined,
+            '오늘의 안전 OX',
+            w.quizStats(),
+            () => setState(() => _quizOpen = !_quizOpen),
+            trailing: Switch(
+              value: w.quizEnabled(),
+              onChanged: (v) async {
+                await w.onQuizEnabled(v);
+                if (mounted) setState(() {});
+              },
+            ),
+          ),
+          if (_quizOpen) sub(Icons.play_circle_outline, '지금 한 문제 풀기', openThen(w.onQuiz)),
           line,
           item(Icons.person_outline, '제작자', 'wani', null),
         ],

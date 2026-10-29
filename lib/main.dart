@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -17,6 +20,8 @@ import 'native.dart';
 import 'ocr_screen.dart';
 import 'paste_screen.dart';
 import 'permission_screen.dart';
+import 'quiz.dart';
+import 'quiz_sheet.dart';
 import 'review_screens.dart';
 import 'sms_parser.dart';
 import 'update_check.dart';
@@ -117,6 +122,9 @@ class _CardExpenseAppState extends State<CardExpenseApp> {
   late String? _digits = widget.store.cardDigits;
   late String? _sender = widget.store.senderNumber;
 
+  /// 첫 실행 설정(카드번호 입력)부터 시작했는지. 그날은 퀴즈를 띄우지 않는다.
+  late final bool _firstRun = _digits == null || _sender == null;
+
   Future<void> _saveSettings(String digits, String sender) async {
     await widget.store.setSettings(digits, sender);
     await Native.setSettings(digits, sender);
@@ -140,6 +148,7 @@ class _CardExpenseAppState extends State<CardExpenseApp> {
               digits: _digits!,
               sender: _sender!,
               onSaveSettings: _saveSettings,
+              firstRun: _firstRun,
             ),
     );
   }
@@ -235,12 +244,16 @@ class HomeScreen extends StatefulWidget {
   final String digits;
   final String sender;
   final Future<void> Function(String digits, String sender) onSaveSettings;
+
+  /// 첫 실행 설정을 마치고 막 들어왔는지 (그날 퀴즈 건너뜀)
+  final bool firstRun;
   const HomeScreen({
     super.key,
     required this.store,
     required this.digits,
     required this.sender,
     required this.onSaveSettings,
+    this.firstRun = false,
   });
 
   @override
@@ -294,6 +307,66 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _fixCancelsOnce();
     _onResume();
     _checkUpdate(manual: false);
+    _scheduleDailyQuiz();
+  }
+
+  // ---------------- 오늘의 안전 OX ----------------
+
+  late final QuizStore _quiz = widget.store.quiz;
+  QuizBank? _quizBank;
+  Timer? _quizTimer;
+
+  /// 열려 있는 퀴즈 시트 (닫히면 null). 자동 업데이트 창은 이게 닫힌 뒤에 띄운다.
+  Future<void>? _quizSheet;
+
+  /// 이번에 앱을 연 뒤 다른 팝업(업데이트 창 등)이 먼저 떴는지. 떴으면 그날 퀴즈는 건너뛴다.
+  bool _popupShown = false;
+
+  /// 메인이 다 그려진 뒤(첫 프레임 + 300ms) 하루 1회 판정. 앱 시작을 늦추지 않게 문제 파일도 그때 읽는다.
+  void _scheduleDailyQuiz() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _quizTimer?.cancel();
+      _quizTimer = Timer(const Duration(milliseconds: 300), _maybeDailyQuiz);
+    });
+  }
+
+  Future<QuizBank> _bank() async => _quizBank ??= await _quiz.load();
+
+  Future<void> _maybeDailyQuiz() async {
+    if (!mounted || _quizSheet != null) return;
+    final bank = await _bank();
+    if (!mounted) return;
+    final today = quizDay(DateTime.now());
+    final d = decideQuiz(
+      today: today,
+      lastDay: _quiz.lastDay,
+      enabled: _quiz.enabled,
+      activeCount: bank.active.length,
+      // 첫 실행 설정 직후, 다른 팝업이 먼저 떴거나 메인 위에 다른 화면·창이 있으면 그날은 건너뜀
+      blocked: widget.firstRun || _popupShown || !(ModalRoute.of(context)?.isCurrent ?? true),
+    );
+    if (d == QuizDecision.show || d == QuizDecision.skipToday) await _quiz.setLastDay(today);
+    if (d == QuizDecision.show) await _openQuiz();
+    // 원격 문제 파일은 그 뒤 백그라운드로 (하루 1회, 3초, 실패는 조용히). 테스트에서는 안 함
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      unawaited(_quiz.refresh(bank.version, now: DateTime.now()));
+    }
+  }
+
+  /// 퀴즈 시트 띄우기 (하루 1회 자동 / 메뉴 '지금 한 문제 풀기')
+  Future<void> _openQuiz() async {
+    if (_quizSheet != null) return;
+    final q = await _quiz.next(await _bank());
+    if (!mounted) return;
+    if (q == null) {
+      _toast('풀 수 있는 문제가 없어요');
+      return;
+    }
+    final sheet = showQuizSheet(context, q,
+        onAnswer: (c) => _quiz.record(QuizRecord(quizDay(DateTime.now()), q.id, c, c == q.answer)));
+    _quizSheet = sheet;
+    await sheet;
+    _quizSheet = null;
   }
 
   @override
@@ -306,13 +379,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _quizTimer?.cancel();
     _changes.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _onResume();
+    if (state == AppLifecycleState.resumed) {
+      _onResume();
+      // 켜 둔 채 날이 바뀐 뒤 다시 열 때도 하루 1회 판정
+      _popupShown = false;
+      _scheduleDailyQuiz();
+    }
   }
 
   /// v1.14 업데이트 후 1회: 취소 → 재결제가 '중복'으로 잘못 무시된 건 되살리기, 묶인 취소 분류 맞추기
@@ -666,6 +745,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
     if (!manual && store.updateSkippedTag == latest) return;
+    // 퀴즈 시트가 떠 있으면 닫힌 뒤에 (겹쳐 뜨지 않게)
+    if (_quizSheet != null) await _quizSheet;
+    if (!mounted) return;
+    _popupShown = true;
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -725,6 +808,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         cardSummary: () => '카드 ${widget.digits} · 발신 ${widget.sender}',
         onPermissions: _openPermissions,
         permSummary: _permSummary,
+        quizEnabled: () => _quiz.enabled,
+        onQuizEnabled: _quiz.setEnabled,
+        quizStats: () => _quiz.statsText,
+        onQuiz: _openQuiz,
         onUpdate: () => _checkUpdate(manual: true),
         counts: () => (
           pending: _items.where((e) => e.category == null).length,

@@ -53,7 +53,10 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 지난 문자: 두 판 모두 메시지 앱 공유(ACTION_SEND/SEND_MULTIPLE → `takeShared`)·붙여넣기. 전용판은 추가로 SMS+MMS 1년치 조회(MMS date 는 초 단위, 발신번호는 addr type=137, 본문은 part ct=text/plain)
 
 앱이 꺼져 있을 때 들어온 문자는 네이티브 inbox 에 쌓였다가 앱이 켜지면 `drainInbox` 로 Dart 저장소로 옮겨진다.
-테스트: `test/check_test.dart`(확인 필요 규칙 a~e, 중복 쌍 기억), `test/cancel_test.dart`(승인취소 묶음·바로잡기), `test/ignore_vendor_test.dart`(무시 사유·무시한 내역 화면·업체 관리 목록), `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
+- `lib/quiz.dart` / `lib/quiz_sheet.dart` — 오늘의 안전 OX. 문제 풀 = assets `quiz/questions.json`(내장) vs 기기 캐시(원격 raw.githubusercontent 의 main `quiz/questions.json`, version 이 높을 때만, 하루 1회·3초·실패 무시) 중 높은 버전. 첫 프레임 + 300ms 뒤 하루 1회(`quiz_last_day_v1`) 판정: 첫 실행 설정 직후·다른 팝업(업데이트 창 등)이 먼저 뜬 날은 건너뜀, 메뉴 스위치(`quiz_enabled_v1`, 기본 켜짐) 꺼짐·활성 문항 0개면 안 뜸. 셔플백(`quiz_bag_v1`/`quiz_known_v1`, 새 문항은 남은 순서에 섞음). 기록 `quiz_log_v1`(날짜·id·선택·정답 여부, 기기에만). 자동 업데이트 창은 퀴즈 시트가 닫힌 뒤에 뜸
+- 메뉴 '오늘의 안전 OX'(제작자 위): 스위치 + '지금까지 N문제 · 정답률 NN%', 눌러 펼치면 [지금 한 문제 풀기](하루 1회와 별개)
+
+테스트: `test/quiz_test.dart`(하루 1회·날짜 경계·셔플백·새 문항·active=false·원격 실패/캐시), `test/check_test.dart`(확인 필요 규칙 a~e, 중복 쌍 기억), `test/cancel_test.dart`(승인취소 묶음·바로잡기), `test/ignore_vendor_test.dart`(무시 사유·무시한 내역 화면·업체 관리 목록), `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
 
 ## 빌드 / 배포
 - `flutter test`, `flutter build apk --release --flavor public` / `--flavor full`
@@ -62,6 +65,15 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - `.github/workflows/release-apk.yml`: 두 판 빌드 → `v*` 태그는 정식 Release, main push 는 `dev` 프리릴리스
 - 새 버전 배포: `pubspec.yaml` version 올리고 main push + `git tag vX.Y.Z && git push origin vX.Y.Z`
 - 앱이 `releases/latest` 로 업데이트를 확인하므로 저장소는 public 이어야 한다. 실제 카드번호를 코드·문서·커밋에 넣지 말 것 (예시는 0000).
+
+## 퀴즈 문제 관리 (오늘의 안전 OX)
+- 원본: `quiz/questions_source.xlsx` '퀴즈' 시트 (번호, 분야, 문제, 정답 O/X, 해설(팝업용), 근거, 신뢰도, 채택(O/X), 수정 메모). 공개 파일이라 개인정보를 넣지 말 것
+- 1) xlsx 에서 '채택(O/X)'을 고르고 문제·해설을 고친다
+- 2) `python tools/quiz_export.py` → `quiz/questions.json` 재생성 (openpyxl 필요)
+  - active: 채택=O → 출제, 채택=X → 제외, 채택이 비어 있으면 신뢰도='확인 권장'만 제외
+  - 문항이 바뀌었으면 version 을 자동으로 +1, updated 는 오늘. 안 바뀌었으면 파일 그대로
+- 3) xlsx + json 커밋 → main 에 푸시. 앱 재배포 없이 앱이 원격본(버전이 높으면)을 받아 캐시하고 다음 날부터 반영 (확인은 하루 1회라 최대 하루 늦을 수 있음)
+- 앱 빌드 때는 그 시점의 `quiz/questions.json` 이 assets 로 들어가 기본값이 된다
 
 ## 설치 방식 (고정)
 - 폰 설치는 항상 GitHub Release 링크로만 한다. adb/USB 설치는 제안하지도 말 것.

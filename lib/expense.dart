@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'budget.dart';
+import 'quiz.dart';
 import 'sms_parser.dart';
 import 'vendor.dart';
 
@@ -164,6 +165,9 @@ class Store {
     if (listener != null) await _prefs.setBool('use_listener_v1', listener);
     if (sms != null) await _prefs.setBool('use_sms_v1', sms);
   }
+
+  /// 오늘의 안전 OX 저장 (같은 shared_preferences)
+  QuizStore get quiz => QuizStore(_prefs);
 
   static const _kVendors = 'vendor_book_v1';
 

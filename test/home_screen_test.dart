@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/main.dart';
+import 'package:card_expense/quiz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,8 +20,19 @@ void main() {
       'sender_number': '1588-1600',
       // 업데이트 확인(네트워크) 건너뛰기
       'update_checked_at': DateTime.now().millisecondsSinceEpoch,
+      // 오늘의 안전 OX 는 오늘 이미 판정한 것으로 (아래 퀴즈 테스트만 따로)
+      'quiz_last_day_v1': quizDay(DateTime.now()),
     });
   });
+
+  /// 문제 파일(asset) 읽기는 실제 비동기라 시트가 뜰 때까지 실제 시간으로 조금씩 기다린다
+  Future<void> waitQuiz(WidgetTester tester, {int tries = 40}) async {
+    for (var i = 0; i < tries; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+      if (find.textContaining('오늘의 안전 OX ·').evaluate().isNotEmpty) return;
+    }
+  }
 
   Future<void> pumpHome(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2340);
@@ -94,11 +106,20 @@ void main() {
     expect(find.text(t(prev)), findsOneWidget);
   });
 
-  testWidgets('메뉴: 섹션 없이 7개 한 화면, 내역 관리·결제내역 입력 펼침, 권한 설정', (tester) async {
+  testWidgets('메뉴: 섹션 없이 8개 한 화면, 내역 관리·결제내역 입력 펼침, 권한 설정', (tester) async {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    const titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '카드 문자 설정', '권한 설정', '업데이트 확인', '제작자'];
+    const titles = [
+      '결제내역 입력',
+      '내역 관리',
+      '등록 업체·추천 키워드',
+      '카드 문자 설정',
+      '권한 설정',
+      '업데이트 확인',
+      '오늘의 안전 OX',
+      '제작자',
+    ];
     for (final t in titles) {
       expect(find.text(t), findsOneWidget);
     }
@@ -201,5 +222,64 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('직접 무시 (2건)'), findsOneWidget);
     expect(cats(), {'a': 'ignored', 'b': 'ignored', 'c': null, 'd': 'ignored'});
+  });
+
+  testWidgets('오늘의 안전 OX: 그날 처음 열면 300ms 뒤 바텀시트, 답 고르면 결과, 같은 날 다시는 안 뜸', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'card_digits': '0000',
+      'sender_number': '1588-1600',
+      'update_checked_at': DateTime.now().millisecondsSinceEpoch,
+    });
+    await pumpHome(tester);
+    // 첫 프레임 직후에는 아직 없음
+    expect(find.textContaining('오늘의 안전 OX ·'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 350));
+    await waitQuiz(tester);
+    expect(find.textContaining('오늘의 안전 OX ·'), findsOneWidget);
+    expect(find.text('아래로 내리거나 ✕를 누르면 바로 닫혀요'), findsOneWidget);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('quiz_last_day_v1'), quizDay(DateTime.now()));
+
+    await tester.tap(find.text('O'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining(RegExp(r'^(정답이에요|아쉬워요)')), findsOneWidget);
+    expect(find.textContaining('근거: '), findsOneWidget);
+    expect(find.text('아래로 내리거나 ✕를 누르면 바로 닫혀요'), findsNothing);
+    expect(prefs.getStringList('quiz_log_v1'), hasLength(1));
+    // 답은 다시 못 바꿈
+    await tester.tap(find.text('X'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(prefs.getStringList('quiz_log_v1'), hasLength(1));
+
+    await tester.tap(find.byTooltip('닫기'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('오늘의 안전 OX ·'), findsNothing);
+
+    // 메뉴: 통계 표시, [지금 한 문제 풀기]로 수동 출제
+    await tester.tap(find.byTooltip('메뉴'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('지금까지 1문제 · 정답률 '), findsOneWidget);
+    await tester.tap(find.text('오늘의 안전 OX'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('지금 한 문제 풀기'));
+    await waitQuiz(tester);
+    expect(find.textContaining('오늘의 안전 OX ·'), findsOneWidget);
+    // 바깥 터치로 바로 닫힘
+    await tester.tapAt(const Offset(200, 40));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('오늘의 안전 OX ·'), findsNothing);
+  });
+
+  testWidgets('오늘의 안전 OX: 메뉴에서 끄면 안 뜸', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'card_digits': '0000',
+      'sender_number': '1588-1600',
+      'update_checked_at': DateTime.now().millisecondsSinceEpoch,
+      'quiz_enabled_v1': false,
+    });
+    await pumpHome(tester);
+    await tester.pump(const Duration(milliseconds: 350));
+    await waitQuiz(tester, tries: 5);
+    expect(find.textContaining('오늘의 안전 OX ·'), findsNothing);
   });
 }
