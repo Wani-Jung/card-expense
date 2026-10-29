@@ -149,7 +149,9 @@ void main() {
       final d = _of(_find([orig, _e('빵집', kOps, DateTime(2026, 10, 2), cancel: true)]), CheckRule.cancelPair);
       expect(d.single.reason, contains('차량비로 분류돼 있어요'));
 
-      expect(_find([_e('빵집', kOps, DateTime(2026, 10, 1)), _e('빵집', kOps, DateTime(2026, 10, 2), cancel: true)]),
+      expect(
+          _of(_find([_e('빵집', kOps, DateTime(2026, 10, 1)), _e('빵집', kOps, DateTime(2026, 10, 2), cancel: true)]),
+              CheckRule.cancelPair),
           isEmpty);
       expect(_find([_e('빵집', null, DateTime(2026, 10, 1)), _e('빵집', kOps, DateTime(2026, 10, 2), cancel: true)]),
           isEmpty);

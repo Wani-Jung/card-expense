@@ -117,16 +117,13 @@ void main() {
         parseSms(b, cardDigits: '0000', receivedAt: received)!.id);
   });
 
-  test('정산 텍스트', () {
-    final e1 = Expense.fromParsed(parseSms(
-        'NH기업0000승인 96,000원 07/28 16:26 (주)월산주유소', cardDigits: '0000', receivedAt: received)!)
-      ..category = kCar;
-    final e2 = Expense.fromParsed(parseSms(
-        'NH기업0000승인 12,000원 07/20 12:00 김밥천국', cardDigits: '0000', receivedAt: received)!)
-      ..category = kOps;
-    final t = settlementText([e1, e2], DateTime(2026, 7), '0000');
-    expect(t, contains('차량비 1건 / 96,000원'));
-    expect(t, contains('운영비 1건 / 12,000원'));
-    expect(t, contains('합계 108,000원'));
+  test("승인취소 문자: '체크' 없이 금액만, 첫 줄 NH기업0000승인취소", () {
+    const sms = '[Web발신]\nNH기업0000승인취소\n공용카드\n94,000원\n12/08 13:24\n(주)월산주유소';
+    final p = parseSms(sms, cardDigits: '0000', receivedAt: DateTime(2026, 12, 8, 13, 25))!;
+    expect(p.isCancel, isTrue);
+    expect(p.amount, 94000);
+    expect(p.dateTime, DateTime(2026, 12, 8, 13, 24));
+    expect(p.merchant, '(주)월산주유소');
+    expect(Expense.fromParsed(p).signedAmount, -94000);
   });
 }

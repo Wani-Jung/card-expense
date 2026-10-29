@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'cancel_link.dart';
 import 'expense.dart';
 import 'layout.dart';
 import 'vendor.dart';
@@ -13,6 +14,9 @@ class IgnoredScreen extends StatefulWidget {
   /// 카테고리 변경 + 저장 (메인 화면 상태를 같이 바꾼다)
   final Future<void> Function(Expense e, String? category) onChange;
 
+  /// '취소로 상쇄' 묶음 [되살리기]: 두 건 함께 원래 분류로 ([원승인, 취소])
+  final Future<void> Function(List<Expense> group) onReviveOffset;
+
   /// 중복으로 무시한 건 [중복 아님 · 되살리기]: 분류 대기로, 그 쌍은 다시 중복 의심에 안 뜨게
   final Future<void> Function(Expense e) onReviveDuplicate;
 
@@ -25,6 +29,7 @@ class IgnoredScreen extends StatefulWidget {
     required this.recommend,
     required this.onChange,
     required this.onReviveDuplicate,
+    required this.onReviveOffset,
     required this.carButton,
     required this.opsButton,
   });
@@ -68,6 +73,37 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
           child: Text(label),
         ),
       );
+
+  Future<void> _reviveOffset(List<Expense> group) async {
+    await widget.onReviveOffset(group);
+    if (!mounted) return;
+    setState(() {});
+    _snack(group.first, '승인·취소 ${group.length}건을 되살렸어요');
+  }
+
+  /// '취소로 상쇄' 묶음 한 카드: 승인 + 취소, 합계 0원. 차량비/운영비 버튼 없음
+  Widget _offsetTile(List<Expense> group) {
+    final head = group.first;
+    String line(Expense e) =>
+        '${fmtDateTime(e.dateTime)} ${e.isCancel ? '취소' : '승인'} ${won(e.signedAmount)}';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text(head.merchant.isEmpty ? '(가맹점 미상)' : head.merchant,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+          Text(won(group.fold(0, (s, e) => s + e.signedAmount)), style: const TextStyle(fontWeight: FontWeight.bold)),
+        ]),
+        const SizedBox(height: 4),
+        for (final e in group) Text(line(e), style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
+        const Text('취소로 상쇄 · 합계 0원', style: TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
+        const SizedBox(height: 10),
+        _outlined('되살리기', () => _reviveOffset(group)),
+      ]),
+    );
+  }
 
   /// "원본 12.08 13:23 (차량비)"
   String _originalText(Expense e) {
@@ -117,8 +153,19 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
   Widget build(BuildContext context) {
     final items = widget.items.where((e) => e.category == kIgnored).toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
-    final manual = items.where((e) => !e.ignoredAsDuplicate).toList();
+    final manual = items.where((e) => !e.ignoredAsDuplicate && !e.ignoredAsOffset).toList();
     final dups = items.where((e) => e.ignoredAsDuplicate).toList();
+    // 취소로 상쇄: 묶음 [원승인, 취소] 하나가 카드 하나 (짝을 못 찾으면 혼자)
+    final pairs = pairsById(widget.items);
+    final offsets = <List<Expense>>[];
+    final seen = <String>{};
+    for (final e in items.where((e) => e.ignoredAsOffset)) {
+      if (seen.contains(e.id)) continue;
+      final p = pairs[e.id];
+      final g = p != null && p.partnerOf(e).ignoredAsOffset ? [p.origin, p.cancel] : [e];
+      seen.addAll(g.map((x) => x.id));
+      offsets.add(g);
+    }
     Widget header(String t) => Padding(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 2),
           child: Text(t, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
@@ -138,6 +185,13 @@ class _IgnoredScreenState extends State<IgnoredScreen> {
                       _tile(e),
                     ],
                   ],
+                if (offsets.isNotEmpty) ...[
+                  header('취소로 상쇄 (${offsets.fold(0, (s, g) => s + g.length)}건)'),
+                  for (final (i, g) in offsets.indexed) ...[
+                    if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16),
+                    _offsetTile(g),
+                  ],
+                ],
               ],
             ),
     );

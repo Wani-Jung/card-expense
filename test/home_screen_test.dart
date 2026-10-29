@@ -65,30 +65,59 @@ void main() {
     expect(find.textContaining(RegExp(r'^\d{4}년 7월$')), findsOneWidget);
   });
 
-  testWidgets('메뉴 내역 관리 3개 항목·건수 배지, 각 화면 열기', (tester) async {
+  testWidgets('요약표 좌우 스와이프 = ◀ ▶, 짧게 밀면 그대로', (tester) async {
+    await pumpHome(tester);
+    final now = DateTime.now();
+    final next = DateTime(now.year, now.month + 1);
+    final prev = DateTime(now.year, now.month - 1);
+    String t(DateTime d) => '${d.year}년 ${d.month}월';
+
+    // 짧게(30px) 밀면 안 넘어감
+    await tester.drag(find.text('수립'), const Offset(-30, 0));
+    await tester.pumpAndSettle();
+    expect(find.text(t(now)), findsOneWidget);
+    // 세로로 더 크게 움직이면 안 넘어감
+    await tester.drag(find.text('수립'), const Offset(-80, 120));
+    await tester.pumpAndSettle();
+    expect(find.text(t(now)), findsOneWidget);
+
+    // 왼쪽으로 밀기 → 다음 달, 오른쪽 두 번 → 이전 달
+    await tester.drag(find.text('수립'), const Offset(-200, 0));
+    await tester.pumpAndSettle();
+    expect(find.text(t(next)), findsOneWidget);
+    for (var i = 0; i < 2; i++) {
+      await tester.drag(find.text('수립'), const Offset(200, 0));
+      await tester.pumpAndSettle();
+    }
+    expect(find.text(t(prev)), findsOneWidget);
+  });
+
+  testWidgets('메뉴: 섹션 없이 7개 한 화면, 내역 관리·결제내역 입력 펼침, 권한 설정', (tester) async {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    for (final t in ['미분류 내역', '확인 필요 내역', '무시한 내역']) {
+    const titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '카드 문자 설정', '권한 설정', '업데이트 확인', '제작자'];
+    for (final t in titles) {
       expect(find.text(t), findsOneWidget);
     }
-    expect(find.text('0건'), findsNWidgets(3));
-    // 설정은 카드 문자 설정 하나 (저장된 값 표시), 앱 정보 맨 아래 제작자
-    expect(find.text('카드번호 변경'), findsNothing);
-    expect(find.text('발신번호 변경'), findsNothing);
-    await tester.drag(find.byType(ListView), const Offset(0, -2000));
-    await tester.pumpAndSettle();
+    for (final gone in ['내역 넣기', '정산', '업체 관리', '설정', '앱 정보', '이번 달 내역 복사', '현재 버전', '알림 접근 설정']) {
+      expect(find.text(gone), findsNothing);
+    }
+    // 스크롤 없이 마지막 항목이 하단 바(48dp) 위에 보임
+    expect(tester.getBottomLeft(find.text('wani')).dy, lessThan(780 - 48));
     expect(find.text('카드 0000 · 발신 1588-1600'), findsOneWidget);
-    expect(find.text('제작자'), findsOneWidget);
-    expect(find.text('wani'), findsOneWidget);
-    await tester.tap(find.text('카드 문자 설정'));
+    expect(find.text('알림 감지 권한 필요'), findsOneWidget);
+
+    // 확인 필요 0건이면 내역 관리는 접힌 채 시작
+    expect(find.text('미분류 내역'), findsNothing);
+    await tester.tap(find.text('내역 관리'));
     await tester.pumpAndSettle();
-    expect(find.text('기본값으로'), findsOneWidget);
-    expect(find.textContaining('제작자'), findsNothing);
-    await tester.pageBack();
+    expect(find.text('0건'), findsNWidgets(4)); // 합계 + 하위 3개
+    await tester.tap(find.text('결제내역 입력'));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, 2000));
-    await tester.pumpAndSettle();
+    expect(find.text('문자 붙여넣기'), findsOneWidget);
+    expect(find.text('문자 캡처화면 업로드'), findsOneWidget);
+
     for (final (t, empty) in [
       ('미분류 내역', '미분류 내역이 없어요'),
       ('확인 필요 내역', '확인이 필요한 내역이 없어요'),
@@ -100,5 +129,23 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
     }
+
+    await tester.tap(find.text('카드 문자 설정'));
+    await tester.pumpAndSettle();
+    expect(find.text('기본값으로'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // 권한 설정: 스위치를 끄면 기기에 저장되고 메뉴 설명도 바뀜
+    await tester.tap(find.text('권한 설정'));
+    await tester.pumpAndSettle();
+    expect(find.text('알림 감지'), findsOneWidget);
+    expect(find.text('꺼짐'), findsOneWidget);
+    await tester.tap(find.byType(Switch).first);
+    await tester.pumpAndSettle();
+    expect((await SharedPreferences.getInstance()).getBool('use_listener_v1'), isFalse);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('알림 감지 꺼짐'), findsOneWidget);
   });
 }

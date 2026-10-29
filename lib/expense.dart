@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'budget.dart';
-import 'flavor.dart';
 import 'sms_parser.dart';
 import 'vendor.dart';
 
@@ -15,6 +14,9 @@ const kIgnored = 'ignored';
 /// 무시 사유: 직접 무시(분류 대기·미분류의 [무시]) / 중복(확인 필요의 [하나 무시])
 const kIgnoreManual = 'manual';
 const kIgnoreDuplicate = 'duplicate';
+
+/// 무시 사유: 취소로 상쇄 (확인 필요 > 승인 후 취소의 [확인했어요]). 원승인·취소 두 건이 함께
+const kIgnoreOffset = 'offset';
 
 class Expense {
   final String id;
@@ -31,6 +33,9 @@ class Expense {
   /// '중복'으로 무시했을 때 남겨 둔 원본 내역 id
   String? dupOf;
 
+  /// '취소로 상쇄'로 무시하기 전 카테고리. [되살리기] 하면 이걸로 돌린다.
+  String? ignoredFrom;
+
   Expense({
     required this.id,
     required this.amount,
@@ -41,10 +46,14 @@ class Expense {
     this.category,
     this.ignoreReason,
     this.dupOf,
+    this.ignoredFrom,
   });
 
   /// 확인 필요 > 중복 의심의 [하나 무시]로 무시한 건
   bool get ignoredAsDuplicate => category == kIgnored && ignoreReason == kIgnoreDuplicate;
+
+  /// 승인 후 취소 묶음을 [확인했어요] 로 함께 무시한 건
+  bool get ignoredAsOffset => category == kIgnored && ignoreReason == kIgnoreOffset;
 
   factory Expense.fromParsed(ParsedSms p) => Expense(
         id: p.id,
@@ -71,6 +80,7 @@ class Expense {
         'category': category,
         if (ignoreReason != null) 'ignoreReason': ignoreReason,
         if (dupOf != null) 'dupOf': dupOf,
+        if (ignoredFrom != null) 'ignoredFrom': ignoredFrom,
       };
 
   factory Expense.fromJson(Map<String, dynamic> j) => Expense(
@@ -83,6 +93,7 @@ class Expense {
         category: j['category'] as String?,
         ignoreReason: j['ignoreReason'] as String?,
         dupOf: j['dupOf'] as String?,
+        ignoredFrom: j['ignoredFrom'] as String?,
       );
 }
 
@@ -141,6 +152,18 @@ class Store {
   /// (전용판) 현재 설정으로 1년치 자동 불러오기를 했는지.
   bool get autoImported => _prefs.getBool(_kAutoImported) ?? false;
   Future<void> setAutoImported() => _prefs.setBool(_kAutoImported, true);
+
+  /// v1.14 취소·재결제 1회 바로잡기를 했는지
+  bool get cancelFixDone => _prefs.getBool('cancel_fix_v1') ?? false;
+  Future<void> setCancelFixDone() => _prefs.setBool('cancel_fix_v1', true);
+
+  /// 권한 설정 > '앱에서 사용' 스위치. 기본값은 둘 다 켜짐
+  bool get useListener => _prefs.getBool('use_listener_v1') ?? true;
+  bool get useSms => _prefs.getBool('use_sms_v1') ?? true;
+  Future<void> setUse({bool? listener, bool? sms}) async {
+    if (listener != null) await _prefs.setBool('use_listener_v1', listener);
+    if (sms != null) await _prefs.setBool('use_sms_v1', sms);
+  }
 
   static const _kVendors = 'vendor_book_v1';
 
@@ -221,55 +244,3 @@ String two(int n) => n.toString().padLeft(2, '0');
 
 String fmtDateTime(DateTime d) =>
     '${d.year}.${two(d.month)}.${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
-
-/// 정산용 텍스트. 화면에서 보고 있는 달 기준. 맨 위에 수립/사용 표를 붙인다.
-/// [period] (두 달 합산 보기 중일 때): 합산 표도 함께 붙인다.
-///
-/// [period] 가 두 달이면 (합산 화면) 제목·표·내역 모두 두 달 합산 기준. [title] 은 화면 제목과 같게.
-String settlementText(List<Expense> items, DateTime month, String digits,
-    [MonthBudget budget = const MonthBudget(), PeriodSummary? period, String? title]) {
-  final months = period != null && period.months.length > 1 ? period.months : [month];
-  final inMonth = items.where((e) => months.any(e.inMonth)).toList()
-    ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
-  final b = StringBuffer('[${title ?? '${month.year}년 ${month.month}월'} $kAppName] 카드 $digits\n');
-  // 메신저에 붙여넣으면 칸이 안 맞으므로 줄 단위로 쓴다. 화면 표와 같은 기준.
-  void table(String title, MonthBudget budget, MonthUsage usage) {
-    String row(String label, int? plan, int used) {
-      final rem = remaining(plan, used);
-      final last = rem != null && rem < 0 ? remainingText(rem) : '잔여 ${remainingText(rem)}';
-      return ' $label: 수립 ${manwonOrDash(plan)} / 사용 ${manwon(used)} / $last';
-    }
-
-    b.writeln();
-    b.writeln('■ $title (단위: 만원)');
-    b.writeln(row('합계', budget.total, usage.total));
-    b.writeln(row('차량비', budget.car, usage.car));
-    // 운영비는 참고용: 잔여 생략
-    final ops = budget.opsInvalid ? null : budget.ops;
-    b.writeln(' 운영비: 수립 ${manwonOrDash(ops)} / 사용 ${manwon(usage.ops)}');
-  }
-
-  if (months.length > 1) {
-    table('두 달 합산 수립/사용', period!.budget, period.usage);
-  } else {
-    table('수립/사용', budget, MonthUsage.of(inMonth, month));
-  }
-  var total = 0;
-  for (final (cat, label) in [(kCar, '차량비'), (kOps, '운영비')]) {
-    final list = inMonth.where((e) => e.category == cat).toList();
-    final sum = list.fold<int>(0, (s, e) => s + e.signedAmount);
-    total += sum;
-    b.writeln();
-    b.writeln('■ $label ${list.length}건 / ${won(sum)}');
-    for (final e in list) {
-      final d = e.dateTime;
-      b.writeln(' ${two(d.month)}/${two(d.day)} ${two(d.hour)}:${two(d.minute)} '
-          '${e.merchant}${e.isCancel ? ' (승인취소)' : ''} ${won(e.signedAmount)}');
-    }
-  }
-  b.writeln();
-  b.writeln('■ 합계 ${won(total)}');
-  final pending = inMonth.where((e) => e.category == null).length;
-  if (pending > 0) b.writeln('※ 미분류 $pending건 있음');
-  return b.toString();
-}

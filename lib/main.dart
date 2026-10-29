@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'budget.dart';
+import 'cancel_link.dart';
 import 'category_badge.dart';
 import 'check.dart';
 import 'expense.dart';
@@ -15,6 +16,7 @@ import 'menu_screen.dart';
 import 'native.dart';
 import 'ocr_screen.dart';
 import 'paste_screen.dart';
+import 'permission_screen.dart';
 import 'review_screens.dart';
 import 'sms_parser.dart';
 import 'update_check.dart';
@@ -253,6 +255,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   PeriodView _view = PeriodView(DateTime.now()); // 지금 보는 달 (홀짝·짝홀이면 두 달 합산 단계도)
   DateTime get _month => _view.month;
 
+  /// 요약표 전환 방향 (1: 다음 ▶·왼쪽으로 밀기, -1: 이전 ◀·오른쪽으로 밀기, 0: 모드 변경·달 선택)
+  int _slideDir = 0;
+
+  /// ◀ ▶ 와 요약표 스와이프 공통: 한 단계 넘기기
+  void _step(int dir) => setState(() {
+        _slideDir = dir;
+        _view = stepView(_view, _period, dir);
+      });
+
   /// 메인 상태가 바뀔 때마다 올라간다. 메뉴에서 연 미분류·확인 필요 화면이 이걸 듣고 다시 그린다.
   final _changes = ValueNotifier<int>(0);
 
@@ -279,6 +290,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     // 네이티브 저장소가 비어 있을 수 있으니 시작할 때마다 맞춰 둔다.
     Native.setSettings(widget.digits, widget.sender);
+    Native.setUsage(listener: widget.store.useListener, sms: widget.store.useSms);
+    _fixCancelsOnce();
     _onResume();
     _checkUpdate(manual: false);
   }
@@ -300,6 +313,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _onResume();
+  }
+
+  /// v1.14 업데이트 후 1회: 취소 → 재결제가 '중복'으로 잘못 무시된 건 되살리기, 묶인 취소 분류 맞추기
+  Future<void> _fixCancelsOnce() async {
+    if (widget.store.cancelFixDone) return;
+    final n = fixCancelRebuys(_items);
+    if (n > 0) await widget.store.saveItems(_items);
+    await widget.store.setCancelFixDone();
+    if (n == 0) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {});
+      _toast('취소·재결제 내역 $n건을 바로잡았어요');
+    });
   }
 
   Future<void> _onResume() async {
@@ -400,23 +427,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 파싱된 문자를 내역에 넣는다. 이미 있는 id 는 건너뛴다. 추가된 건수를 돌려준다.
   Future<int> _addParsed(List<ParsedSms> list) async {
     final ids = _items.map((e) => e.id).toSet();
+    final fresh = <String>{};
     var added = 0;
     for (final p in list) {
       if (ids.contains(p.id)) continue;
       final e = Expense.fromParsed(p);
-      if (e.isCancel) {
-        // 같은 가맹점·금액의 분류된 승인 건이 있으면 같은 분류로 자동 처리
-        final orig = _items.where((o) =>
-            !o.isCancel &&
-            o.amount == e.amount &&
-            o.merchant == e.merchant &&
-            (o.category == kCar || o.category == kOps));
-        if (orig.isNotEmpty) e.category = orig.last.category;
-      }
       _items.add(e);
       ids.add(e.id);
+      if (e.isCancel) fresh.add(e.id);
       added++;
     }
+    // 새 취소가 원승인과 묶이면 원승인 분류를 그대로 따라간다
+    if (fresh.isNotEmpty) followOrigins(_items, only: fresh);
     if (added > 0) {
       await widget.store.saveItems(_items);
       if (mounted) setState(() {});
@@ -441,7 +463,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _classify(Expense e, String? cat, {bool askBulk = false, String? dupOf}) async {
     if (e.category == cat) return;
     final isChoice = cat == kCar || cat == kOps;
-    var targets = [e];
+    // 승인취소 묶음은 한 건씩 따로 분류·무시하지 않는다
+    final pairs = pairsById(_items);
+    List<Expense> withPartners(List<Expense> list) => {
+          for (final t in list) ...[t, if (pairs[t.id] != null) pairs[t.id]!.partnerOf(t)],
+        }.toList();
+    var targets = withPartners([e]);
     if (askBulk && isChoice) {
       final others = sameVendorPending(_items, e);
       if (others.isNotEmpty) {
@@ -456,11 +483,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         );
         if (all == null) return; // 창 밖을 눌러 닫으면 아무것도 안 함
-        if (all) targets = [e, ...others];
+        if (all) targets = withPartners([e, ...others]);
       }
     }
 
-    final before = {for (final t in targets) t: (t.category, t.ignoreReason, t.dupOf)};
+    final before = {for (final t in targets) t: (t.category, t.ignoreReason, t.dupOf, t.ignoredFrom)};
     final learns = isChoice && e.merchant.trim().isNotEmpty;
     final learnedBefore = learns ? _vendors.learn(e.merchant, cat!) : null;
     setState(() {
@@ -493,7 +520,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 t
                   ..category = b.$1
                   ..ignoreReason = b.$2
-                  ..dupOf = b.$3;
+                  ..dupOf = b.$3
+                  ..ignoredFrom = b.$4;
               });
               if (learns) _vendors.restore(e.merchant, learnedBefore);
             });
@@ -509,6 +537,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     t.category = cat;
     t.ignoreReason = cat == kIgnored ? (dupOf != null ? kIgnoreDuplicate : kIgnoreManual) : null;
     t.dupOf = cat == kIgnored ? dupOf : null;
+    t.ignoredFrom = null;
+  }
+
+  /// 승인 후 취소 [확인했어요]: 묶음 두 건을 '취소로 상쇄'로 함께 무시 (합계는 원래 0)
+  Future<void> _ignoreOffset(CheckIssue i) async {
+    setState(() {
+      for (final t in i.group) {
+        t
+          ..ignoredFrom = t.category
+          ..category = kIgnored
+          ..ignoreReason = kIgnoreOffset
+          ..dupOf = null;
+      }
+    });
+    await widget.store.saveItems(_items);
+    _toast('${i.e.merchant.isEmpty ? won(i.e.amount) : i.e.merchant} · 승인·취소 2건을 무시 목록으로 옮겼어요');
+  }
+
+  /// 무시한 내역 '취소로 상쇄' [되살리기]: 묶음 두 건을 원래 분류로. 다시 승인 후 취소에 안 뜨게 기억
+  Future<void> _reviveOffset(List<Expense> group) async {
+    setState(() {
+      for (final t in group) {
+        t
+          ..category = t.ignoredFrom
+          ..ignoreReason = null
+          ..ignoredFrom = null;
+      }
+    });
+    await widget.store.addCheckOk(['${CheckRule.cancelled.name}|${group.map((g) => g.id).join('+')}']);
+    await widget.store.saveItems(_items);
   }
 
   Future<void> _delete(Expense e) async {
@@ -527,13 +585,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// 문자 권한이 처음 허용됐거나 설정이 바뀐 뒤면 1년치를 한 번 불러온다.
   Future<void> _maybeAutoImport() async {
-    if (!isFullEdition || _perms.sms != true || widget.store.autoImported || _importing) return;
+    if (!isFullEdition || !widget.store.useSms || _perms.sms != true || widget.store.autoImported || _importing) {
+      return;
+    }
     await _importInbox();
     await widget.store.setAutoImported();
   }
 
   Future<void> _importInbox() async {
     if (_importing) return;
+    if (!widget.store.useSms) {
+      _toast('권한 설정에서 문자 읽기를 켜주세요');
+      return;
+    }
     if (_perms.sms != true) {
       await Native.requestSmsPermission();
       return; // 허용되면 permissionsChanged → 자동 불러오기
@@ -648,15 +712,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _openMenu() {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => MenuScreen(
-        monthLabel: _view.title(_period),
         onImport: _importInbox,
         onPaste: _openPaste,
         onOcr: _openOcr,
-        onCopy: _copyMonth,
         onVendors: _openVendors,
+        importEnabled: () => widget.store.useSms,
         onSettings: _openSettings,
         cardSummary: () => '카드 ${widget.digits} · 발신 ${widget.sender}',
-        onListener: Native.openNotificationAccessSettings,
+        onPermissions: _openPermissions,
+        permSummary: _permSummary,
         onUpdate: () => _checkUpdate(manual: true),
         counts: () => (
           pending: _items.where((e) => e.category == null).length,
@@ -691,6 +755,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           changes: _changes,
           onChange: (e, cat) => _classify(e, cat),
           onIgnoreDuplicate: (e, original) => _classify(e, kIgnored, dupOf: original.id),
+          onConfirmCancel: _ignoreOffset,
           onOk: (i) async {
             // 중복 의심은 묶음 안 쌍을 전부 맞다고 기억
             await widget.store.addCheckOk(okKeysFor(i));
@@ -707,7 +772,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         items: _items,
         recommend: _vendors.recommend,
         onChange: (e, cat) async {
-          setState(() => _setCategory(e, cat));
+          // 묶인 짝이 같이 무시돼 있으면 함께 (한 건씩 따로 분류하지 않게)
+          final p = pairsById(_items)[e.id];
+          final partner = p?.partnerOf(e);
+          setState(() {
+            _setCategory(e, cat);
+            if (partner != null && partner.category == kIgnored) _setCategory(partner, cat);
+          });
           await widget.store.saveItems(_items);
           // 메인에서 고를 때처럼 그 가맹점을 등록 업체로 기억
           if ((cat == kCar || cat == kOps) && e.merchant.trim().isNotEmpty) {
@@ -715,6 +786,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             await widget.store.saveVendors(_vendors);
           }
         },
+        onReviveOffset: _reviveOffset,
         onReviveDuplicate: (e) async {
           // 되살린 쌍은 다시 중복 의심에 안 뜨게
           if (e.dupOf != null) await widget.store.addCheckOk([dupPairKey(e.id, e.dupOf!)]);
@@ -740,15 +812,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ));
   }
 
-  Future<void> _copyMonth() async {
-    // 월 화면이면 그 달, 합산 화면이면 두 달 합산 표 + 두 달 내역
-    final months = _view.months(_period);
-    final period = months.length > 1 ? PeriodSummary.of(_budgets, _items, months) : null;
-    final title = _view.title(_period);
-    final text = settlementText(_items, _month, widget.digits, _budgets.forMonth(_month), period, title);
-    await Clipboard.setData(ClipboardData(text: text));
-    _toast('$title 내역을 복사했어요');
+  /// 메뉴 > 권한 설정
+  Future<void> _openPermissions() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => PermissionScreen(
+          store: widget.store,
+          perms: () => _perms,
+          changes: _changes,
+          refresh: _refreshPerms,
+          onUsageChanged: () async {
+            await Native.setUsage(listener: widget.store.useListener, sms: widget.store.useSms);
+            if (mounted) setState(() {});
+            await _maybeAutoImport();
+          },
+        ),
+      ));
+
+  /// 메뉴 '권한 설정' 설명: "알림 감지 켜짐 · 문자 읽기 켜짐"
+  String _permSummary() {
+    String part(String name, bool use, bool granted) => use ? (granted ? '$name 켜짐' : '$name 권한 필요') : '$name 꺼짐';
+    return [
+      part('알림 감지', widget.store.useListener, _perms.listener),
+      if (isFullEdition) part('문자 읽기', widget.store.useSms, _perms.sms == true),
+    ].join(' · ');
   }
+
+  /// 메인 권한 배너: '앱에서 사용'이 켜져 있는데 시스템 권한이 꺼진 것만
+  bool get _needListener => widget.store.useListener && !_perms.listener;
+  bool get _needSms => isFullEdition && widget.store.useSms && _perms.sms == false;
 
   Future<void> _openSettings() => Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => SettingsScreen(
@@ -831,7 +921,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: ListView(
           padding: EdgeInsets.fromLTRB(12, 8, 12, listBottomPad(context)),
           children: [
-            if (!_perms.allOk) _PermissionBanner(perms: _perms),
+            if (_needListener || _needSms) _PermissionBanner(listener: _needListener, sms: _needSms),
             if (pending.isNotEmpty) ...[
               _SectionTitle('분류 대기 ${pending.length}건'),
               for (final e in pending)
@@ -858,20 +948,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               selected: months,
               pair: _period == PeriodMode.single ? const [] : periodMonths(_month, _period),
               // 숫자를 누르면 그 달의 월 화면으로
-              onPick: (m) => setState(() => _view = PeriodView(DateTime(_month.year, m))),
+              onPick: (m) => setState(() {
+                _slideDir = 0;
+                _view = PeriodView(DateTime(_month.year, m));
+              }),
             ),
             _MonthHeader(
               title: _view.title(_period),
-              onPrev: () => setState(() => _view = stepView(_view, _period, -1)),
-              onNext: () => setState(() => _view = stepView(_view, _period, 1)),
+              onPrev: () => _step(-1),
+              onNext: () => _step(1),
             ),
-            _BudgetTable(
+            // 표를 왼쪽으로 밀면 ▶, 오른쪽으로 밀면 ◀ 와 같다. 수립 칸 터치·보기 선택은 그대로
+            _SwipeArea(
+              onSwipe: _step,
+              child: _SlideSwitcher(
+                dir: _slideDir,
+                childKey: '${_period.name}|${_view.title(_period)}',
+                child: _BudgetTable(
               budget: period.budget,
               usage: period.usage,
               mode: _period,
               modeLabel: periodModeShort(_period),
               // 모드를 바꾸면 보고 있던 달의 월 화면부터
               onMode: (m) => setState(() {
+                _slideDir = 0;
                 _period = m;
                 _view = PeriodView(_view.month);
               }),
@@ -884,6 +984,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ? null
                   : () => _editBudget(
                       '차량비', _budgets.forMonth(_month).car, (w) => _budgets.setCar(_month, w)),
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             if (monthItems.isEmpty)
@@ -999,8 +1101,9 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _PermissionBanner extends StatelessWidget {
-  final PermStatus perms;
-  const _PermissionBanner({required this.perms});
+  /// 켜야 하는 것
+  final bool listener, sms;
+  const _PermissionBanner({required this.listener, required this.sms});
 
   @override
   Widget build(BuildContext context) {
@@ -1017,9 +1120,8 @@ class _PermissionBanner extends StatelessWidget {
                 style: TextStyle(fontSize: 12, color: Colors.black54)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 4, children: [
-              if (perms.sms == false)
-                FilledButton.tonal(onPressed: Native.requestSmsPermission, child: const Text('문자 권한')),
-              if (!perms.listener)
+              if (sms) FilledButton.tonal(onPressed: Native.requestSmsPermission, child: const Text('문자 권한')),
+              if (listener)
                 FilledButton.tonal(
                     onPressed: Native.openNotificationAccessSettings, child: const Text('알림 접근 켜기')),
             ]),
@@ -1216,6 +1318,86 @@ class _MonthHeader extends StatelessWidget {
       ),
       arrow(Icons.arrow_right, onNext, '다음'),
     ]);
+  }
+}
+
+/// 요약표 좌우 스와이프. 가로로 충분히(60px 이상 또는 빠른 플릭) 밀었고
+/// 가로 움직임이 세로보다 확실히 클 때만 [onSwipe] (왼쪽으로 밀면 1, 오른쪽이면 -1).
+/// 제스처 경쟁에 끼지 않는 Listener 라 표 안의 탭(수립 편집·보기 선택)과 목록 세로 스크롤은 그대로.
+class _SwipeArea extends StatefulWidget {
+  final void Function(int dir) onSwipe;
+  final Widget child;
+  const _SwipeArea({required this.onSwipe, required this.child});
+
+  @override
+  State<_SwipeArea> createState() => _SwipeAreaState();
+}
+
+class _SwipeAreaState extends State<_SwipeArea> {
+  int? _pointer;
+  Offset _start = Offset.zero;
+  Duration _startAt = Duration.zero;
+
+  void _up(PointerUpEvent e) {
+    if (e.pointer != _pointer) return;
+    _pointer = null;
+    final d = e.position - _start;
+    final dt = (e.timeStamp - _startAt).inMicroseconds / 1e6;
+    final speed = dt > 0 ? d.dx.abs() / dt : 0;
+    final horizontal = d.dx.abs() > d.dy.abs() * 2;
+    final far = d.dx.abs() >= 60;
+    final flick = d.dx.abs() >= 24 && speed >= 600;
+    if (horizontal && (far || flick)) widget.onSwipe(d.dx < 0 ? 1 : -1);
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (e) {
+          if (_pointer != null) return;
+          _pointer = e.pointer;
+          _start = e.position;
+          _startAt = e.timeStamp;
+        },
+        onPointerUp: _up,
+        onPointerCancel: (e) {
+          if (e.pointer == _pointer) _pointer = null;
+        },
+        child: widget.child,
+      );
+}
+
+/// 요약표 넘김 전환: 밀린 방향으로 짧게(200ms) 슬라이드. [dir] 0 이면 페이드만.
+class _SlideSwitcher extends StatelessWidget {
+  final int dir;
+  final String childKey;
+  final Widget child;
+  const _SlideSwitcher({required this.dir, required this.childKey, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final key = ValueKey(childKey);
+    return ClipRect(
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        switchInCurve: Curves.easeOut,
+        switchOutCurve: Curves.easeIn,
+        layoutBuilder: (current, previous) => Stack(
+          alignment: Alignment.topCenter,
+          children: [...previous, ?current],
+        ),
+        transitionBuilder: (c, anim) {
+          // 들어오는 표는 미는 방향 반대편에서, 나가는 표는 미는 방향으로
+          final incoming = c.key == key;
+          final from = Offset((incoming ? 0.35 : -0.35) * dir, 0);
+          return FadeTransition(
+            opacity: anim,
+            child: SlideTransition(position: Tween(begin: from, end: Offset.zero).animate(anim), child: c),
+          );
+        },
+        child: KeyedSubtree(key: key, child: child),
+      ),
+    );
   }
 }
 

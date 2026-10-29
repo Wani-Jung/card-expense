@@ -21,6 +21,9 @@ object CardSms {
     private const val KEY_INBOX = "inbox"
     private const val KEY_SEEN = "seen"
     private const val MAX_SEEN = 300
+    private const val KEY_USE_LISTENER = "use_listener"
+    private const val KEY_USE_SMS = "use_sms"
+    private const val KEY_SMS_REQUESTED = "sms_requested"
 
     // 앱이 떠 있을 때 MainActivity 가 채워 둔다. 새 문자가 오면 바로 화면을 갱신한다.
     var onNew: (() -> Unit)? = null
@@ -36,6 +39,17 @@ object CardSms {
     fun setSettings(ctx: Context, digits: String?, sender: String?) {
         prefs(ctx).edit().putString(KEY_DIGITS, digits).putString(KEY_SENDER, sender).apply()
     }
+
+    /** 권한 설정 > '앱에서 사용' 스위치. 꺼져 있으면 알림 감지·SMS 수신이 문자를 받아도 버린다. 기본 켜짐 */
+    fun useListener(ctx: Context) = prefs(ctx).getBoolean(KEY_USE_LISTENER, true)
+    fun useSms(ctx: Context) = prefs(ctx).getBoolean(KEY_USE_SMS, true)
+    fun setUsage(ctx: Context, listener: Boolean, sms: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_USE_LISTENER, listener).putBoolean(KEY_USE_SMS, sms).apply()
+    }
+
+    /** 문자 권한을 한 번이라도 요청했는지 (영구 거부 판별용) */
+    fun smsRequested(ctx: Context) = prefs(ctx).getBoolean(KEY_SMS_REQUESTED, false)
+    fun markSmsRequested(ctx: Context) = prefs(ctx).edit().putBoolean(KEY_SMS_REQUESTED, true).apply()
 
     private fun compact(text: String) = text.replace(Regex("""\s+"""), "")
 

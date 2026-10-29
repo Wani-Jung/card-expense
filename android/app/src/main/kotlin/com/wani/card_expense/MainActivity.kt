@@ -52,6 +52,10 @@ class MainActivity : FlutterActivity() {
                     CardSms.setSettings(this, call.argument<String>("digits"), call.argument<String>("sender"))
                     result.success(null)
                 }
+                "setUsage" -> {
+                    CardSms.setUsage(this, call.argument<Boolean>("listener") ?: true, call.argument<Boolean>("sms") ?: true)
+                    result.success(null)
+                }
                 "drainInbox" -> result.success(CardSms.drain(this))
                 "takeShared" -> {
                     result.success(ArrayList(shared))
@@ -63,14 +67,21 @@ class MainActivity : FlutterActivity() {
                     )
                     // 문자 권한은 전용판에만 있다. 일반판은 키 자체를 넣지 않는다.
                     if (Flavor.smsPermissions.isNotEmpty()) {
-                        status["sms"] = Flavor.smsPermissions.all {
+                        val granted = Flavor.smsPermissions.all {
                             checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
                         }
+                        status["sms"] = granted
+                        // 요청한 적이 있는데 다시 물을 수 없으면 영구 거부 → 앱 정보 화면에서 켜야 한다
+                        status["smsBlocked"] = !granted && CardSms.smsRequested(this) &&
+                            Flavor.smsPermissions.none { shouldShowRequestPermissionRationale(it) }
                     }
                     result.success(status)
                 }
                 "requestSmsPermission" -> {
-                    if (Flavor.smsPermissions.isNotEmpty()) requestPermissions(Flavor.smsPermissions, 1)
+                    if (Flavor.smsPermissions.isNotEmpty()) {
+                        CardSms.markSmsRequested(this)
+                        requestPermissions(Flavor.smsPermissions, 1)
+                    }
                     result.success(null)
                 }
                 "readSmsInbox" -> {

@@ -12,6 +12,7 @@ import android.service.notification.StatusBarNotification
 class CardNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName == packageName) return
+        if (!CardSms.useListener(this)) return // 권한 설정에서 '앱에서 사용'을 끈 상태
         val extras = sbn.notification?.extras ?: return
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         // (본문, 받은 시각, 보낸 사람)

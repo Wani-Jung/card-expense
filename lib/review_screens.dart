@@ -117,6 +117,9 @@ class CheckScreen extends StatelessWidget {
 
   /// 중복 의심 [하나 무시]: [e] 를 '중복' 사유로 무시, 원본은 [original]
   final Future<void> Function(Expense e, Expense original) onIgnoreDuplicate;
+
+  /// 승인 후 취소 [확인했어요]: 묶음 두 건을 함께 '취소로 상쇄'로 무시
+  final Future<void> Function(CheckIssue issue) onConfirmCancel;
   final CategoryButtonBuilder button;
 
   const CheckScreen({
@@ -126,6 +129,7 @@ class CheckScreen extends StatelessWidget {
     required this.onChange,
     required this.onOk,
     required this.onIgnoreDuplicate,
+    required this.onConfirmCancel,
     required this.button,
   });
 
@@ -158,6 +162,7 @@ class CheckScreen extends StatelessWidget {
 
   Widget _card(CheckIssue i) {
     if (i.rule == CheckRule.duplicate) return _duplicateCard(i);
+    if (i.rule == CheckRule.cancelled) return _cancelledCard(i);
     final e = i.e;
     final to = oppositeCategory(e);
     return Card(
@@ -174,6 +179,36 @@ class CheckScreen extends StatelessWidget {
             _smallOutlined('이대로 맞아요', () => onOk(i)),
             button(to, null, () => onChange(e, to), label: '${categoryLabel(to)}로 변경'),
           ]),
+        ]),
+      ),
+    );
+  }
+
+  /// 승인 후 취소: 원승인 + 취소 한 카드. 한 건씩 따로 무시·분류하는 버튼은 없다.
+  Widget _cancelledCard(CheckIssue i) {
+    final o = i.group.first, c = i.group.last;
+    String hm(DateTime d) => '${two(d.hour)}:${two(d.minute)}';
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Text(
+                  '${two(o.dateTime.month)}.${two(o.dateTime.day)} · ${o.merchant.isEmpty ? '(가맹점 미상)' : o.merchant}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+            Text(categoryLabel(o.category!), style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
+          ]),
+          const SizedBox(height: 4),
+          Text('${hm(o.dateTime)} 승인 ${won(o.amount)} / ${hm(c.dateTime)} 취소 ${won(-c.amount)} → 합계 0원',
+              style: const TextStyle(fontSize: 13)),
+          if (i.rebuy != null)
+            Text('${hm(i.rebuy!.dateTime)} 재결제 ${won(i.rebuy!.amount)} 있음',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
+          const SizedBox(height: 10),
+          _smallOutlined('확인했어요', () => onConfirmCancel(i)),
         ]),
       ),
     );

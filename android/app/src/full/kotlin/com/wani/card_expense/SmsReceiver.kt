@@ -12,6 +12,7 @@ import android.provider.Telephony
 class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+        if (!CardSms.useSms(context)) return // 권한 설정에서 '앱에서 사용'을 끈 상태
         val parts = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         if (parts.isEmpty()) return
         val address = parts[0].originatingAddress

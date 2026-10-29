@@ -26,8 +26,10 @@ class PermStatus {
 
   /// 문자 권한. 일반판은 문자 권한이 아예 없어서 null.
   final bool? sms;
-  const PermStatus({this.listener = true, this.sms});
-  bool get allOk => listener && (sms ?? true);
+
+  /// 문자 권한을 영구 거부해서 다시 요청 창이 안 뜨는 상태 (앱 정보 화면에서 켜야 함)
+  final bool smsBlocked;
+  const PermStatus({this.listener = true, this.sms, this.smsBlocked = false});
 }
 
 /// MainActivity.kt 와 주고받는 채널.
@@ -77,8 +79,13 @@ class Native {
     return PermStatus(
       listener: m['listener'] ?? false,
       sms: m['sms'],
+      smsBlocked: m['smsBlocked'] ?? false,
     );
   }
+
+  /// 권한 설정 > '앱에서 사용' 스위치를 네이티브(알림 감지·SMS 수신)에 알린다
+  static Future<void> setUsage({required bool listener, required bool sms}) =>
+      _ch.invokeMethod('setUsage', {'listener': listener, 'sms': sms});
 
   static Future<void> requestSmsPermission() => _ch.invokeMethod('requestSmsPermission');
   static Future<void> openNotificationAccessSettings() =>

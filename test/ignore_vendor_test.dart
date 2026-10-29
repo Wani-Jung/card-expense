@@ -64,6 +64,7 @@ void main() {
         items: items,
         recommend: (_) => null,
         onChange: (e, cat) async => e.category = cat,
+        onReviveOffset: (_) async {},
         onReviveDuplicate: (e) async {
           revived = e;
           e

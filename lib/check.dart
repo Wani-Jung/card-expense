@@ -1,3 +1,4 @@
+import 'cancel_link.dart';
 import 'expense.dart';
 import 'vendor.dart';
 
@@ -6,6 +7,7 @@ enum CheckRule {
   mixedVendor('같은 업체인데 분류가 다른 건'),
   recommendMismatch('추천·등록 업체와 반대로 분류한 건'),
   duplicate('중복 의심'),
+  cancelled('승인 후 취소'),
   cancelPair('승인취소 짝이 안 맞는 건'),
   oddDate('날짜 이상');
 
@@ -19,12 +21,17 @@ class CheckIssue {
   final String reason;
 
   /// 중복 의심 묶음 (시간순, 자기 포함). 중복 의심은 묶음 하나가 카드 하나이고 [e] 는 가장 늦은 건.
+  /// 승인 후 취소는 [원승인, 취소].
   final List<Expense> group;
-  CheckIssue(this.rule, this.e, this.reason, [List<Expense>? group]) : group = group ?? [e];
 
-  /// '이대로 맞아요'·배너 닫기 기억용 키. 중복 의심은 묶음 전체 id.
-  String get key =>
-      rule == CheckRule.duplicate ? '${rule.name}|${group.map((g) => g.id).join('+')}' : '${rule.name}|${e.id}';
+  /// 승인 후 취소: 취소 뒤 같은 금액 재결제 (있으면)
+  final Expense? rebuy;
+  CheckIssue(this.rule, this.e, this.reason, [List<Expense>? group, this.rebuy]) : group = group ?? [e];
+
+  /// '이대로 맞아요'·배너 닫기 기억용 키. 중복 의심·승인 후 취소는 묶음 전체 id.
+  String get key => rule == CheckRule.duplicate || rule == CheckRule.cancelled
+      ? '${rule.name}|${group.map((g) => g.id).join('+')}'
+      : '${rule.name}|${e.id}';
 }
 
 /// 중복 의심 쌍 키 (순서 무관). [둘 다 맞아요]·[중복 아님 · 되살리기] 하면 이 쌍은 다시 안 묶는다.
@@ -55,6 +62,8 @@ List<CheckIssue> findIssues(
 }) {
   final out = <CheckIssue>[];
   final classified = items.where(_classified).toList();
+  final links = linkCancels(items);
+  final pairs = pairsById(items);
 
   // a. 같은 가맹점 다수 분류와 다른 쪽
   final byVendor = <String, List<Expense>>{};
@@ -94,7 +103,8 @@ List<CheckIssue> findIssues(
 
   // c. 같은 가맹점·같은 금액이 10분 이내 2건 이상
   final sameKey = <String, List<Expense>>{};
-  for (final e in classified) {
+  // 취소 묶음에 들어간 건(원승인·취소)은 빼고 본다. 결제 → 취소 → 재결제가 중복으로 잡히지 않게
+  for (final e in classified.where((e) => !pairs.containsKey(e.id))) {
     sameKey.putIfAbsent('${merchantKey(e.merchant)}|${e.amount}|${e.isCancel}', () => []).add(e);
   }
   for (final list in sameKey.values) {
@@ -128,22 +138,21 @@ List<CheckIssue> findIssues(
     flush();
   }
 
-  // d. 승인취소 짝: 원승인 없음 / 원승인과 분류가 다름. 원승인은 분류 여부와 상관없이 찾는다.
+  // 승인 후 취소: 원승인·취소가 둘 다 분류된 묶음 하나 = 카드 하나
+  for (final p in links.values) {
+    if (!_classified(p.origin) || !_classified(p.cancel)) continue;
+    out.add(CheckIssue(CheckRule.cancelled, p.cancel, '승인했다가 취소한 결제예요. 합계는 0원이에요',
+        [p.origin, p.cancel], rebuyAfter(p, items, pairs)));
+  }
+
+  // d. 승인취소 짝: 원승인 없음 / 원승인과 분류가 다름. 원승인은 분류 여부와 상관없이 묶음(linkCancels)으로 찾는다.
   for (final c in classified.where((e) => e.isCancel)) {
-    final k = merchantKey(c.merchant);
-    final origins = items
-        .where((o) =>
-            !o.isCancel &&
-            o.amount == c.amount &&
-            merchantKey(o.merchant) == k &&
-            !o.dateTime.isAfter(c.dateTime))
-        .toList()
-      ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
-    if (origins.isEmpty) {
+    final link = links[c.id];
+    if (link == null) {
       out.add(CheckIssue(CheckRule.cancelPair, c, '같은 금액의 원래 승인 내역이 없는 취소예요'));
       continue;
     }
-    final o = origins.firstWhere(_classified, orElse: () => origins.first);
+    final o = link.origin;
     if (_classified(o) && o.category != c.category) {
       out.add(CheckIssue(CheckRule.cancelPair, c,
           '원래 승인(${fmtDateTime(o.dateTime)})은 ${categoryLabel(o.category!)}로 분류돼 있어요'));

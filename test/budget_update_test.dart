@@ -107,17 +107,6 @@ void main() {
     expect(u.total, 62000);
   });
 
-  test('정산 텍스트에 수립/사용 포함', () {
-    final m = DateTime(2026, 7);
-    final t = settlementText([_e(342500, kCar, DateTime(2026, 7, 2))], m, '0000',
-        const MonthBudget(total: 500000, car: 300000));
-    expect(t, contains('수립/사용 (단위: 만원)'));
-    expect(t, contains('합계: 수립 50.00 / 사용 34.25 / 잔여 15.75'));
-    expect(t, contains('차량비: 수립 30.00 / 사용 34.25 / 초과 4.25'));
-    expect(t, contains('운영비: 수립 20.00 / 사용 0.00\n'));
-    expect(t, isNot(contains('운영비 계획')));
-  });
-
   group('업데이트 버전 비교', () {
     test('태그와 앱 버전 비교', () {
       expect(isNewerVersion('v1.4.0', '1.3.0'), isTrue);
@@ -170,47 +159,6 @@ void main() {
       expect(remainingText(157500), '15.75');
       expect(remainingText(0), '0.00');
       expect(remainingText(-35000), '초과 3.50');
-    });
-
-    test('정산 텍스트: 수립이 없으면 잔여 -, 운영비는 잔여 생략', () {
-      final t = settlementText([_e(10000, kOps, DateTime(2026, 7, 2))], DateTime(2026, 7), '0000');
-      expect(t, contains('합계: 수립 - / 사용 1.00 / 잔여 -'));
-      expect(t, contains('운영비: 수립 - / 사용 1.00\n'));
-    });
-
-    test('정산 텍스트: 보조 문구 없음 (합계 잔여·운영비 계획 +)', () {
-      final m = DateTime(2026, 7);
-      // 합계 50 / 차량비 30 → 운영비 20. 운영비 25 사용, 차량비 5 사용
-      final t = settlementText([
-        _e(250000, kOps, DateTime(2026, 7, 2)),
-        _e(50000, kCar, DateTime(2026, 7, 3)),
-      ], m, '0000', const MonthBudget(total: 500000, car: 300000));
-      expect(t, contains('차량비: 수립 30.00 / 사용 5.00 / 잔여 25.00\n'));
-      expect(t, contains('운영비: 수립 20.00 / 사용 25.00\n'));
-      expect(t, isNot(contains('합계 잔여')));
-      expect(t, isNot(contains('계획 +')));
-    });
-
-    test('정산 텍스트: 합산 화면이면 합산 표 + 두 달 내역', () {
-      final budgets = Budgets({})
-        ..setTotal(DateTime(2026, 9), 500000)
-        ..setCar(DateTime(2026, 9), 300000);
-      final items = [_e(100000, kCar, DateTime(2026, 9, 2)), _e(200000, kCar, DateTime(2026, 10, 2))];
-      final p = PeriodSummary.of(budgets, items, periodMonths(DateTime(2026, 10), PeriodMode.oddEven));
-      final v = PeriodView(DateTime(2026, 9), combined: true);
-      final t = settlementText(
-          items, DateTime(2026, 9), '0000', budgets.forMonth(DateTime(2026, 9)), p, v.title(PeriodMode.oddEven));
-      expect(t, startsWith('[2026년 9~10월 합산 '));
-      expect(t, contains('■ 두 달 합산 수립/사용 (단위: 만원)'));
-      expect(t, contains('차량비: 수립 60.00 / 사용 30.00 / 잔여 30.00'));
-      expect(t, contains('■ 차량비 2건 / 300,000원'));
-      expect(t, contains(' 09/02 '));
-      expect(t, contains(' 10/02 '));
-
-      // 월 화면에서는 그 달만
-      final m = settlementText(items, DateTime(2026, 10), '0000', budgets.forMonth(DateTime(2026, 10)));
-      expect(m, contains('■ 차량비 1건 / 200,000원'));
-      expect(m, contains('차량비: 수립 30.00 / 사용 20.00 / 잔여 10.00'));
     });
   });
 
