@@ -334,4 +334,16 @@ void main() {
     await s.setName(' 홍길동 ');
     expect(s.name, '홍길동');
   });
+
+  test('매일 OX 퀴즈 꺼짐이면 판정은 disabled (그날을 쓰지 않음), 기본 꺼짐', () async {
+    expect(
+      decideQuiz(today: '2026-10-30', lastDay: null, activeCount: 5, blocked: false, enabled: false),
+      QuizDecision.disabled,
+    );
+    expect(decideQuiz(today: '2026-10-30', lastDay: null, activeCount: 5, blocked: false), QuizDecision.show);
+    final s = await _store({'quiz_enabled_v1': true});
+    expect(s.dailyOn, isFalse);
+    await s.setDailyOn(true);
+    expect(s.dailyOn, isTrue);
+  });
 }

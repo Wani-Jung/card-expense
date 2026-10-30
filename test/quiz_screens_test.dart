@@ -23,7 +23,7 @@ void main() {
     addTearDown(tester.view.reset);
   }
 
-  testWidgets('챌린지: 문항 수 비활성, 20문제 진행 → 결과·최고 기록, 지난 문제에 회차 1줄', (tester) async {
+  testWidgets('챌린지: 문항 수 비활성, 10문제 진행 → 결과·최고 기록, 지난 문제에 회차 1줄', (tester) async {
     phone(tester);
     final bank = _bank(25);
     await tester.pumpWidget(
@@ -34,16 +34,19 @@ void main() {
     await tester.tap(find.text('안전 OX 챌린지'));
     await tester.pumpAndSettle();
 
-    // 활성 25문항: 20 만 고를 수 있음
+    // 활성 25문항: 10·20 만 고를 수 있음 → 10문제로 진행 (검증 내용은 20문제 때와 같음)
     ButtonStyleButton btn(String n) =>
         tester.widget<ButtonStyleButton>(find.ancestor(of: find.text(n), matching: find.byType(OutlinedButton)));
     expect(btn('20').onPressed, isNotNull);
     expect(btn('30').onPressed, isNull);
     expect(btn('50').onPressed, isNull);
+    expect(btn('10').onPressed, isNotNull);
+    await tester.tap(find.text('10'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('시작'));
     await tester.pumpAndSettle();
-    expect(find.text('1 / 20'), findsOneWidget);
+    expect(find.text('1 / 10'), findsOneWidget);
 
     // ✕ → 확인 창, [계속하기] 면 그대로
     await tester.tap(find.byTooltip('그만두기'));
@@ -52,21 +55,21 @@ void main() {
     await tester.tap(find.text('계속하기'));
     await tester.pumpAndSettle();
 
-    for (var i = 0; i < 20; i++) {
+    for (var i = 0; i < 10; i++) {
       await tester.tap(find.text('O'));
       await tester.pump(const Duration(milliseconds: 700));
       await tester.pump();
     }
     await tester.pumpAndSettle();
     expect(find.text('챌린지 결과'), findsOneWidget);
-    expect(find.textContaining('/ 20 정답'), findsOneWidget);
+    expect(find.textContaining('/ 10 정답'), findsOneWidget);
     expect(find.text('최고 기록!'), findsOneWidget); // 첫 회차는 최고 기록
     expect(find.text('문항당'), findsOneWidget);
     expect(find.text('결과 이미지 공유'), findsOneWidget);
     expect(store.runs, hasLength(1));
-    expect(store.records.where((r) => r.src == kQuizChallenge), hasLength(20));
+    expect(store.records.where((r) => r.src == kQuizChallenge), hasLength(10));
 
-    // 문제 전체 보기: 기본은 [전체] (20문제 모두), [틀린 문제만] 으로 거르기
+    // 문제 전체 보기: 기본은 [전체] (10문제 모두), [틀린 문제만] 으로 거르기
     await tester.tap(find.text('문제 전체 보기'));
     await tester.pumpAndSettle();
     final all = tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '전체'));
@@ -86,9 +89,9 @@ void main() {
     // 지난 문제 다시 보기: 챌린지는 회차 1줄, 누르면 그 회차 문제
     await tester.tap(find.text('지난 문제 다시 보기'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('챌린지 20문제 · 정답률 '), findsOneWidget);
+    expect(find.textContaining('챌린지 10문제 · 정답률 '), findsOneWidget);
     expect(find.textContaining('내 답 '), findsNothing);
-    await tester.tap(find.textContaining('챌린지 20문제'));
+    await tester.tap(find.textContaining('챌린지 10문제'));
     await tester.pumpAndSettle();
     expect(find.textContaining('내 답 '), findsWidgets);
     // 펼친 회차 안에도 [전체] [틀린 문제만] (기본 전체) — 위쪽 화면 칩 + 회차 칩 두 벌
@@ -99,7 +102,7 @@ void main() {
     expect(find.textContaining('내 답 O → 정답 O'), findsNothing);
     await tester.tap(find.text('틀린 문제만').first);
     await tester.pumpAndSettle();
-    expect(find.textContaining('챌린지 20문제'), findsOneWidget);
+    expect(find.textContaining('챌린지 10문제'), findsOneWidget);
   });
 
   testWidgets('중간에 그만두면 기록이 남지 않음', (tester) async {

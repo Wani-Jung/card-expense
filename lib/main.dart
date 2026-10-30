@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'app_settings_screen.dart';
 import 'budget.dart';
 import 'cancel_link.dart';
 import 'category_badge.dart';
@@ -355,6 +356,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final d = decideQuiz(
       today: today,
       lastDay: _quiz.lastDay,
+      enabled: _quiz.dailyOn,
       activeCount: bank.active.length,
       // 첫 실행 설정 직후, 다른 팝업이 먼저 떴거나 메인 위에 다른 화면·창이 있으면 그날은 건너뜀
       blocked: widget.firstRun || _popupShown || !(ModalRoute.of(context)?.isCurrent ?? true),
@@ -859,6 +861,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         cardSummary: () => '카드 ${widget.digits} · 발신 ${widget.sender}',
         onPermissions: _openPermissions,
         permSummary: _permSummary,
+        onAppSettings: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => AppSettingsScreen(quiz: _quiz),
+            )),
+        appSettingsSummary: () => '매일 OX 퀴즈 ${_quiz.dailyOn ? '켜짐' : '꺼짐'}',
         quizSummary: () => _quiz.menuText(quizDay(DateTime.now())),
         onQuiz: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => QuizHomeScreen(store: _quiz, bank: _bank),

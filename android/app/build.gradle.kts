@@ -69,6 +69,14 @@ android {
     }
 }
 
+// release APK 는 휴대폰용 ABI 2개(arm64-v8a, armeabi-v7a)만. CI 의 flutter --target-platform 은 Flutter 라이브러리만
+// 거르므로 ML Kit 같은 플러그인 네이티브 라이브러리의 x86_64 도 여기서 뺀다. debug(에뮬레이터)는 그대로.
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.packaging.jniLibs.excludes.add("lib/x86_64/**")
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17

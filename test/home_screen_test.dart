@@ -113,11 +113,11 @@ void main() {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    const titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '안전 OX Quiz', '카드 문자 설정', '권한 설정', '업데이트 확인'];
+    const titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '안전 OX Quiz', '카드 문자 설정', '권한 설정', '설정', '업데이트 확인'];
     for (final t in titles) {
       expect(find.text(t), findsOneWidget);
     }
-    for (final gone in ['내역 넣기', '정산', '업체 관리', '설정', '앱 정보', '이번 달 내역 복사', '현재 버전', '알림 접근 설정', '제작자']) {
+    for (final gone in ['내역 넣기', '정산', '업체 관리', '앱 정보', '이번 달 내역 복사', '현재 버전', '알림 접근 설정', '제작자']) {
       expect(find.text(gone), findsNothing);
     }
     // 스크롤 없이 마지막 항목이 하단 바(48dp) 위에 보임
@@ -224,11 +224,12 @@ void main() {
     expect(cats(), {'a': 'ignored', 'b': 'ignored', 'c': null, 'd': 'ignored'});
   });
 
-  testWidgets('오늘의 안전 OX: 그날 처음 열면 300ms 뒤 바텀시트, 답 고르면 결과, 같은 날 다시는 안 뜸', (tester) async {
+  testWidgets('오늘의 안전 OX(매일 퀴즈 켜짐): 그날 처음 열면 300ms 뒤 바텀시트, 답 고르면 결과, 같은 날 다시는 안 뜸', (tester) async {
     SharedPreferences.setMockInitialValues({
       'card_digits': '0000',
       'sender_number': '1588-1600',
       'update_checked_at': DateTime.now().millisecondsSinceEpoch,
+      'quiz_daily_on_v1': true,
     });
     await pumpHome(tester);
     // 첫 프레임 직후에는 아직 없음
@@ -299,12 +300,13 @@ void main() {
     expect(find.textContaining('업데이트 정보를 확인하지 못했어요'), findsOneWidget);
   });
 
-  testWidgets('오늘의 안전 OX: 예전에 꺼 둔 기기도 뜸 (스위치 삭제)', (tester) async {
+  testWidgets('오늘의 안전 OX: 새 스위치가 켜져 있으면 예전 키(quiz_enabled_v1=false)와 상관없이 뜸', (tester) async {
     SharedPreferences.setMockInitialValues({
       'card_digits': '0000',
       'sender_number': '1588-1600',
       'update_checked_at': DateTime.now().millisecondsSinceEpoch,
       'quiz_enabled_v1': false,
+      'quiz_daily_on_v1': true,
     });
     await pumpHome(tester);
     await tester.pump(const Duration(milliseconds: 350));
@@ -312,5 +314,60 @@ void main() {
     expect(find.text('오늘의 안전 OX'), findsOneWidget);
     await tester.tap(find.byTooltip('닫기'));
     await tester.pumpAndSettle();
+  });
+
+  group('매일 OX 퀴즈 스위치 (기본 꺼짐)', () {
+    testWidgets('기본 꺼짐: 키가 없으면(새 설치·업데이트 모두) 자동으로 안 뜨고 그날도 쓰지 않음', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'card_digits': '0000',
+        'sender_number': '1588-1600',
+        'update_checked_at': DateTime.now().millisecondsSinceEpoch,
+        // 예전에 켜 둔 값이 있어도 새 키가 없으면 꺼짐
+        'quiz_enabled_v1': true,
+      });
+      await pumpHome(tester);
+      await tester.pump(const Duration(milliseconds: 350));
+      await waitQuiz(tester, tries: 6);
+      expect(find.text('오늘의 안전 OX'), findsNothing);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('quiz_daily_on_v1'), isNull);
+      expect(prefs.getString('quiz_last_day_v1'), isNull);
+    });
+
+    testWidgets('꺼져 있어도 메뉴에서 챌린지·연습 진입, 설정에서 켜면 저장', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'card_digits': '0000',
+        'sender_number': '1588-1600',
+        'update_checked_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      await pumpHome(tester);
+      await tester.tap(find.byTooltip('메뉴'));
+      await tester.pumpAndSettle();
+      expect(find.text('매일 OX 퀴즈 꺼짐'), findsOneWidget);
+
+      // 안전 OX Quiz → 챌린지 시작 화면
+      await tester.tap(find.text('안전 OX Quiz'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('안전 OX 챌린지'));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+      await tester.pumpAndSettle();
+      expect(find.text('몇 문제에 도전할까요?'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      // 설정 → 매일 OX 퀴즈 켜기
+      await tester.tap(find.text('설정'));
+      await tester.pumpAndSettle();
+      expect(find.text('켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나옵니다.'), findsOneWidget);
+      expect(tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value, isFalse);
+      await tester.tap(find.text('매일 OX 퀴즈'));
+      await tester.pumpAndSettle();
+      expect((await SharedPreferences.getInstance()).getBool('quiz_daily_on_v1'), isTrue);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('매일 OX 퀴즈 켜짐'), findsOneWidget);
+    });
   });
 }

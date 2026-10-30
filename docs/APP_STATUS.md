@@ -1,6 +1,7 @@
 # 공감카드 관리 — 앱 현재 상태 보고서
 
-- 기준: `main` 브랜치, `v1.20.0` (2026-10-30). v1.20.0 = 퀴즈 문제풀 452문항(v2 형식)·분야 선택·분야 표시, 요약표 틀고정, 편집 시트 [삭제] 제거, 업체 관리 전체 삭제, 메뉴 순서·QUIZ 아이콘(2-2·2-3·2-7·2-11·2-12·4-7·6-1·10·11장).
+- 기준: `main` 브랜치, `v1.20.1` (2026-10-30). v1.20.1 = 빌드·CI 개선(태그에서만 빌드, Gradle·NDK 캐시, x86_64 제외)과 '매일 OX 퀴즈' 스위치(기본 꺼짐).
+- v1.20.0: v1.20.0 = 퀴즈 문제풀 452문항(v2 형식)·분야 선택·분야 표시, 요약표 틀고정, 편집 시트 [삭제] 제거, 업체 관리 전체 삭제, 메뉴 순서·QUIZ 아이콘(2-2·2-3·2-7·2-11·2-12·4-7·6-1·10·11장).
 - 이전: v1.16.0 '오늘의 안전 OX' 퀴즈, v1.17.0 안전 OX 화면·챌린지·메뉴 정리, v1.18.0 챌린지 결과 카드·이미지 공유·점수 기록 지우기, v1.19.0 메뉴·내역 관리 다듬기(확인한 내역, 되살리기 → 미분류)·추천 키워드 확장(2-3·2-6·2-7·2-13·4-1·6-1·10장).
 - 작성 방법: 코드·설정 파일·git 기록·CI 결과에서 확인한 것만 적었다. 코드로 확인하지 못한 것은 **(확인 필요)** 로 표시했다.
 - 예시 카드번호는 모두 가짜 값 `0000`. 서명키·비밀번호·토큰 값은 이 문서에 없다.
@@ -12,13 +13,13 @@
 | 항목 | 값 | 출처 |
 |---|---|---|
 | 앱 이름 | 공감카드 관리 | `AndroidManifest.xml` `android:label`, `lib/flavor.dart` `kAppName` |
-| 현재 버전 | **1.20.0** (pubspec `version: 1.20.0+39`) | `pubspec.yaml` |
-| 실제 APK versionCode | **51** (v1.20.0 릴리스 APK) — pubspec 의 `+34` 가 아니라 CI `github.run_number` 가 들어간다 | `aapt dump badging`, 워크플로 `--build-number` |
+| 현재 버전 | **1.20.1** (pubspec `version: 1.20.1+40`) | `pubspec.yaml` |
+| 실제 APK versionCode | **53** (v1.20.1 릴리스 APK) — pubspec 의 `+34` 가 아니라 CI `github.run_number` 가 들어간다 | `aapt dump badging`, 워크플로 `--build-number` |
 | 패키지명 (applicationId / namespace) | `com.wani.card_expense` | `android/app/build.gradle.kts` |
 | minSdk / targetSdk | **24 / 36** (gradle 은 `flutter.minSdkVersion`·`flutter.targetSdkVersion` 기본값, 실제 값은 릴리스 APK 에서 확인) | `aapt dump badging` |
 | compileSdk | 36 | `aapt dump badging` |
 | 플랫폼 | Android 전용 (Flutter 3.44.9, Dart SDK ^3.12.2) | 워크플로, `pubspec.yaml` |
-| 네이티브 ABI | arm64-v8a, armeabi-v7a, x86_64 | `aapt dump badging` |
+| 네이티브 ABI | arm64-v8a, armeabi-v7a (v1.20.1 부터 x86_64 제외) | `aapt dump badging` |
 | 저장소 | GitHub `Wani-Jung/card-expense` (public — 앱이 `releases/latest` 를 익명으로 조회하기 때문) | `lib/update_check.dart`, `CLAUDE.md` |
 
 ### 판(flavor) 구성
@@ -152,6 +153,7 @@
 | 4 | 안전 OX Quiz | `연속 N일 · 정답률 NN%` (연속이 없으면 '오늘의 문제를 풀어보세요') | 안전 OX Quiz 화면 (2-12). 아이콘은 둥근 사각 테두리 안 굵은 'QUIZ'(`QuizIcon`, 24dp, 다른 아이콘과 같은 회색, 직접 그림). v1.20.0 에서 이름 '안전 OX' → '안전 OX Quiz', 등록 업체와 순서 바꿈 |
 | 5 | 카드 문자 설정 | `카드 0000 · 발신 1588-1600` (실제 저장값) | 설정 화면 (2-1) |
 | 6 | 권한 설정 | 예: `알림 감지 켜짐 · 문자 읽기 켜짐` | 권한 설정 화면 |
+| 6' | 설정 (v1.20.1) | `매일 OX 퀴즈 켜짐` / `꺼짐` | 설정 화면: '매일 OX 퀴즈' 스위치 + 설명 '켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나옵니다.' (기본 꺼짐) |
 | 7 | 업데이트 확인 | `현재 v1.19.0 · 전용판` (일반판이면 '일반판') | 메뉴를 닫지 않고 확인. 확인 중엔 오른쪽 작은 로딩, 결과(최신·실패 스낵바, 새 버전 다이얼로그)는 메뉴 위에 |
 
 - 맨 아래 크레딧: 'Made by wani' (가운데, 12, `#9AA0A6`, 위 여백 32, 누르는 반응 없음). 목록 항목·구분선이 아니다.
@@ -303,7 +305,7 @@
 
 ### 2-11. 오늘의 안전 OX 바텀시트 (`lib/quiz_sheet.dart`, v1.16.0)
 
-- 하루 1회, 메인이 그려진 뒤(첫 프레임 + 300ms) 아래에서 올라온다. 끄는 설정은 없다(v1.17.0, 예전에 꺼 둔 기기도 뜸). 배경은 검정 28%로 살짝만 어두워진다.
+- 하루 1회, 메인이 그려진 뒤(첫 프레임 + 300ms) 아래에서 올라온다. **메뉴 > 설정 '매일 OX 퀴즈'가 켜져 있을 때만**(v1.20.1, 기본 꺼짐 — 새 설치·업데이트 모두 꺼진 채 시작, 예전 `quiz_enabled_v1` 값은 보지 않음). 꺼져 있으면 자동으로 뜨는 것만 없고, 안전 OX Quiz 메뉴의 연습·챌린지는 그대로 쓸 수 있다. 배경은 검정 28%로 살짝만 어두워진다.
 - 구성: 손잡이 바 / 골드 라벨 '오늘의 안전 OX' / 문제 위 분야 칩 '그룹 · 분야'(v1.20.0) / 오른쪽 ✕(48×48, 연회색 원) / 문제(18 굵게) / [O] [X] 버튼(높이 64, 네이비 `#1F3A68` 외곽선) / 답 고르기 전에만 '아래로 내리거나 ✕를 누르면 바로 닫혀요'.
 - ✕·아래로 밀기·바깥 터치·뒤로가기 모두 확인 없이 바로 닫힌다. 닫는 애니메이션은 150ms.
 - 답을 고르면 고른 버튼만 채워지고, 결과 박스가 200ms 동안 펼쳐진다.
@@ -443,7 +445,7 @@
   - 원격본: `https://raw.githubusercontent.com/Wani-Jung/card-expense/main/quiz/questions.json`
   - 하루 판정 뒤 백그라운드에서 하루 1회 이하로 받는다(3초 제한, 실패는 조용히 무시). version 이 높으면 캐시해서 다음부터 쓴다.
 - **하루 1회** (`decideQuiz`): 그날 처음 판정할 때만 띄운다(`quiz_last_day_v1`). 앱을 켜 둔 채 날이 바뀌면 다시 열 때(`resumed`) 판정한다.
-  - 안 뜨는 경우: 활성 문항 0개. (메뉴 스위치는 v1.17.0 에서 삭제)
+  - 안 뜨는 경우: '매일 OX 퀴즈' 꺼짐(기본, v1.20.1 — 이때는 그날을 쓴 것으로 치지 않음), 활성 문항 0개.
   - 오늘 이미 푼 문제(오늘의 문제·추가 문제·챌린지)는 출제하지 않는다.
 - **연속 일수**: 오늘의 문제를 푼 날이 이어진 일수다. 오늘 아직 안 풀었으면 어제까지 이어진 것도 센다. 추가 문제·챌린지만 푼 날은 들어가지 않는다.
   - 그날 건너뛰는 경우: 첫 실행 설정 직후, 업데이트 창 등 다른 팝업이 먼저 뜸, 메인 위에 다른 화면·창이 있음.
@@ -533,7 +535,8 @@
 | `cancel_fix_v1` | bool | v1.14.0 취소·재결제 1회 바로잡기 완료 |
 | `use_listener_v1` | bool | 권한 설정 '알림 감지 · 앱에서 사용' (없으면 true) |
 | `use_sms_v1` | bool | 권한 설정 '문자 읽기 · 앱에서 사용' (없으면 true) |
-| `quiz_enabled_v1` | bool | v1.16.0 스위치 값. v1.17.0 부터 읽지 않음 (꺼 둔 기기도 항상 동작) |
+| `quiz_enabled_v1` | bool | v1.16.0 스위치 값. v1.17.0 부터 읽지 않음 |
+| `quiz_daily_on_v1` | bool | 메뉴 > 설정 '매일 OX 퀴즈' (v1.20.1). 없으면 꺼짐 |
 | `quiz_last_day_v1` | String | 하루 1회 판정한 마지막 날. 예: `2026-10-29` |
 | `quiz_bag_v1` / `quiz_known_v1` | StringList | 셔플백 남은 순서 / 이번 바퀴에 아는 문항 id. 예: `["q017","q042"]` |
 | `quiz_log_v1` | StringList | 푼 기록, 항목마다 JSON `{"d":"2026-10-29","id":"q001","c":true,"ok":true,"s":"extra","r":"c1761700000000","t":1761700000000}` (c: O 선택=true, s: 출처 — 없으면 오늘의 문제, `extra`/`challenge`, r: 챌린지 회차, t: 시각 ms. v1.16 기록은 s·r·t 없음) |
@@ -602,22 +605,27 @@
 
 ### 8-1. GitHub Actions (`.github/workflows/release-apk.yml`, 이름 'Build APK')
 
-- **트리거**: `main` push, `v*` 태그 push, 수동 실행(`workflow_dispatch`).
+- **트리거 (v1.20.1~)**: `v*` 태그 push, 수동 실행(`workflow_dispatch`). **`main` push 로는 돌지 않는다**(문서만 바꾼 커밋도 CI 를 안 돌림).
 - **순서**
   1. checkout
   2. Java 17 (temurin)
-  3. Flutter 3.44.9 stable
-  4. **keystore 복원**: Secret `ANDROID_KEYSTORE_BASE64` 를 디코드해 러너 임시 폴더에 `release.jks` 로 만든다. 없으면 실패.
-  5. `flutter pub get`
-  6. **`flutter test`** (실패하면 배포 안 함)
-  7. 두 판을 빌드한다: `flutter build apk --release --flavor public/full`
+  3. **Gradle 캐시** `gradle/actions/setup-gradle@v4` (`cache-read-only: false` — 태그 실행도 저장)
+  4. **NDK 캐시** `actions/cache` 로 `$ANDROID_HOME/ndk/28.2.13676358` (key `android-ndk-28.2.13676358-Linux`). NDK 버전은 `flutter.ndkVersion` 그대로
+  5. Flutter 3.44.9 stable (SDK·pub 캐시)
+  6. **keystore 복원**: Secret `ANDROID_KEYSTORE_BASE64` 를 디코드해 러너 임시 폴더에 `release.jks` 로 만든다. 없으면 실패.
+  7. `flutter pub get`
+  8. **`flutter test`** (실패하면 배포 안 함)
+  9. 두 판을 순서대로 빌드한다: `flutter build apk --release --flavor public/full --target-platform android-arm,android-arm64`
+     - ABI 는 arm64-v8a·armeabi-v7a 2개(x86_64 제외, v1.20.1). `--target-platform` 은 Flutter 라이브러리만 거르므로 ML Kit 등 플러그인 .so 의 x86_64 는 `android/app/build.gradle.kts` 의 release 변형 패키징 제외(`lib/x86_64/**`)로 뺀다. fat APK 하나씩, split-per-abi 안 함
      - `--build-number = github.run_number` (versionCode)
      - 태그 빌드면 `--build-name = 태그에서 v 를 뗀 값` (versionName)
-  8. 결과물 이름: `dist/app-release.apk`(public), `dist/app-full-release.apk`(full)
-  9. **일반판 APK 에 `RECEIVE_SMS`/`READ_SMS` 가 있으면 실패** (aapt 검사)
-  10. 태그면 정식 릴리스로 올린다. 같은 태그 릴리스가 있으면 파일만 교체하고, 없으면 `--generate-notes --latest` 로 만든다.
-  11. `main` push 면 `dev` 프리릴리스를 지우고 최신 커밋으로 다시 만든다(제목 '개발 빌드 (main 짧은커밋)').
-- 모든 `main` push 가 `dev` 프리릴리스를 갱신한다. 정식 링크(`latest`)는 `v*` 태그 릴리스만 가리킨다.
+  10. 결과물 이름: `dist/app-release.apk`(public), `dist/app-full-release.apk`(full)
+  11. **일반판 APK 에 `RECEIVE_SMS`/`READ_SMS` 가 있으면 실패** (aapt 검사)
+  12. 태그면 정식 릴리스로 올린다. 같은 태그 릴리스가 있으면 파일만 교체하고, 없으면 `--generate-notes --latest` 로 만든다.
+  13. 수동 실행(브랜치에서)이면 `dev` 프리릴리스를 지우고 그 커밋으로 다시 만든다.
+- 정식 링크(`latest`)는 `v*` 태그 릴리스만 가리킨다(`dev` 는 프리릴리스라 latest 가 아님).
+- `android/gradle.properties`: `org.gradle.caching=true`, `org.gradle.parallel=true` (v1.20.1).
+- **캐시 범위**: GitHub 캐시는 만든 ref 범위다. 태그 실행이 저장한 Gradle·NDK 캐시는 다른 태그에서는 못 쓰고, main(기본 브랜치) 범위 캐시는 모든 태그가 쓴다. 그래서 다음 태그에서 hit 시키려면 main 에서 수동 실행을 한 번 돌려 main 범위에 저장해야 한다. Flutter SDK·pub 캐시는 예전 main 실행이 저장한 것을 계속 쓴다.
 
 ### 8-2. 고정 링크
 
@@ -685,6 +693,7 @@
 
 | 버전 | 날짜 | 주요 변경 |
 |---|---|---|
+| v1.20.1 | 2026-10-30 | 빌드·CI: v* 태그에서만 빌드(main push·문서 커밋은 CI 안 돎, dev 프리릴리스는 수동 실행만), Gradle 캐시(setup-gradle)·NDK 캐시·gradle caching/parallel, x86_64 제외(arm64-v8a·armeabi-v7a), cupertino_icons 제거, 챌린지 테스트 10문제. 앱: 메뉴 '설정' > '매일 OX 퀴즈' 스위치(기본 꺼짐) (REQ-41) |
 | v1.20.0 | 2026-10-30 | 퀴즈 문제풀 452문항(v2: 그룹·분야, 번들 fallback 강화, v1 호환, 예전 id 기록 숨김), 챌린지 10문항·분야 선택(챌린지·연습 따로 저장)·분야 칩·분야별 정답률·카드 '분야' 한 줄, 요약표 틀고정·스와이프 흔들림 해결·작은 화면 전체 스크롤, 편집 시트 [삭제] 제거, 업체 관리 섹션별 전체 삭제·기본 키워드 다시 넣기, 메뉴 '안전 OX Quiz'(QUIZ 아이콘, 등록 업체 아래로), 버전 규칙 문서화, quiz_export.py v2 (REQ-39. A파트 REQ-38 은 v1.19.0 에 반영 완료) |
 | v1.19.0 | 2026-10-29 | 메뉴 펼침 하나만, 메뉴 항목은 메뉴 위에 화면(뒤로가기 → 메뉴), 내역 관리 '확인한 내역'(검색·칩·월별 합계·편집 시트), 배지 색(미분류·확인 필요 빨강), 무시한 내역 되살리기 3종 → 미분류 + [보기]·[되돌리기], 편집 시트 [무시], 기본 추천 키워드 확장(운영비 신설, 짧은 영문 앞부분 일치, 기존 기기 1회 추가) (REQ-38) |
 | v1.18.0 | 2026-10-29 | 챌린지 결과 카드(2:3, 등급 배지, 최고 기록 띠)·결과 이미지 공유(share_plus), 문제 전체 보기([전체]/[틀린 문제만]), 점수 기록 지우기, 결과 카드 이름 (REQ-37) |
@@ -760,7 +769,7 @@
 
 빌드노트에 없지만 알아 둘 점:
 
-- APK versionCode 는 pubspec 의 `+N` 이 아니라 CI 실행 번호다(v1.15.0 = 37, v1.16.0 = 39, v1.17.0 = 42, v1.18.0 = 45, v1.19.0 = 48, v1.20.0 = 51).
+- APK versionCode 는 pubspec 의 `+N` 이 아니라 CI 실행 번호다(v1.15.0 = 37, v1.16.0 = 39, v1.17.0 = 42, v1.18.0 = 45, v1.19.0 = 48, v1.20.0 = 51, v1.20.1 = 53).
 - `main` 에 push 할 때마다 `dev` 프리릴리스가 갱신된다. 고정 링크(`latest`)에는 영향이 없다.
 - 운영비 수립은 입력 칸이 아니라 자동 계산이다. 차량비 수립이 합계보다 크면 빨간 칸과 경고 문구가 나온다.
 - 요약표 합산 화면에서는 수립을 고칠 수 없다.

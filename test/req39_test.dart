@@ -458,6 +458,8 @@ void main() {
             cardSummary: () => '카드 0000',
             onPermissions: noop,
             permSummary: () => '',
+            onAppSettings: noop,
+            appSettingsSummary: () => '매일 OX 퀴즈 꺼짐',
             quizSummary: () => '연속 3일',
             onQuiz: noop,
             counts: () => (pending: 0, check: 0, ignored: 0, confirmed: 0),

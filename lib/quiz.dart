@@ -148,9 +148,13 @@ class QuizBank {
 /// 날짜 키 (기기 시간 기준 하루). 2026-10-29
 String quizDay(DateTime t) => '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
 
-/// 하루 1회 자동 출제 판정. 끄는 설정은 없다 (v1.17 에서 스위치 삭제, 꺼 뒀던 기기도 항상 동작).
+/// 하루 1회 자동 출제 판정. 메뉴 > 설정 '매일 OX 퀴즈'(v1.20.1, 기본 꺼짐)가 켜져 있을 때만 뜬다.
+/// (v1.16 의 예전 스위치 `quiz_enabled_v1` 은 읽지 않는다)
 enum QuizDecision {
   show,
+
+  /// '매일 OX 퀴즈' 꺼짐 — 그날을 쓴 것으로 치지 않는다
+  disabled,
 
   /// 활성 문항 0개 — 그날을 쓴 것으로 치지 않는다
   noQuestions,
@@ -167,7 +171,9 @@ QuizDecision decideQuiz({
   required String? lastDay,
   required int activeCount,
   required bool blocked,
+  bool enabled = true,
 }) {
+  if (!enabled) return QuizDecision.disabled;
   if (lastDay == today) return QuizDecision.alreadyToday;
   if (activeCount == 0) return QuizDecision.noQuestions;
   if (blocked) return QuizDecision.skipToday;
@@ -321,6 +327,10 @@ class QuizStore {
   static const _kName = 'quiz_name_v1';
   static const _kCache = 'quiz_cache_v1';
   static const _kFetchedAt = 'quiz_fetched_at_v1';
+
+  /// 메뉴 > 설정 '매일 OX 퀴즈'. 기본 꺼짐 (새 키, 예전 값으로 켜지 않음)
+  bool get dailyOn => _p.getBool('quiz_daily_on_v1') ?? false;
+  Future<void> setDailyOn(bool v) => _p.setBool('quiz_daily_on_v1', v);
 
   /// 자동 출제를 판정(띄움·건너뜀)한 마지막 날
   String? get lastDay => _p.getString(_kLastDay);

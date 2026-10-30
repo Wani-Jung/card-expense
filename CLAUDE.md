@@ -58,7 +58,7 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 지난 문자: 두 판 모두 메시지 앱 공유(ACTION_SEND/SEND_MULTIPLE → `takeShared`)·붙여넣기. 전용판은 추가로 SMS+MMS 1년치 조회(MMS date 는 초 단위, 발신번호는 addr type=137, 본문은 part ct=text/plain)
 
 앱이 꺼져 있을 때 들어온 문자는 네이티브 inbox 에 쌓였다가 앱이 켜지면 `drainInbox` 로 Dart 저장소로 옮겨진다.
-- `lib/quiz.dart` / `lib/quiz_sheet.dart` — 오늘의 안전 OX. 문제 풀 = assets `quiz/questions.json`(내장) vs 기기 캐시(원격 raw.githubusercontent 의 main `quiz/questions.json`, version 이 높을 때만, 하루 1회·3초·실패 무시) 중 높은 버전. 첫 프레임 + 300ms 뒤 하루 1회(`quiz_last_day_v1`) 판정: 첫 실행 설정 직후·다른 팝업(업데이트 창 등)이 먼저 뜬 날은 건너뜀, 활성 문항 0개면 안 뜸 (끄는 스위치는 v1.17 에서 삭제, 예전 `quiz_enabled_v1` 은 무시).
+- `lib/quiz.dart` / `lib/quiz_sheet.dart` — 오늘의 안전 OX. 문제 풀 = assets `quiz/questions.json`(내장) vs 기기 캐시(원격 raw.githubusercontent 의 main `quiz/questions.json`, version 이 높을 때만, 하루 1회·3초·실패 무시) 중 높은 버전. 첫 프레임 + 300ms 뒤 하루 1회(`quiz_last_day_v1`) 판정: 메뉴 > 설정 '매일 OX 퀴즈'(`quiz_daily_on_v1`, **기본 꺼짐**, v1.20.1 — 예전 `quiz_enabled_v1` 은 읽지 않음)가 켜져 있을 때만. 첫 실행 설정 직후·다른 팝업(업데이트 창 등)이 먼저 뜬 날은 건너뜀, 활성 문항 0개면 안 뜸. 안전 OX Quiz 메뉴의 연습·챌린지는 스위치와 상관없이 항상 쓸 수 있음.
   오늘 이미 푼 문제(모든 출처)는 오늘 다시 안 냄. 셔플백(`quiz_bag_v1`/`quiz_known_v1`, 새 문항은 남은 순서에 섞음). 기록 `quiz_log_v1`(날짜·id·선택·정답 여부·출처 `s`(없으면 오늘의 문제)/`extra`/`challenge`·회차 `r`, 기기에만), 챌린지 회차 `quiz_runs_v1`. 자동 업데이트 창은 퀴즈 시트가 닫힌 뒤에 뜸
 - 메뉴 '안전 OX'(내역 관리 아래, 설명 '연속 N일 · 정답률 NN%' / '오늘의 문제를 풀어보세요') → `lib/quiz_screens.dart` 안전 OX 화면: 요약 카드(푼 문제·정답률·연속) + 지난 문제 다시 보기(날짜 구분, [전체]/[틀린 문제만], 챌린지는 회차 1줄) / 한 문제 더 풀기(오늘 푼 문제 제외, 소진 안내) / 챌린지(20·30·50, 활성 문항보다 크면 비활성, 0.6초 표시 후 자동 다음, 최고 기록 = 정답률 → 시간)
   - 결과 화면 위쪽 = 결과 카드(`lib/challenge_card.dart` `ChallengeResultCard`, 세로 2:3, 골드→연골드→네이비 테두리, 등급 배지 `quizGrade`, 최고 기록이면 빨간 사선 띠). [결과 이미지 공유] = 카드를 RepaintBoundary pixelRatio 3 PNG → 앱 캐시 임시 파일 → share_plus 이미지 공유(문구 포함) → 임시 파일 삭제. 카드 이름 `quiz_name_v1`(처음 공유 때 물음, 챌린지 시작 화면에서 바꾸기)
@@ -74,8 +74,18 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - `flutter test`, `flutter build apk --release --flavor public` / `--flavor full`
 - 서명: 로컬은 `android/key.properties`(커밋 금지), CI 는 GitHub Secrets `ANDROID_KEYSTORE_BASE64/PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
 - keystore 원본: `C:\Users\EKR\Documents\card_expense_keystore\` (저장소에 넣지 말 것)
-- `.github/workflows/release-apk.yml`: 두 판 빌드 → `v*` 태그는 정식 Release, main push 는 `dev` 프리릴리스
-- 새 버전 배포: `pubspec.yaml` version 올리고 main push + `git tag vX.Y.Z && git push origin vX.Y.Z`
+- `.github/workflows/release-apk.yml` (v1.20.1~): **`v*` 태그 push 에서만** 정식 빌드·Release. main push(문서 커밋 포함)로는 CI 가 돌지 않는다. `dev` 프리릴리스는 Actions 탭 수동 실행(workflow_dispatch)일 때만
+  - 캐시: Flutter SDK·pub(`flutter-action` cache), Gradle(`gradle/actions/setup-gradle@v4`, `cache-read-only: false`), NDK 28.2(`actions/cache`, `$ANDROID_HOME/ndk/28.2.13676358`). `android/gradle.properties` 에 `org.gradle.caching=true`·`org.gradle.parallel=true`
+  - 캐시 범위 주의: GitHub 캐시는 만든 ref 범위다. 태그 실행이 저장한 캐시는 **다른 태그에서는 못 쓰고**, 기본 브랜치(main) 캐시는 모든 태그가 쓴다. Gradle·NDK 캐시를 다음 태그에서 hit 시키려면 main 에서 수동 실행(workflow_dispatch)을 한 번 돌려 main 범위에 저장해야 한다 (dev 프리릴리스도 같이 갱신됨)
+  - ABI 는 arm64-v8a·armeabi-v7a 2개(x86_64 없음): CI 의 `--target-platform android-arm,android-arm64`(Flutter 라이브러리) + `android/app/build.gradle.kts` 의 release 변형 `packaging.jniLibs.excludes += lib/x86_64/**`(ML Kit 등 플러그인 .so — `--target-platform` 만으로는 안 빠짐, 빌드타입 `ndk.abiFilters` 도 효과 없었음). debug 는 그대로. fat APK 하나씩, 파일 이름·고정 링크 그대로. split-per-abi 안 함
+  - `flutter test`·일반판 SMS 권한 aapt 검사 step 은 유지. flavor 병렬(matrix)·ML Kit 변경은 하지 않음
+- 새 버전 배포: `pubspec.yaml` version 올리고 main push + `git tag vX.Y.Z && git push origin vX.Y.Z` (태그 push 만 CI 를 돌린다)
+- **로컬 작업 루틴 (규칙)**
+  - 수정 중에는 바뀐 파일만 `flutter analyze <파일>`, 관련 테스트 파일만 `flutter test <파일>`
+  - 전체 analyze·전체 test 는 커밋 직전 1회
+  - 흔들림 확인용 반복 실행은 새 위젯 테스트를 추가했을 때만
+  - 로컬 APK 빌드는 Kotlin·Gradle·네이티브 플러그인이 바뀐 REQ 에서만
+  - APP_STATUS versionCode 기록은 가능하면 릴리스 커밋에 같이 넣는다 (태그 실행의 run_number = 직전 실행 번호 + 1). 따로 커밋해도 이제 CI 는 돌지 않는다
 - 앱이 `releases/latest` 로 업데이트를 확인하므로 저장소는 public 이어야 한다. 실제 카드번호를 코드·문서·커밋에 넣지 말 것 (예시는 0000).
 
 ## 퀴즈 문제 관리 (안전 OX Quiz)

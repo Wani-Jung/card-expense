@@ -25,6 +25,10 @@ class MenuScreen extends StatefulWidget {
   final Future<void> Function() onPermissions;
   final String Function() permSummary;
 
+  /// 설정 ('매일 OX 퀴즈' 스위치). 설명은 '매일 OX 퀴즈 켜짐/꺼짐'
+  final Future<void> Function() onAppSettings;
+  final String Function() appSettingsSummary;
+
   /// 안전 OX Quiz: 설명 "연속 N일 · 정답률 NN%", 누르면 안전 OX Quiz 화면
   final String Function() quizSummary;
   final Future<void> Function() onQuiz;
@@ -45,6 +49,8 @@ class MenuScreen extends StatefulWidget {
     required this.cardSummary,
     required this.onPermissions,
     required this.permSummary,
+    required this.onAppSettings,
+    required this.appSettingsSummary,
     required this.quizSummary,
     required this.onQuiz,
     required this.counts,
@@ -189,6 +195,8 @@ class _MenuScreenState extends State<MenuScreen> {
           item(Icons.credit_card, '카드 문자 설정', w.cardSummary(), openThen(w.onSettings)),
           line,
           item(Icons.shield_outlined, '권한 설정', w.permSummary(), openThen(w.onPermissions)),
+          line,
+          item(Icons.tune, '설정', w.appSettingsSummary(), openThen(w.onAppSettings)),
           line,
           FutureBuilder<PackageInfo>(
             future: _info,
