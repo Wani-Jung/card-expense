@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'flavor.dart';
 import 'layout.dart';
 
 /// 우측 상단 톱니 → 메뉴 화면. 섹션 제목 없이 한 목록, 항목 사이엔 얇은 구분선만.
-/// '결제내역 입력'·'내역 관리'는 그 자리에서 펼친다 (펼침 항목은 한 번에 하나만). 접힌 상태 7개는 스크롤 없이 한 화면에.
+/// '결제내역 입력'·'내역 관리'는 그 자리에서 펼친다 (펼침 항목은 한 번에 하나만). 접힌 상태는 스크롤 없이 한 화면에.
 /// 모든 항목은 메뉴를 닫지 않고 메뉴 위에 화면을 띄운다 → 뒤로가기 하면 메뉴로. 돌아오면 건수·설명을 다시 읽고
 /// 펼침 상태는 그대로. 1년치 불러오기·업데이트 확인도 메뉴에 머문 채 진행 표시와 결과 창을 띄운다.
 class MenuScreen extends StatefulWidget {
   final Future<void> Function() onImport, onPaste, onOcr, onVendors;
 
-  /// 업데이트 확인. 메뉴를 닫지 않고, 확인하는 동안 항목 오른쪽에 작은 로딩 표시
-  final Future<void> Function() onUpdate;
+  /// 업데이트 확인. 메뉴를 닫지 않고, 확인하는 동안 항목 오른쪽에 작은 로딩 표시.
+  /// null(스토어판)이면 '업데이트 확인' 대신 누를 수 없는 '버전 정보'만 보인다.
+  final Future<void> Function()? onUpdate;
 
   /// (전용판) 권한 설정에서 문자 읽기를 끄면 1년치 불러오기를 흐리게
   final bool Function() importEnabled;
@@ -43,7 +45,7 @@ class MenuScreen extends StatefulWidget {
     required this.onPaste,
     required this.onOcr,
     required this.onVendors,
-    required this.onUpdate,
+    this.onUpdate,
     required this.importEnabled,
     required this.onSettings,
     required this.cardSummary,
@@ -198,15 +200,28 @@ class _MenuScreenState extends State<MenuScreen> {
           line,
           item(Icons.tune, '설정', w.appSettingsSummary(), openThen(w.onAppSettings)),
           line,
+          item(
+            Icons.privacy_tip_outlined,
+            '개인정보처리방침',
+            '문자·알림은 휴대폰 안에서만 처리해요',
+            () => launchUrl(Uri.parse(kPrivacyUrl), mode: LaunchMode.externalApplication),
+          ),
+          line,
           FutureBuilder<PackageInfo>(
             future: _info,
-            builder: (_, snap) => item(
-              Icons.system_update,
-              '업데이트 확인',
-              '현재 ${snap.hasData ? 'v${snap.data!.version}' : ''} · $editionLabel',
-              busyThen('update', w.onUpdate),
-              trailing: spinner('update'),
-            ),
+            builder: (_, snap) {
+              final version = '${snap.hasData ? 'v${snap.data!.version}' : ''} · $editionLabel';
+              final onUpdate = w.onUpdate;
+              // 스토어판: 업데이트는 플레이스토어가 맡는다. 버전만 보여 주고 누르는 반응 없음
+              if (onUpdate == null) return item(Icons.info_outline, '버전 정보', version, null);
+              return item(
+                Icons.system_update,
+                '업데이트 확인',
+                '현재 $version',
+                busyThen('update', onUpdate),
+                trailing: spinner('update'),
+              );
+            },
           ),
           // 크레딧: 목록 항목이 아니라 맨 아래 작은 회색 글씨 (누르는 반응 없음)
           const Padding(

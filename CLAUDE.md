@@ -14,7 +14,21 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
   - `src/public/kotlin/.../Flavor.kt` 는 빈 구현. main 코드는 `Flavor` 객체로만 판 차이를 부른다.
   - CI 가 public APK 에 문자 권한이 있으면 실패시킨다.
 - 두 판은 같은 applicationId·서명키 → 서로 덮어 설치해도 데이터 유지.
-- Dart 는 `lib/flavor.dart` 의 `isFullEdition`(`appFlavor == 'full'`)으로 전용판 메뉴('지난 문자 1년치 불러오기')·문자 권한 배너를 나눈다. "일반판/전용판" 표시는 메뉴 > 업데이트 확인 설명. 제작자 표시는 메뉴 맨 아래 '제작자 · wani' (설정 화면에는 입력칸 두 개 + [저장]만).
+- Dart 는 `lib/flavor.dart` 의 `isFullEdition`(`appFlavor == 'full'`)으로 전용판 메뉴('지난 문자 1년치 불러오기')·문자 권한 배너를 나눈다. "일반판/전용판" 표시는 메뉴 > 업데이트 확인(스토어판은 '버전 정보') 설명. 제작자 표시는 메뉴 맨 아래 'Made by wani'.
+
+## 두 채널 (v2.0.0~, REQ-43): 깃허브(APK) / 스토어(AAB)
+| 채널 | 빌드 | 파일 | versionCode | 자체 업데이트 |
+|---|---|---|---|---|
+| 깃허브 | `flutter build apk --flavor public/full` | `app-release.apk` / `app-full-release.apk` (고정 링크) | run_number×10 **+0** | 있음 |
+| 스토어 일반 | `flutter build appbundle --flavor public --dart-define=CHANNEL=store` | `app-store-public-release.aab` (비공개 테스트 트랙) | run_number×10 **+1** | 없음 |
+| 스토어 전용 | `flutter build appbundle --flavor full --dart-define=CHANNEL=store` | `app-store-full-release.aab` (내부 테스트·문자 권한 심사) | run_number×10 **+2** | 없음 |
+
+- 채널은 flavor 차원이 아니라 `--dart-define=CHANNEL=store` 로 나눈다 (`lib/flavor.dart` `isStoreChannel`, 컴파일 시점 상수). 이유: 두 채널은 매니페스트·네이티브 차이가 없고(설치 권한은 원래 없음), Dart 상수라 스토어 빌드에서 업데이트 코드(`update_check.dart`, `_checkUpdate`)가 트리셰이킹으로 통째로 빠진다. flavor 를 늘리면 변형 4개·APK 파일명·`appFlavor` 값이 모두 바뀐다. define 이 없으면 깃허브판.
+- 스토어판: 시작 때 자동 업데이트 확인 안 함, 메뉴 '업데이트 확인' 대신 누를 수 없는 '버전 정보'(`MenuScreen.onUpdate == null`). CI 가 스토어 AAB 의 libapp.so 에 GitHub releases API 주소가 있으면 실패시킨다.
+- 같은 태그 빌드에서 APK 2개 + AAB 2개를 만들어 같은 GitHub 릴리스에 첨부. AAB 도 같은 키스토어로 서명(Play App Signing 에 이 키를 앱 서명 키로 등록 → `scripts/export_play_key.md`).
+- 어느 판에도 REQUEST_INSTALL_PACKAGES 같은 설치 권한을 넣지 않는다 (CI 검사).
+- 권한 안내(Prominent Disclosure, `lib/disclosure.dart`): 문자 권한 시스템 창·알림 접근 설정 화면으로 보내기 전에 매번 전체 화면 안내 → [동의하고 계속]일 때만 요청, [나중에]면 아무것도 안 함. 문자 권한 요청은 `requestSmsWithDisclosure`, 알림 접근은 `openNotificationAccessWithDisclosure` 로만 부른다 (`Native.requestSmsPermission`/`openNotificationAccessSettings` 직접 호출 금지). 문자 안내 문구는 REQ-43 지정 문구 그대로.
+- 메뉴 '개인정보처리방침'(모든 판) → `kPrivacyUrl`(main 의 `PRIVACY.md`) 브라우저로. PRIVACY.md 는 코드와 사실이 맞아야 한다 (기능이 바뀌면 같이 고칠 것).
 
 ## 구조
 - `lib/sms_parser.dart` — `parseSms()` 문자 파싱 (카드번호+승인 판정, 한 줄 형식, 승인취소, 연도 추정), `splitMessages()` 여러 건 쪼개기([Web발신]·카드번호+승인 단위), `senderMatches()` 발신번호 끝자리 비교
@@ -41,7 +55,7 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
   - 기본 키워드 세트 버전 `kDefaultKeywordsVersion`(지금 2). 올리면 기존 기기에 새로 생긴 기본 키워드만 1회 추가(`upgradeDefaults`, `loadVendors` 에서). 지운 기본 키워드는 `removedDefaults` 로 기억해 되살리지 않음
   - 분류 대기에서 차량비/운영비를 고르면 같은 가맹점의 다른 대기 건 일괄 정리를 묻고(무시한 건은 제외. 무시한 내역에서 고를 때는 '직접 무시' 건도 포함, '중복'·'취소로 상쇄'는 제외 — `sameVendorPending(includeIgnored:)`), 그 가맹점을 자동 등록. [되돌리기] 한 번에 일괄 정리·자동 등록까지 전부 복구
   - 추천 버튼은 진하게 + 작은 표시('추천' / '지난번 운영비'), 반대 버튼은 투명도 40%
-- `lib/menu_screen.dart` — 우측 상단 톱니 → 메뉴 화면. 섹션 제목 없이 한 목록 7개(접힌 상태 한 화면): 결제내역 입력(펼침) / 내역 관리(펼침, 배지 = 미분류+확인 필요, 확인 필요 있으면 펼친 채 시작) / 등록 업체·추천 키워드 / 카드 문자 설정(카드번호·발신번호 같이 수정, [기본값으로]) / 권한 설정 / 업데이트 확인(현재 버전·판) / 제작자
+- `lib/menu_screen.dart` — 우측 상단 톱니 → 메뉴 화면. 섹션 제목 없이 한 목록 9개(접힌 상태 한 화면): 결제내역 입력(펼침) / 내역 관리(펼침, 배지 = 미분류+확인 필요, 확인 필요 있으면 펼친 채 시작) / 등록 업체·추천 키워드 / 안전 OX Quiz / 카드 문자 설정(카드번호·발신번호 같이 수정, [기본값으로]) / 권한 설정 / 설정 / 개인정보처리방침 / 업데이트 확인(현재 버전·판, 스토어판은 '버전 정보') + 맨 아래 크레딧
 - `lib/permission_screen.dart` — 권한 설정: 알림 감지·문자 읽기(전용판) 각각 '앱에서 사용' 스위치(네이티브 `CardSms.useListener/useSms` 로 전달, 끄면 수신 문자 버림·1년치 불러오기 흐림) + 시스템 권한 상태. 메인 권한 배너는 '사용' 켜짐 + 권한 꺼짐일 때만
 - `lib/vendor_screen.dart` — 메뉴 > 업체 관리 (키워드 추가·카테고리 변경·삭제, 자동 등록 업체 관리). 행 = [고정 배지] 이름 … [휴지통], 카테고리는 행을 눌러 바텀시트에서만 변경, 삭제는 "'이름'을/를 목록에서 뺄까요?" 확인. 목록 끝 여백은 + 추가 버튼 높이까지
 - `lib/category_badge.dart` — `CategoryBadge` 차량/운영/무시 고정 배지 (메인 내역 목록·업체 관리 공용) + 차량비/운영비 색 상수
@@ -68,17 +82,19 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 연속 일수 = 오늘의 문제를 푼 날이 이어진 일수 (오늘 아직이면 어제까지)
 - 메뉴 '업데이트 확인'은 메뉴를 닫지 않음(항목 오른쪽 로딩, 결과는 메뉴 위). 메뉴 맨 아래 크레딧 'Made by wani'(가운데, 12, #9AA0A6, 누르는 반응 없음)
 
-테스트: `test/req39_test.dart`(퀴즈 v2·분야 선택·틀고정·업체 전체 삭제·메뉴 QUIZ 아이콘), `test/quiz_test.dart`(하루 1회·날짜 경계·셔플백·새 문항·active=false·원격 실패/캐시·연속 일수·오늘 푼 문제 제외·챌린지 최고 기록), `test/quiz_screens_test.dart`(챌린지 진행·결과·그만두기, 지난 문제, 한 문제 더), `test/check_test.dart`(확인 필요 규칙 a~e, 중복 쌍 기억), `test/cancel_test.dart`(승인취소 묶음·바로잡기), `test/ignore_vendor_test.dart`(무시 사유·무시한 내역 화면·업체 관리 목록), `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
+테스트: `test/req43_test.dart`(스토어 채널 업데이트 없음·권한 안내 화면·개인정보처리방침 메뉴), `test/req39_test.dart`(퀴즈 v2·분야 선택·틀고정·업체 전체 삭제·메뉴 QUIZ 아이콘), `test/quiz_test.dart`(하루 1회·날짜 경계·셔플백·새 문항·active=false·원격 실패/캐시·연속 일수·오늘 푼 문제 제외·챌린지 최고 기록), `test/quiz_screens_test.dart`(챌린지 진행·결과·그만두기, 지난 문제, 한 문제 더), `test/check_test.dart`(확인 필요 규칙 a~e, 중복 쌍 기억), `test/cancel_test.dart`(승인취소 묶음·바로잡기), `test/ignore_vendor_test.dart`(무시 사유·무시한 내역 화면·업체 관리 목록), `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
 
 ## 빌드 / 배포
-- `flutter test`, `flutter build apk --release --flavor public` / `--flavor full`
+- `flutter test`, `flutter build apk --release --flavor public` / `--flavor full`, 스토어판은 `flutter build appbundle --release --flavor public|full --dart-define=CHANNEL=store`
+- 채널별로 갈리는 테스트 `test/req43_test.dart` 는 CI 에서 `flutter test --dart-define=CHANNEL=store test/req43_test.dart` 로 한 번 더 돈다
 - 서명: 로컬은 `android/key.properties`(커밋 금지), CI 는 GitHub Secrets `ANDROID_KEYSTORE_BASE64/PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
 - keystore 원본: `C:\Users\EKR\Documents\card_expense_keystore\` (저장소에 넣지 말 것)
 - `.github/workflows/release-apk.yml` (v1.20.1~): **`v*` 태그 push 에서만** 정식 빌드·Release. main push(문서 커밋 포함)로는 CI 가 돌지 않는다. `dev` 프리릴리스는 Actions 탭 수동 실행(workflow_dispatch)일 때만
   - 캐시: Flutter SDK·pub(`flutter-action` cache), Gradle(`gradle/actions/setup-gradle@v4`, `cache-read-only: false`), NDK 28.2(`actions/cache`, `$ANDROID_HOME/ndk/28.2.13676358`). `android/gradle.properties` 에 `org.gradle.caching=true`·`org.gradle.parallel=true`
   - 캐시 범위 주의: GitHub 캐시는 만든 ref 범위다. 태그 실행이 저장한 캐시는 **다른 태그에서는 못 쓰고**, 기본 브랜치(main) 캐시는 모든 태그가 쓴다. Gradle·NDK 캐시를 다음 태그에서 hit 시키려면 main 에서 수동 실행(workflow_dispatch)을 한 번 돌려 main 범위에 저장해야 한다 (dev 프리릴리스도 같이 갱신됨)
   - ABI 는 arm64-v8a·armeabi-v7a 2개(x86_64 없음): CI 의 `--target-platform android-arm,android-arm64`(Flutter 라이브러리) + `android/app/build.gradle.kts` 의 release 변형 `packaging.jniLibs.excludes += lib/x86_64/**`(ML Kit 등 플러그인 .so — `--target-platform` 만으로는 안 빠짐, 빌드타입 `ndk.abiFilters` 도 효과 없었음). debug 는 그대로. fat APK 하나씩, 파일 이름·고정 링크 그대로. split-per-abi 안 함
-  - `flutter test`·일반판 SMS 권한 aapt 검사 step 은 유지. flavor 병렬(matrix)·ML Kit 변경은 하지 않음
+  - `flutter test`(+스토어 채널 req43) → APK 2개 + AAB 2개 빌드 → 권한 검사(aapt + bundletool 1.17.2: 일반판 APK·AAB 문자 권한 없음, 전용판 있음, 전부 설치 권한 없음, AAB versionCode·targetSdk 로그) → 업데이트 코드 검사(깃허브 APK 에는 있고 스토어 AAB 에는 없어야 함). flavor 병렬(matrix)·ML Kit 변경은 하지 않음
+  - AAB 도 x86_64 없음(같은 release 변형 설정). targetSdk 는 `flutter.targetSdkVersion`(Flutter 3.44.9 = 36, Play 요구치 충족)
 - 새 버전 배포: `pubspec.yaml` version 올리고 main push + `git tag vX.Y.Z && git push origin vX.Y.Z` (태그 push 만 CI 를 돌린다)
 - **로컬 작업 루틴 (규칙)**
   - 수정 중에는 바뀐 파일만 `flutter analyze <파일>`, 관련 테스트 파일만 `flutter test <파일>`
@@ -101,13 +117,13 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 앱 빌드 때는 그 시점의 `quiz/questions.json` 이 assets 로 들어가 기본값(번들 사본)이 된다
 
 ## 버전 규칙 (고정)
-- 1.x(깃허브판)는 지금처럼 버전만 올리면 된다. 자리 구분은 신경 쓰지 않는다.
+- 1.x 는 v1.20.1 로 끝났다. v2.0.0(REQ-43, 스토어 첫 등록본)부터 아래 2.x 엄격 규칙을 적용한다. 깃허브 APK 도 같은 태그라 같은 versionName 이다.
 - 스토어 등록 최종본은 v2.0.0. 2.x 부터 엄격 적용: 새 기능 덩어리(예: OX 퀴즈 처음 추가)는 Y(마이너), 그 밖의 화면 다듬기·버튼·문구·버그 수정·퀴즈 파일 변경은 Z(패치). 어느 쪽인지는 REQ 끝에 명시된다.
-- versionCode 는 지금처럼 GitHub Actions `run_number` 를 쓰고 절대 줄이지 않는다 (스토어와 기존 설치 앱의 덮어쓰기 업데이트 모두 versionCode 가 더 커야 함).
+- versionCode = GitHub Actions `run_number`×10 + (깃허브 APK 0, 스토어 일반 AAB 1, 스토어 전용 AAB 2) (v2.0.0~. 그 전은 `run_number` 그대로라 값이 커지기만 했다). 절대 줄이지 않는다 (스토어와 기존 설치 앱의 덮어쓰기 업데이트 모두 versionCode 가 더 커야 함). pubspec 의 `+N` 은 로컬 빌드용일 뿐 배포 값이 아니다.
 - 버전을 낮추거나 1.0.0 으로 되돌리지 않는다 (앱 안 업데이트 확인이 v 태그를 숫자로 비교하므로 낮은 버전은 업데이트로 인식되지 않음).
 
 ## 설치 방식 (고정)
-- 폰 설치는 항상 GitHub Release 링크로만 한다. adb/USB 설치는 제안하지도 말 것.
+- 폰 설치는 항상 GitHub Release 링크로만 한다 (스토어판은 Play Console 테스트 트랙). adb/USB 설치는 제안하지도 말 것.
 - 일반판: `https://github.com/Wani-Jung/card-expense/releases/latest/download/app-release.apk`
 - 전용판: `https://github.com/Wani-Jung/card-expense/releases/latest/download/app-full-release.apk`
 

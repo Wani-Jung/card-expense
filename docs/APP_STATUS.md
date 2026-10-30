@@ -13,8 +13,8 @@
 | 항목 | 값 | 출처 |
 |---|---|---|
 | 앱 이름 | 공감카드 관리 | `AndroidManifest.xml` `android:label`, `lib/flavor.dart` `kAppName` |
-| 현재 버전 | **1.20.1** (pubspec `version: 1.20.1+40`) | `pubspec.yaml` |
-| 실제 APK versionCode | **53** (v1.20.1 릴리스 APK) — pubspec 의 `+34` 가 아니라 CI `github.run_number` 가 들어간다 | `aapt dump badging`, 워크플로 `--build-number` |
+| 현재 버전 | **2.0.0** (pubspec `version: 2.0.0+40`) — 1.x 끝, 2.x 엄격 버전 규칙 시작 | `pubspec.yaml` |
+| 실제 versionCode | **550** (v2.0.0 깃허브 APK 2개) / **551** (스토어 일반 AAB) / **552** (스토어 전용 AAB) — v2.0.0 부터 CI `run_number`×10 + (0/1/2). pubspec 의 `+N` 은 쓰지 않음 | `aapt dump badging`, `bundletool dump manifest`, 워크플로 `--build-number` |
 | 패키지명 (applicationId / namespace) | `com.wani.card_expense` | `android/app/build.gradle.kts` |
 | minSdk / targetSdk | **24 / 36** (gradle 은 `flutter.minSdkVersion`·`flutter.targetSdkVersion` 기본값, 실제 값은 릴리스 APK 에서 확인) | `aapt dump badging` |
 | compileSdk | 36 | `aapt dump badging` |
@@ -769,7 +769,7 @@
 
 빌드노트에 없지만 알아 둘 점:
 
-- APK versionCode 는 pubspec 의 `+N` 이 아니라 CI 실행 번호다(v1.15.0 = 37, v1.16.0 = 39, v1.17.0 = 42, v1.18.0 = 45, v1.19.0 = 48, v1.20.0 = 51, v1.20.1 = 53).
+- APK versionCode 는 pubspec 의 `+N` 이 아니라 CI 실행 번호다(v1.15.0 = 37, v1.16.0 = 39, v1.17.0 = 42, v1.18.0 = 45, v1.19.0 = 48, v1.20.0 = 51, v1.20.1 = 53). v2.0.0 부터는 run_number×10 + (깃허브 APK 0, 스토어 일반 AAB 1, 스토어 전용 AAB 2): v2.0.0 = 550/551/552.
 - `main` 에 push 할 때마다 `dev` 프리릴리스가 갱신된다. 고정 링크(`latest`)에는 영향이 없다.
 - 운영비 수립은 입력 칸이 아니라 자동 계산이다. 차량비 수립이 합계보다 크면 빨간 칸과 경고 문구가 나온다.
 - 요약표 합산 화면에서는 수립을 고칠 수 없다.

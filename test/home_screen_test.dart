@@ -109,11 +109,11 @@ void main() {
     expect(find.text(t(prev)), findsOneWidget);
   });
 
-  testWidgets('메뉴: 섹션 없이 8개 한 화면, 내역 관리·결제내역 입력 펼침, 권한 설정', (tester) async {
+  testWidgets('메뉴: 섹션 없이 9개 한 화면, 내역 관리·결제내역 입력 펼침, 권한 설정', (tester) async {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    const titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '안전 OX Quiz', '카드 문자 설정', '권한 설정', '설정', '업데이트 확인'];
+    const titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '안전 OX Quiz', '카드 문자 설정', '권한 설정', '설정', '개인정보처리방침', '업데이트 확인'];
     for (final t in titles) {
       expect(find.text(t), findsOneWidget);
     }

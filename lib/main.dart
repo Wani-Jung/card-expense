@@ -11,6 +11,7 @@ import 'budget.dart';
 import 'cancel_link.dart';
 import 'category_badge.dart';
 import 'check.dart';
+import 'disclosure.dart';
 import 'expense.dart';
 import 'flavor.dart';
 import 'ignored_screen.dart';
@@ -322,7 +323,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     Native.setUsage(listener: widget.store.useListener, sms: widget.store.useSms);
     _fixCancelsOnce();
     _onResume();
-    _checkUpdate(manual: false);
+    // 스토어판은 자체 업데이트를 쓰지 않는다 (컴파일 시점 상수라 스토어 빌드에는 업데이트 코드가 안 들어감)
+    if (!isStoreChannel) _checkUpdate(manual: false);
     _scheduleDailyQuiz();
   }
 
@@ -735,7 +737,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
     if (_perms.sms != true) {
-      await Native.requestSmsPermission();
+      // 안내 화면 → [동의하고 계속]일 때만 시스템 권한 창. [나중에]면 아무것도 안 함 (다음에 누르면 다시 안내부터)
+      await requestSmsWithDisclosure(context);
       return; // 허용되면 permissionsChanged → 자동 불러오기
     }
     _importing = true;
@@ -870,7 +873,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               builder: (_) => QuizHomeScreen(store: _quiz, bank: _bank),
             )),
         // 메뉴에 그대로 있고, 결과(스낵바·업데이트 창)도 메뉴 위에서
-        onUpdate: () => _checkUpdate(manual: true),
+        onUpdate: isStoreChannel ? null : () => _checkUpdate(manual: true),
         counts: () => (
           pending: _items.where((e) => e.category == null).length,
           check: _issues.length,
@@ -1288,10 +1291,11 @@ class _PermissionBanner extends StatelessWidget {
                 style: TextStyle(fontSize: 12, color: Colors.black54)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 4, children: [
-              if (sms) FilledButton.tonal(onPressed: Native.requestSmsPermission, child: const Text('문자 권한')),
+              if (sms)
+                FilledButton.tonal(onPressed: () => requestSmsWithDisclosure(context), child: const Text('문자 권한')),
               if (listener)
                 FilledButton.tonal(
-                    onPressed: Native.openNotificationAccessSettings, child: const Text('알림 접근 켜기')),
+                    onPressed: () => openNotificationAccessWithDisclosure(context), child: const Text('알림 접근 켜기')),
             ]),
             TextButton(
               onPressed: Native.openAppSettings,

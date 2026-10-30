@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'disclosure.dart';
 import 'expense.dart';
 import 'flavor.dart';
 import 'layout.dart';
@@ -55,16 +56,8 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
     await widget.onUsageChanged();
     if (!mounted) return;
     setState(() {});
-    if (on && !widget.perms().listener) {
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          content: const Text('휴대폰 설정에서 알림 접근을 허용해야 해요'),
-          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('설정 열기'))],
-        ),
-      );
-      await Native.openNotificationAccessSettings();
-    }
+    // 시스템 권한이 아직 없으면 안내 화면 → 동의하면 알림 접근 설정 화면
+    if (on && !widget.perms().listener) await openNotificationAccessWithDisclosure(context);
   }
 
   Future<void> _setSms(bool on) async {
@@ -154,7 +147,7 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
                   use: s.useListener,
                   onUse: _setListener,
                   granted: p.listener,
-                  action: _smallButton('설정 열기', Native.openNotificationAccessSettings),
+                  action: _smallButton('설정 열기', () => openNotificationAccessWithDisclosure(context)),
                 ),
                 if (isFullEdition)
                   _card(
@@ -167,7 +160,7 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
                         ? null
                         : p.smsBlocked
                             ? _smallButton('설정 열기', Native.openAppSettings)
-                            : _smallButton('권한 요청', Native.requestSmsPermission),
+                            : _smallButton('권한 요청', () => requestSmsWithDisclosure(context)),
                     footer: Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Row(children: [

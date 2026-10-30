@@ -43,3 +43,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# 서명 키·Play App Signing 내보내기 결과 (절대 커밋 금지, REQ-43)
+*.jks
+*.keystore
+*.pem
+*.p12
+*.pepk
+pepk.jar
+output.zip
+encryption_public_key.pem
+key.properties

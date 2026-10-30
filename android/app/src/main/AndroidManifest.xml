@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 업데이트 확인(GitHub Releases 조회) -->
+    <!-- 퀴즈 문제 파일 받기, (깃허브판만) 업데이트 확인. 설치 관련 권한(REQUEST_INSTALL_PACKAGES)은 어느 판에도 넣지 말 것 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
@@ -65,7 +65,7 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!-- 업데이트 버튼: 브라우저로 APK 링크 열기 (url_launcher) -->
+        <!-- 브라우저로 링크 열기 (url_launcher): 개인정보처리방침, (깃허브판만) APK 링크 -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
