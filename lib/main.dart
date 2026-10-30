@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'app_settings_screen.dart';
 import 'budget.dart';
 import 'cancel_link.dart';
 import 'category_badge.dart';
@@ -864,10 +863,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         cardSummary: () => '카드 ${widget.digits} · 발신 ${widget.sender}',
         onPermissions: _openPermissions,
         permSummary: _permSummary,
-        onAppSettings: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => AppSettingsScreen(quiz: _quiz),
-            )),
-        appSettingsSummary: () => '매일 OX 퀴즈 ${_quiz.dailyOn ? '켜짐' : '꺼짐'}',
         quizSummary: () => _quiz.menuText(quizDay(DateTime.now())),
         onQuiz: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => QuizHomeScreen(store: _quiz, bank: _bank),

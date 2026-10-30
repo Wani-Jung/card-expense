@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:card_expense/expense.dart';
+import 'package:card_expense/flavor.dart';
 import 'package:card_expense/main.dart';
 import 'package:card_expense/quiz.dart';
 import 'package:flutter/material.dart';
@@ -109,14 +110,20 @@ void main() {
     expect(find.text(t(prev)), findsOneWidget);
   });
 
-  testWidgets('메뉴: 섹션 없이 9개 한 화면, 내역 관리·결제내역 입력 펼침, 권한 설정', (tester) async {
+  testWidgets('메뉴: 섹션 없이 8개 한 화면, 내역 관리·결제내역 입력 펼침, 권한 설정', (tester) async {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    const titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '안전 OX Quiz', '카드 문자 설정', '권한 설정', '설정', '개인정보처리방침', '업데이트 확인'];
+    final titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '카드 문자 설정', '안전 OX Quiz', '권한 설정', '개인정보처리방침', isStoreChannel ? '버전 정보' : '업데이트 확인'];
     for (final t in titles) {
       expect(find.text(t), findsOneWidget);
     }
+    // 위에서 아래로 이 순서
+    final ys = [for (final t in titles) tester.getTopLeft(find.text(t)).dy];
+    for (var i = 1; i < ys.length; i++) {
+      expect(ys[i], greaterThan(ys[i - 1]), reason: titles[i]);
+    }
+    expect(find.text('설정'), findsNothing);
     for (final gone in ['내역 넣기', '정산', '업체 관리', '앱 정보', '이번 달 내역 복사', '현재 버전', '알림 접근 설정', '제작자']) {
       expect(find.text(gone), findsNothing);
     }
@@ -298,7 +305,7 @@ void main() {
     expect(find.text('결제내역 입력'), findsOneWidget);
     // 결과(테스트에서는 네트워크 없음 → 실패 안내)는 메뉴 위 스낵바로
     expect(find.textContaining('업데이트 정보를 확인하지 못했어요'), findsOneWidget);
-  });
+  }, skip: isStoreChannel); // 스토어판에는 업데이트 확인이 없다 (req43_test 가 확인)
 
   testWidgets('오늘의 안전 OX: 새 스위치가 켜져 있으면 예전 키(quiz_enabled_v1=false)와 상관없이 뜸', (tester) async {
     SharedPreferences.setMockInitialValues({
@@ -334,7 +341,7 @@ void main() {
       expect(prefs.getString('quiz_last_day_v1'), isNull);
     });
 
-    testWidgets('꺼져 있어도 메뉴에서 챌린지·연습 진입, 설정에서 켜면 저장', (tester) async {
+    testWidgets('꺼져 있어도 메뉴에서 챌린지·연습 진입, 안전 OX Quiz 화면에서 켜면 저장', (tester) async {
       SharedPreferences.setMockInitialValues({
         'card_digits': '0000',
         'sender_number': '1588-1600',
@@ -343,7 +350,6 @@ void main() {
       await pumpHome(tester);
       await tester.tap(find.byTooltip('메뉴'));
       await tester.pumpAndSettle();
-      expect(find.text('매일 OX 퀴즈 꺼짐'), findsOneWidget);
 
       // 안전 OX Quiz → 챌린지 시작 화면
       await tester.tap(find.text('안전 OX Quiz'));
@@ -354,20 +360,13 @@ void main() {
       expect(find.text('몇 문제에 도전할까요?'), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await tester.pageBack();
-      await tester.pumpAndSettle();
 
-      // 설정 → 매일 OX 퀴즈 켜기
-      await tester.tap(find.text('설정'));
-      await tester.pumpAndSettle();
+      // 안전 OX Quiz 화면 '점수 기록 지우기' 위 스위치로 켜기
       expect(find.text('켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나옵니다.'), findsOneWidget);
       expect(tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value, isFalse);
       await tester.tap(find.text('매일 OX 퀴즈'));
       await tester.pumpAndSettle();
       expect((await SharedPreferences.getInstance()).getBool('quiz_daily_on_v1'), isTrue);
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(find.text('매일 OX 퀴즈 켜짐'), findsOneWidget);
     });
   });
 }

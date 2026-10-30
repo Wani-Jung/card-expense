@@ -1,5 +1,6 @@
 import 'package:card_expense/challenge_card.dart';
 import 'package:card_expense/quiz.dart';
+import 'package:card_expense/quiz_category_picker.dart';
 import 'package:card_expense/quiz_screens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,7 +73,7 @@ void main() {
     // 문제 전체 보기: 기본은 [전체] (10문제 모두), [틀린 문제만] 으로 거르기
     await tester.tap(find.text('문제 전체 보기'));
     await tester.pumpAndSettle();
-    final all = tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '전체'));
+    final all = tester.widget<QuizSelectChip>(find.widgetWithText(QuizSelectChip, '전체'));
     expect(all.selected, isTrue);
     await tester.tap(find.text('틀린 문제만'));
     await tester.pumpAndSettle();
@@ -96,7 +97,7 @@ void main() {
     expect(find.textContaining('내 답 '), findsWidgets);
     // 펼친 회차 안에도 [전체] [틀린 문제만] (기본 전체) — 위쪽 화면 칩 + 회차 칩 두 벌
     expect(find.text('틀린 문제만'), findsNWidgets(2));
-    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '전체').last).selected, isTrue);
+    expect(tester.widget<QuizSelectChip>(find.widgetWithText(QuizSelectChip, '전체').last).selected, isTrue);
     await tester.tap(find.text('틀린 문제만').last);
     await tester.pumpAndSettle();
     expect(find.textContaining('내 답 O → 정답 O'), findsNothing);
@@ -208,7 +209,7 @@ void main() {
     expect(find.text('50%'), findsOneWidget);
     await tester.tap(find.text('점수 기록 지우기'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('푼 문제와 날짜는 남아서'), findsOneWidget);
+    expect(find.text(kClearScoresMessage), findsOneWidget);
     await tester.tap(find.text('지우기'));
     await tester.pumpAndSettle();
     expect(find.text('50%'), findsNothing);

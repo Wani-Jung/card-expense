@@ -17,6 +17,18 @@ const _grey = Color(0xFF5F6368);
 
 String _today() => quizDay(DateTime.now());
 
+/// 점수 기록 지우기 확인 문구 (지워지는 것 / 남는 것. QuizStore.clearScores 동작 그대로)
+const kClearScoresMessage =
+    '지워지는 것\n'
+    "· 정답률 (지운 뒤 다음에 푸는 문제부터 새로 계산, 그 전까지 '-')\n"
+    '· 문제마다 내 답·맞음/틀림\n'
+    '· 챌린지 정답률·걸린 시간·최고 기록\n\n'
+    '남는 것\n'
+    '· 푼 문제 수\n'
+    '· 연속 일수\n'
+    '· 지난 문제 다시 보기 목록 (문제·정답·해설, 챌린지 회차)\n\n'
+    '지운 직후 [되돌리기]로 되살릴 수 있어요.';
+
 /// 메뉴 > 안전 OX. 요약 카드 + 지난 문제 다시 보기 / 한 문제 더 풀기 / 안전 OX 챌린지
 class QuizHomeScreen extends StatefulWidget {
   final QuizStore store;
@@ -33,14 +45,13 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
     if (mounted) setState(() {}); // 돌아오면 요약 다시
   }
 
-  /// 점수 기록 지우기 (되돌리기 없음). 푼 문제·날짜·출처·연속 일수·이름은 남는다.
+  /// 점수 기록 지우기: 확인 → 지우기 → 5초 [되돌리기]. 푼 문제·날짜·출처·연속 일수·이름은 남는다.
   Future<void> _clearScores() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        content: const Text(
-          '점수 기록을 지울까요?\n정답 여부·내 답·정답률·챌린지 기록·최고 기록이 지워져요.\n푼 문제와 날짜는 남아서 다시 볼 수 있어요.\n\n지운 기록은 되돌릴 수 없어요.',
-        ),
+        title: const Text('점수 기록을 지울까요?'),
+        content: const Text(kClearScoresMessage),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
           TextButton(
@@ -52,12 +63,25 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
       ),
     );
     if (ok != true) return;
+    final snap = widget.store.snapshotScores();
     await widget.store.clearScores();
     if (!mounted) return;
     setState(() {});
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('점수 기록을 지웠어요')));
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('점수 기록을 지웠어요'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: '되돌리기',
+            onPressed: () async {
+              await widget.store.restoreScores(snap);
+              if (mounted) setState(() {});
+            },
+          ),
+        ),
+      );
   }
 
   @override
@@ -107,10 +131,22 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
           item(
             Icons.emoji_events_outlined,
             '안전 OX 챌린지',
-            '20~50문제, 시간과 정답률로 기록에 도전',
+            '10~50문제, 시간과 정답률로 기록에 도전',
             ChallengeStartScreen(store: s, bank: widget.bank),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
+          const Divider(height: 1, thickness: 0.5),
+          SwitchListTile(
+            title: const Text('매일 OX 퀴즈'),
+            subtitle: const Text('켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나옵니다.', style: TextStyle(fontSize: 12)),
+            value: s.dailyOn,
+            onChanged: (v) async {
+              await s.setDailyOn(v);
+              if (mounted) setState(() {});
+            },
+          ),
+          const Divider(height: 1, thickness: 0.5),
+          const SizedBox(height: 16),
           Center(
             child: TextButton(
               style: TextButton.styleFrom(
@@ -131,7 +167,7 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
 // 지난 문제 다시 보기
 // ------------------------------------------------------------------
 
-/// 푼 기록 최신순 + 날짜 구분선. 챌린지는 회차 1줄로 묶고 누르면 그 회차 문제를 펼친다.
+/// 푼 기록 최신순 + 날짜 구분선. 날짜 안에서는 챌린지 회차 카드 / '한 문제 더 풀기' / '매일 퀴즈' 묶음으로 나눈다.
 class QuizHistoryScreen extends StatefulWidget {
   final QuizStore store;
   final Future<QuizBank> Function() bank;
@@ -170,18 +206,26 @@ class _QuizHistoryScreenState extends State<QuizHistoryScreen> {
     // 점수 기록을 지운 뒤(점수 있는 기록이 없으면)는 [틀린 문제만] 칩을 숨긴다
     final scored = widget.store.hasScores;
     if (!scored) _wrongOnly = false;
-    // 최신순: 저장 순서가 시간순이므로 뒤집는다. 챌린지 문제들은 회차 하나로 묶는다.
-    final entries = <({String day, QuizRecord? one, ChallengeRun? run, List<QuizRecord> answers})>[];
-    final seenRun = <String>{};
+    // 최신순: 저장 순서가 시간순이므로 뒤집는다. 날짜 안에서는 묶음별로 나눈다:
+    // 챌린지 회차마다 카드 하나, '한 문제 더 풀기' 묶음, '매일 퀴즈' 묶음 (묶음 순서 = 그 묶음의 가장 최근 기록 순)
+    final days = <String, Map<String, _HistoryGroup>>{};
     for (final r in records.reversed) {
-      if (r.src == kQuizChallenge && r.run != null) {
-        if (!seenRun.add(r.run!)) continue;
-        final answers = records.where((x) => x.run == r.run).toList();
-        if (_wrongOnly && !answers.any((a) => a.correct == false)) continue;
-        entries.add((day: r.day, one: null, run: runs[r.run], answers: answers));
-      } else {
-        if (_wrongOnly && r.correct != false) continue;
-        entries.add((day: r.day, one: r, run: null, answers: const []));
+      final key = r.src == kQuizChallenge && r.run != null ? 'run:${r.run}' : r.src;
+      final g = days.putIfAbsent(r.day, () => {}).putIfAbsent(key, () => _HistoryGroup(r.src, r.run));
+      g.records.add(r);
+    }
+    final groups = <({String day, _HistoryGroup g})>[];
+    for (final MapEntry(key: day, value: byKey) in days.entries) {
+      for (final g in byKey.values) {
+        if (g.run != null) {
+          // 챌린지 문제는 푼 순서대로, [틀린 문제만]이면 틀린 문제가 있는 회차만
+          g.records.setAll(0, g.records.reversed.toList());
+          if (_wrongOnly && !g.records.any((a) => a.correct == false)) continue;
+        } else if (_wrongOnly) {
+          g.records.removeWhere((r) => r.correct != false);
+          if (g.records.isEmpty) continue;
+        }
+        groups.add((day: day, g: g));
       }
     }
     return Scaffold(
@@ -192,7 +236,7 @@ class _QuizHistoryScreenState extends State<QuizHistoryScreen> {
               padding: EdgeInsets.only(bottom: listBottomPad(context)),
               children: [
                 if (scored) _FilterChips(wrongOnly: _wrongOnly, onChanged: (v) => setState(() => _wrongOnly = v)),
-                if (entries.isEmpty)
+                if (groups.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(40),
                     child: Center(
@@ -202,17 +246,44 @@ class _QuizHistoryScreenState extends State<QuizHistoryScreen> {
                       ),
                     ),
                   ),
-                for (final (i, e) in entries.indexed) ...[
-                  if (i == 0 || entries[i - 1].day != e.day) _DayDivider(_dayLabel(e.day)),
-                  if (e.one != null)
-                    QuizRecordTile(record: e.one!, question: bank.byId(e.one!.id))
-                  else
-                    _RunTile(run: e.run, answers: e.answers, bank: bank),
+                for (final (i, e) in groups.indexed) ...[
+                  if (i == 0 || groups[i - 1].day != e.day) _DayDivider(_dayLabel(e.day)),
+                  if (e.g.run != null)
+                    _RunTile(run: runs[e.g.run], answers: e.g.records, bank: bank)
+                  else ...[
+                    _GroupTitle(
+                      e.g.src == kQuizExtra ? '한 문제 더 풀기 · ${e.g.records.length}문제' : '매일 퀴즈 · ${e.g.records.length}문제',
+                    ),
+                    for (final r in e.g.records) QuizRecordTile(record: r, question: bank.byId(r.id)),
+                  ],
                 ],
               ],
             ),
     );
   }
+}
+
+/// 지난 문제 다시 보기의 한 묶음 (같은 날, 같은 출처. 챌린지는 회차별)
+class _HistoryGroup {
+  final String src;
+  final String? run;
+  final records = <QuizRecord>[];
+  _HistoryGroup(this.src, this.run);
+}
+
+/// 묶음 소제목 '한 문제 더 풀기 · n문제' / '매일 퀴즈 · n문제'
+class _GroupTitle extends StatelessWidget {
+  final String text;
+  const _GroupTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: kQuizNavy),
+    ),
+  );
 }
 
 class _DayDivider extends StatelessWidget {
@@ -235,12 +306,12 @@ class _DayDivider extends StatelessWidget {
   );
 }
 
-/// 문제 한 줄: 문제, 내 답 → 정답 (맞으면 초록 체크, 틀리면 차분한 주황), 출처 라벨. 누르면 해설·근거.
+/// 문제 한 줄: 문제, 내 답 → 정답 (맞으면 초록 체크, 틀리면 차분한 주황) + 오른쪽 [해설].
+/// [해설]을 누르면 바로 아래 말풍선(위쪽 꼬리)에 해설·분야·근거가 펼쳐지고, 다시 누르면 접힌다.
 class QuizRecordTile extends StatefulWidget {
   final QuizRecord record;
   final QuizQuestion? question;
-  final bool showSource;
-  const QuizRecordTile({super.key, required this.record, required this.question, this.showSource = true});
+  const QuizRecordTile({super.key, required this.record, required this.question});
 
   @override
   State<QuizRecordTile> createState() => _QuizRecordTileState();
@@ -256,49 +327,113 @@ class _QuizRecordTileState extends State<QuizRecordTile> {
     String ox(bool v) => v ? 'O' : 'X';
     final scored = r.correct != null && r.choice != null;
     final color = !scored ? _grey : (r.correct! ? kQuizOk : kQuizMiss);
-    return InkWell(
-      onTap: q == null ? null : () => setState(() => _open = !_open),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (q != null) ...[QuizCategoryChip(q), const SizedBox(height: 4)],
-            Text(q?.question ?? '(지금은 없는 문제예요)', style: const TextStyle(fontSize: 14)),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                if (scored) ...[
-                  Icon(r.correct! ? Icons.check_circle : Icons.info_outline, size: 16, color: color),
-                  const SizedBox(width: 4),
-                ],
-                Text(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (q != null) ...[QuizCategoryChip(q), const SizedBox(height: 4)],
+          Text(q?.question ?? '(지금은 없는 문제예요)', style: const TextStyle(fontSize: 14)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              if (scored) ...[
+                Icon(r.correct! ? Icons.check_circle : Icons.info_outline, size: 16, color: color),
+                const SizedBox(width: 4),
+              ],
+              Expanded(
+                child: Text(
                   scored
                       ? '내 답 ${ox(r.choice!)} → 정답 ${q == null ? '-' : ox(q.answer)}'
                       : '정답 ${q == null ? '-' : ox(q.answer)}',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
                 ),
-                const Spacer(),
-                if (widget.showSource)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(color: const Color(0xFFF1F3F4), borderRadius: BorderRadius.circular(6)),
-                    child: Text(quizSourceLabel(r.src), style: const TextStyle(fontSize: 11, color: _grey)),
-                  ),
-              ],
-            ),
-            if (_open && q != null) ...[
-              const SizedBox(height: 8),
-              if (q.explain.isNotEmpty) Text(q.explain, style: const TextStyle(fontSize: 13)),
-              const SizedBox(height: 4),
-              Text('분야: ${q.catLabel}', style: const TextStyle(fontSize: 12, color: _grey)),
-              if (q.basis.isNotEmpty) Text('근거: ${q.basis}', style: const TextStyle(fontSize: 12, color: _grey)),
+              ),
+              if (q != null)
+                SizedBox(
+                  height: 30,
+                  child: _open
+                      ? FilledButton(
+                          style: _explainStyle(filled: true),
+                          onPressed: () => setState(() => _open = false),
+                          child: const Text('해설'),
+                        )
+                      : OutlinedButton(
+                          style: _explainStyle(filled: false),
+                          onPressed: () => setState(() => _open = true),
+                          child: const Text('해설'),
+                        ),
+                ),
             ],
-          ],
-        ),
+          ),
+          if (_open && q != null) _ExplainBubble(q),
+        ],
       ),
     );
   }
+
+  static ButtonStyle _explainStyle({required bool filled}) => ButtonStyle(
+    padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 14)),
+    minimumSize: const WidgetStatePropertyAll(Size(0, 30)),
+    visualDensity: VisualDensity.compact,
+    textStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+    backgroundColor: WidgetStatePropertyAll(filled ? kQuizNavy : Colors.white),
+    foregroundColor: WidgetStatePropertyAll(filled ? Colors.white : kQuizNavy),
+    side: const WidgetStatePropertyAll(BorderSide(color: kQuizNavy, width: 1.2)),
+  );
+}
+
+/// 해설 말풍선: 위쪽 오른편(해설 버튼 아래)에 꼬리, 연한 네이비 바탕
+class _ExplainBubble extends StatelessWidget {
+  final QuizQuestion q;
+  const _ExplainBubble(this.q);
+
+  static const _bg = Color(0xFFEEF2F8);
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Align(
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: const EdgeInsets.only(right: 22),
+          child: CustomPaint(size: const Size(14, 8), painter: _TailPainter(_bg)),
+        ),
+      ),
+      Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(color: _bg, borderRadius: BorderRadius.circular(10)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (q.explain.isNotEmpty) Text(q.explain, style: const TextStyle(fontSize: 13, height: 1.45)),
+            const SizedBox(height: 6),
+            Text('분야: ${q.catLabel}', style: const TextStyle(fontSize: 12, color: _grey)),
+            if (q.basis.isNotEmpty) Text('근거: ${q.basis}', style: const TextStyle(fontSize: 12, color: _grey)),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _TailPainter extends CustomPainter {
+  final Color color;
+  _TailPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) => canvas.drawPath(
+    Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height)
+      ..close(),
+    Paint()..color = color,
+  );
+
+  @override
+  bool shouldRepaint(_TailPainter old) => old.color != color;
 }
 
 /// [전체] [틀린 문제만] 칩
@@ -313,8 +448,8 @@ class _FilterChips extends StatelessWidget {
     child: Wrap(
       spacing: 8,
       children: [
-        ChoiceChip(label: const Text('전체'), selected: !wrongOnly, onSelected: (_) => onChanged(false)),
-        ChoiceChip(label: const Text('틀린 문제만'), selected: wrongOnly, onSelected: (_) => onChanged(true)),
+        QuizSelectChip(label: '전체', selected: !wrongOnly, onTap: () => onChanged(false)),
+        QuizSelectChip(label: '틀린 문제만', selected: wrongOnly, onTap: () => onChanged(true)),
       ],
     ),
   );
@@ -351,13 +486,13 @@ class _RunAnswersListState extends State<RunAnswersList> {
               style: TextStyle(color: Colors.black45),
             ),
           ),
-        for (final a in list) QuizRecordTile(record: a, question: widget.bank.byId(a.id), showSource: false),
+        for (final a in list) QuizRecordTile(record: a, question: widget.bank.byId(a.id)),
       ],
     );
   }
 }
 
-/// 챌린지 회차 1줄 (시각·문항 수·정답률·시간). 누르면 그 회차 문제들. 점수를 지운 회차는 '챌린지 · N문제'.
+/// 챌린지 회차 트로피 카드 (시각·문항 수·정답률·시간). 누르면 카드 안에 그 회차 문제들 (왼쪽 골드 세로줄 + 연한 배경). 점수를 지운 회차는 '챌린지 · N문제'.
 class _RunTile extends StatefulWidget {
   final ChallengeRun? run;
   final List<QuizRecord> answers;
@@ -379,28 +514,36 @@ class _RunTileState extends State<_RunTile> {
     final ok = run?.correct ?? widget.answers.where((a) => a.correct == true).length;
     final at = run == null ? null : DateTime.fromMillisecondsSinceEpoch(run.at);
     final time = at == null ? '' : '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
-    return Column(
-      children: [
-        ListTile(
-          leading: const Icon(Icons.emoji_events_outlined, color: kQuizGold),
-          title: Text(scored ? '챌린지 $n문제 · 정답률 ${n == 0 ? 0 : (ok * 100 / n).round()}%' : '챌린지 · $n문제'),
-          subtitle: Text(
-            [
-              if (time.isNotEmpty) time,
-              if (scored) '$ok/$n 정답',
-              if (scored && run?.ms != null) quizDuration(run!.ms!),
-            ].join(' · '),
-            style: const TextStyle(fontSize: 12),
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.emoji_events_outlined, color: kQuizGold),
+            title: Text(scored ? '챌린지 $n문제 · 정답률 ${n == 0 ? 0 : (ok * 100 / n).round()}%' : '챌린지 · $n문제'),
+            subtitle: Text(
+              [
+                if (time.isNotEmpty) time,
+                if (scored) '$ok/$n 정답',
+                if (scored && run?.ms != null) quizDuration(run!.ms!),
+              ].join(' · '),
+              style: const TextStyle(fontSize: 12),
+            ),
+            trailing: Icon(_open ? Icons.expand_less : Icons.expand_more),
+            onTap: () => setState(() => _open = !_open),
           ),
-          trailing: Icon(_open ? Icons.expand_less : Icons.expand_more),
-          onTap: () => setState(() => _open = !_open),
-        ),
-        if (_open)
-          ColoredBox(
-            color: const Color(0xFFF8F9FA),
-            child: RunAnswersList(answers: widget.answers, bank: widget.bank),
-          ),
-      ],
+          if (_open)
+            Container(
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF8E6),
+                border: Border(left: BorderSide(color: kQuizGold, width: 3)),
+              ),
+              child: RunAnswersList(answers: widget.answers, bank: widget.bank),
+            ),
+        ],
+      ),
     );
   }
 }

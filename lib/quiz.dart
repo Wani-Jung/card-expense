@@ -148,7 +148,7 @@ class QuizBank {
 /// 날짜 키 (기기 시간 기준 하루). 2026-10-29
 String quizDay(DateTime t) => '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
 
-/// 하루 1회 자동 출제 판정. 메뉴 > 설정 '매일 OX 퀴즈'(v1.20.1, 기본 꺼짐)가 켜져 있을 때만 뜬다.
+/// 하루 1회 자동 출제 판정. 안전 OX Quiz 화면 '매일 OX 퀴즈' 스위치(v1.20.1, 기본 꺼짐)가 켜져 있을 때만 뜬다.
 /// (v1.16 의 예전 스위치 `quiz_enabled_v1` 은 읽지 않는다)
 enum QuizDecision {
   show,
@@ -328,7 +328,7 @@ class QuizStore {
   static const _kCache = 'quiz_cache_v1';
   static const _kFetchedAt = 'quiz_fetched_at_v1';
 
-  /// 메뉴 > 설정 '매일 OX 퀴즈'. 기본 꺼짐 (새 키, 예전 값으로 켜지 않음)
+  /// 안전 OX Quiz 화면 '매일 OX 퀴즈' 스위치. 기본 꺼짐 (새 키, 예전 값으로 켜지 않음)
   bool get dailyOn => _p.getBool('quiz_daily_on_v1') ?? false;
   Future<void> setDailyOn(bool v) => _p.setBool('quiz_daily_on_v1', v);
 
@@ -426,7 +426,15 @@ class QuizStore {
   /// 점수가 남은 기록이 하나라도 있는지 ([틀린 문제만] 칩을 보일지)
   bool get hasScores => records.any((r) => r.correct != null);
 
-  /// 점수 기록 지우기 (되돌리기 없음). 내 답·정답 여부·챌린지 점수·시간(→ 정답률·최고 기록)을 지운다.
+  /// 지우기 직전 기록 (점수 기록 지우기 [되돌리기]용)
+  ({List<String>? log, List<String>? runs}) snapshotScores() =>
+      (log: _p.getStringList(_kLog), runs: _p.getStringList(_kRuns));
+  Future<void> restoreScores(({List<String>? log, List<String>? runs}) snap) async {
+    snap.log == null ? await _p.remove(_kLog) : await _p.setStringList(_kLog, snap.log!);
+    snap.runs == null ? await _p.remove(_kRuns) : await _p.setStringList(_kRuns, snap.runs!);
+  }
+
+  /// 점수 기록 지우기 (직후 [되돌리기]는 [snapshotScores]·[restoreScores]). 내 답·정답 여부·챌린지 점수·시간(→ 정답률·최고 기록)을 지운다.
   /// 푼 문제 id·날짜·출처·챌린지 회차, 연속 일수, 오늘 푼 문제 제외, 결과 카드 이름은 남는다.
   Future<void> clearScores() async {
     await _p.setStringList(_kLog, [

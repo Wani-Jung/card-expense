@@ -82,18 +82,17 @@ class QuizCategoryPicker extends StatelessWidget {
           ),
           Wrap(
             spacing: 6,
-            runSpacing: 2,
+            runSpacing: 6,
             children: [
               for (final c in g.categories)
                 Builder(
                   builder: (_) {
                     final k = '${g.name}|$c';
                     final on = selected.contains(k);
-                    return FilterChip(
-                      label: Text('$c ${counts[k] ?? 0}'),
+                    return QuizSelectChip(
+                      label: '$c ${counts[k] ?? 0}',
                       selected: on,
-                      visualDensity: VisualDensity.compact,
-                      onSelected: (v) => onChanged(v ? {...selected, k} : ({...selected}..remove(k))),
+                      onTap: () => onChanged(on ? ({...selected}..remove(k)) : {...selected, k}),
                     );
                   },
                 ),
@@ -104,4 +103,38 @@ class QuizCategoryPicker extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 선택 칩 (분야 칩·[전체]/[틀린 문제만] 필터 공용). 체크 표시 없이 색으로만 구분:
+/// 선택 = 네이비(O/X 버튼과 같은 색) 채움 + 흰 글자, 비선택 = 흰 바탕 + 연회색 테두리 + 회색 글자.
+/// 테두리 두께·글자 굵기·여백이 두 상태에서 같아 눌러도 칩 크기·줄바꿈이 바뀌지 않는다.
+class QuizSelectChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const QuizSelectChip({super.key, required this.label, required this.selected, required this.onTap});
+
+  static const borderOff = Color(0xFFDADCE0);
+  static const textOff = Color(0xFF5F6368);
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    child: Material(
+      color: selected ? kQuizNavy : Colors.white,
+      shape: StadiumBorder(side: BorderSide(color: selected ? kQuizNavy : borderOff)),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: selected ? Colors.white : textOff),
+          ),
+        ),
+      ),
+    ),
+  );
 }

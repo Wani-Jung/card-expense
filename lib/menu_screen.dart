@@ -27,10 +27,6 @@ class MenuScreen extends StatefulWidget {
   final Future<void> Function() onPermissions;
   final String Function() permSummary;
 
-  /// 설정 ('매일 OX 퀴즈' 스위치). 설명은 '매일 OX 퀴즈 켜짐/꺼짐'
-  final Future<void> Function() onAppSettings;
-  final String Function() appSettingsSummary;
-
   /// 안전 OX Quiz: 설명 "연속 N일 · 정답률 NN%", 누르면 안전 OX Quiz 화면
   final String Function() quizSummary;
   final Future<void> Function() onQuiz;
@@ -51,8 +47,6 @@ class MenuScreen extends StatefulWidget {
     required this.cardSummary,
     required this.onPermissions,
     required this.permSummary,
-    required this.onAppSettings,
-    required this.appSettingsSummary,
     required this.quizSummary,
     required this.onQuiz,
     required this.counts,
@@ -76,6 +70,21 @@ class _MenuScreenState extends State<MenuScreen> {
   late final Future<PackageInfo> _info = PackageInfo.fromPlatform();
 
   static const _subBg = Color(0xFFF8F9FA);
+
+  /// 개인정보처리방침: 바로 브라우저로 가지 않고 확인 먼저. [열기]만 링크 이동 (모든 판)
+  Future<void> _openPrivacy() async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: const Text('개인정보처리방침 페이지(GitHub)를 인터넷 브라우저로 엽니다.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('열기')),
+        ],
+      ),
+    );
+    if (go == true) await launchUrl(Uri.parse(kPrivacyUrl), mode: LaunchMode.externalApplication);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -192,20 +201,13 @@ class _MenuScreenState extends State<MenuScreen> {
           line,
           item(Icons.storefront, '등록 업체·추천 키워드', '가맹점 이름으로 차량비/운영비를 추천해요', openThen(w.onVendors)),
           line,
-          item(null, '안전 OX Quiz', w.quizSummary(), openThen(w.onQuiz), leading: const QuizIcon()),
-          line,
           item(Icons.credit_card, '카드 문자 설정', w.cardSummary(), openThen(w.onSettings)),
+          line,
+          item(null, '안전 OX Quiz', w.quizSummary(), openThen(w.onQuiz), leading: const QuizIcon()),
           line,
           item(Icons.shield_outlined, '권한 설정', w.permSummary(), openThen(w.onPermissions)),
           line,
-          item(Icons.tune, '설정', w.appSettingsSummary(), openThen(w.onAppSettings)),
-          line,
-          item(
-            Icons.privacy_tip_outlined,
-            '개인정보처리방침',
-            '문자·알림은 휴대폰 안에서만 처리해요',
-            () => launchUrl(Uri.parse(kPrivacyUrl), mode: LaunchMode.externalApplication),
-          ),
+          item(Icons.privacy_tip_outlined, '개인정보처리방침', '문자·알림은 휴대폰 안에서만 처리해요', _openPrivacy),
           line,
           FutureBuilder<PackageInfo>(
             future: _info,
