@@ -23,6 +23,73 @@ class _VendorScreenState extends State<VendorScreen> {
     await widget.onChanged();
   }
 
+  /// 섹션 [전체 삭제]: 확인 → 삭제 → 스낵바 5초 [되돌리기](전부 원상 복구)
+  Future<void> _deleteAll({required String what, required int count, required void Function() run}) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text('$what $count개를 모두 삭제할까요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD93025)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    // 되돌리기용 원래 상태
+    final keywords = List.of(_book.keywords);
+    final removed = {..._book.removedDefaults};
+    final learned = Map.of(_book.learned);
+    run();
+    await _changed();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text('$what를 모두 삭제했어요'),
+        duration: const Duration(seconds: 5),
+        persist: false,
+        action: SnackBarAction(
+          label: '되돌리기',
+          onPressed: () async {
+            _book.keywords
+              ..clear()
+              ..addAll(keywords);
+            _book.removedDefaults
+              ..clear()
+              ..addAll(removed);
+            _book.learned
+              ..clear()
+              ..addAll(learned);
+            await _changed();
+          },
+        ),
+      ));
+  }
+
+  Future<void> _restoreDefaults() async {
+    final n = _book.restoreDefaults();
+    await _changed();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(n == 0 ? '빠진 기본 키워드가 없어요' : '$n개를 다시 넣었어요')));
+  }
+
+  Widget _deleteAllButton(int count, VoidCallback onPressed) => TextButton(
+        style: TextButton.styleFrom(
+          foregroundColor: const Color(0xFFD93025),
+          visualDensity: VisualDensity.compact,
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        onPressed: count == 0 ? null : onPressed,
+        child: const Text('전체 삭제'),
+      );
+
   Future<void> _add() async {
     final ctrl = TextEditingController();
     var cat = kOps;
@@ -136,11 +203,16 @@ class _VendorScreenState extends State<VendorScreen> {
   Widget build(BuildContext context) {
     final keywords = _book.keywords;
     final learned = _book.learned.entries.toList()..sort((a, b) => a.value.name.compareTo(b.value.name));
-    Widget header(String title, String sub) => Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(sub, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+    Widget header(String title, String sub, {Widget? trailing}) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 8, 4),
+          child: Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(sub, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              ]),
+            ),
+            ?trailing,
           ]),
         );
 
@@ -160,7 +232,10 @@ class _VendorScreenState extends State<VendorScreen> {
             child: Text('추천 순서: 자동 등록 업체 > 직접 등록 키워드 > 기본 키워드',
                 style: TextStyle(fontSize: 12, color: Colors.black54)),
           ),
-          header('추천 키워드', '가맹점 이름에 키워드가 들어 있으면 그 분류를 추천해요'),
+          header('추천 키워드', '가맹점 이름에 키워드가 들어 있으면 그 분류를 추천해요',
+              trailing: _deleteAllButton(
+                  keywords.length,
+                  () => _deleteAll(what: '추천 키워드', count: keywords.length, run: _book.removeAllKeywords))),
           if (keywords.isEmpty)
             const ListTile(title: Text('등록된 키워드가 없어요', style: TextStyle(color: Colors.black45))),
           // 직접 등록 키워드 → 기본 키워드(차량비 / 운영비로 묶어서)
@@ -184,7 +259,22 @@ class _VendorScreenState extends State<VendorScreen> {
                     // 기본 키워드를 지우면 기억해서 업데이트 때 되살리지 않는다
                     onRemove: () => _book.removeKeyword(k)),
             ],
-          header('자동 등록된 업체', '분류할 때 고른 카테고리를 기억해요. 같은 가맹점이 또 오면 추천해요'),
+          // 추천 키워드 맨 아래: 지운 기본 키워드 다시 넣기
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: TextButton.icon(
+                icon: const Icon(Icons.restore, size: 18),
+                label: const Text('기본 키워드 다시 넣기'),
+                onPressed: _restoreDefaults,
+              ),
+            ),
+          ),
+          header('자동 등록된 업체', '분류할 때 고른 카테고리를 기억해요. 같은 가맹점이 또 오면 추천해요',
+              trailing: _deleteAllButton(
+                  learned.length,
+                  () => _deleteAll(what: '자동 등록 업체', count: learned.length, run: _book.learned.clear))),
           if (learned.isEmpty)
             const ListTile(title: Text('아직 없어요', style: TextStyle(color: Colors.black45))),
           for (final entry in learned)

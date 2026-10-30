@@ -33,7 +33,7 @@ void main() {
     for (var i = 0; i < tries; i++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pumpAndSettle();
-      if (find.textContaining('오늘의 안전 OX ·').evaluate().isNotEmpty) return;
+      if (find.text('오늘의 안전 OX').evaluate().isNotEmpty) return;
     }
   }
 
@@ -113,7 +113,7 @@ void main() {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    const titles = ['결제내역 입력', '내역 관리', '안전 OX', '등록 업체·추천 키워드', '카드 문자 설정', '권한 설정', '업데이트 확인'];
+    const titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '안전 OX Quiz', '카드 문자 설정', '권한 설정', '업데이트 확인'];
     for (final t in titles) {
       expect(find.text(t), findsOneWidget);
     }
@@ -232,10 +232,10 @@ void main() {
     });
     await pumpHome(tester);
     // 첫 프레임 직후에는 아직 없음
-    expect(find.textContaining('오늘의 안전 OX ·'), findsNothing);
+    expect(find.text('오늘의 안전 OX'), findsNothing);
     await tester.pump(const Duration(milliseconds: 350));
     await waitQuiz(tester);
-    expect(find.textContaining('오늘의 안전 OX ·'), findsOneWidget);
+    expect(find.text('오늘의 안전 OX'), findsOneWidget);
     expect(find.text('아래로 내리거나 ✕를 누르면 바로 닫혀요'), findsOneWidget);
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('quiz_last_day_v1'), quizDay(DateTime.now()));
@@ -253,13 +253,13 @@ void main() {
 
     await tester.tap(find.byTooltip('닫기'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('오늘의 안전 OX ·'), findsNothing);
+    expect(find.text('오늘의 안전 OX'), findsNothing);
 
     // 메뉴 '안전 OX' → 안전 OX 화면 → 한 문제 더 풀기 (오늘 푼 문제는 안 나옴)
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
     expect(find.textContaining('연속 1일 · 정답률 '), findsOneWidget);
-    await tester.tap(find.text('안전 OX'));
+    await tester.tap(find.text('안전 OX Quiz'));
     await tester.pumpAndSettle();
     expect(find.text('지난 문제 다시 보기'), findsOneWidget);
     expect(find.text('안전 OX 챌린지'), findsOneWidget);
@@ -309,7 +309,7 @@ void main() {
     await pumpHome(tester);
     await tester.pump(const Duration(milliseconds: 350));
     await waitQuiz(tester);
-    expect(find.textContaining('오늘의 안전 OX ·'), findsOneWidget);
+    expect(find.text('오늘의 안전 OX'), findsOneWidget);
     await tester.tap(find.byTooltip('닫기'));
     await tester.pumpAndSettle();
   });

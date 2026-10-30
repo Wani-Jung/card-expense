@@ -118,7 +118,12 @@ class ChallengeResultCard extends StatelessWidget {
                                   letterSpacing: 4,
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 2),
+                              Text(
+                                run.cats == null ? '분야: 전체' : '분야: ${run.cats}개 선택',
+                                style: const TextStyle(fontSize: 11, color: _grey),
+                              ),
+                              const SizedBox(height: 10),
                               Container(
                                 width: 132,
                                 height: 132,

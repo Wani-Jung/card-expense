@@ -8,11 +8,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// 오늘의 안전 OX. 문제 풀은 앱에 넣은 quiz/questions.json(기본값) + GitHub 원격본(버전이 높으면 기기에 캐시).
 /// 앱을 불편하게 만들지 않는 게 원칙: 첫 프레임 뒤에만 읽고, 원격은 백그라운드·하루 1회·3초·실패는 조용히.
+/// 파일 형식: version 2 = {version, updated, note, groups:[{name, categories}], questions:[{id, group, category, …}]}.
+/// version 1(그룹 없음)도 읽는다 (group·category 가 없으면 '기타'). 모르는 필드는 무시한다.
 const kQuizAsset = 'quiz/questions.json';
 const kQuizRemote = 'https://raw.githubusercontent.com/Wani-Jung/card-expense/main/quiz/questions.json';
 
+/// 그룹·분야가 없는 문항
+const kQuizOther = '기타';
+
 class QuizQuestion {
   final String id;
+
+  /// 그룹(예: '서류·절차')과 분야(예: '발주자 의무'). 없으면 '기타'
+  final String group;
   final String category;
   final String question;
 
@@ -23,6 +31,7 @@ class QuizQuestion {
   final bool active;
   const QuizQuestion({
     required this.id,
+    this.group = kQuizOther,
     required this.category,
     required this.question,
     required this.answer,
@@ -31,9 +40,16 @@ class QuizQuestion {
     this.active = true,
   });
 
+  /// 분야 선택 키 '그룹|분야'
+  String get catKey => '$group|$category';
+
+  /// 문제 카드 칩 '그룹 · 분야'
+  String get catLabel => group == kQuizOther && category == kQuizOther ? kQuizOther : '$group · $category';
+
   factory QuizQuestion.fromJson(Map<String, dynamic> j) => QuizQuestion(
     id: j['id'] as String,
-    category: j['category'] as String? ?? '',
+    group: _nonEmpty(j['group']) ?? kQuizOther,
+    category: _nonEmpty(j['category']) ?? kQuizOther,
     question: j['question'] as String,
     answer: j['answer'] as bool,
     explain: j['explain'] as String? ?? '',
@@ -42,27 +58,91 @@ class QuizQuestion {
   );
 }
 
+String? _nonEmpty(Object? v) => v is String && v.trim().isNotEmpty ? v.trim() : null;
+
+/// 그룹 하나 (표시 순서대로 분야 목록)
+typedef QuizGroup = ({String name, List<String> categories});
+
 class QuizBank {
   final int version;
   final String updated;
   final List<QuizQuestion> questions;
-  const QuizBank(this.version, this.updated, this.questions);
+  final List<QuizGroup> _groups;
+  const QuizBank(this.version, this.updated, this.questions, [this._groups = const []]);
 
   /// 출제 대상 (active=false 제외)
   List<QuizQuestion> get active => questions.where((q) => q.active).toList();
 
   QuizQuestion? byId(String id) => questions.where((q) => q.id == id).firstOrNull;
 
-  /// 형식이 틀리면 null (원격본이 깨져 있어도 앱은 내장본으로 계속)
+  /// 그룹·분야 (파일의 groups 순서, 거기 없는 그룹·분야는 문항에 나온 순서로 뒤에 붙임). 활성 문항이 있는 분야만.
+  List<QuizGroup> get groups {
+    final act = active;
+    final out = <String, List<String>>{};
+    for (final g in _groups) {
+      for (final c in g.categories) {
+        if (act.any((q) => q.group == g.name && q.category == c)) out.putIfAbsent(g.name, () => []).add(c);
+      }
+    }
+    for (final q in act) {
+      final cs = out.putIfAbsent(q.group, () => []);
+      if (!cs.contains(q.category)) cs.add(q.category);
+    }
+    return [for (final e in out.entries) (name: e.key, categories: e.value)];
+  }
+
+  /// 모든 분야 키 ('그룹|분야')
+  Set<String> get allCatKeys => {
+    for (final g in groups)
+      for (final c in g.categories) '${g.name}|$c',
+  };
+
+  /// 분야별 활성 문항 수
+  Map<String, int> get catCounts {
+    final m = <String, int>{};
+    for (final q in active) {
+      m[q.catKey] = (m[q.catKey] ?? 0) + 1;
+    }
+    return m;
+  }
+
+  /// 형식이 틀리거나 활성 문항이 0개면 null (원격본이 깨져 있어도 앱은 내장본으로 계속).
+  /// 문항 하나가 깨져 있으면 그 문항만 건너뛴다. 모르는 필드는 무시.
   static QuizBank? parse(String text) {
     try {
       final j = jsonDecode(text) as Map<String, dynamic>;
-      final qs = [for (final q in j['questions'] as List) QuizQuestion.fromJson(q as Map<String, dynamic>)];
-      return QuizBank((j['version'] as num).toInt(), j['updated'] as String? ?? '', qs);
+      final qs = <QuizQuestion>[];
+      final seen = <String>{};
+      for (final q in j['questions'] as List) {
+        try {
+          final x = QuizQuestion.fromJson(q as Map<String, dynamic>);
+          if (seen.add(x.id)) qs.add(x);
+        } catch (_) {}
+      }
+      final groups = <QuizGroup>[];
+      for (final g in (j['groups'] as List?) ?? const []) {
+        try {
+          final m = g as Map<String, dynamic>;
+          groups.add((
+            name: (m['name'] as String).trim(),
+            categories: [for (final c in m['categories'] as List) (c as String).trim()],
+          ));
+        } catch (_) {}
+      }
+      final bank = QuizBank((j['version'] as num).toInt(), j['updated'] as String? ?? '', qs, groups);
+      return bank.active.isEmpty ? null : bank;
     } catch (_) {
       return null;
     }
   }
+
+  /// [keys] ('그룹|분야') 에 든 문항만 (null 이면 전체)
+  QuizBank only(Set<String>? keys) => keys == null
+      ? this
+      : QuizBank(version, updated, [
+          for (final q in questions)
+            if (keys.contains(q.catKey)) q,
+        ], _groups);
 }
 
 /// 날짜 키 (기기 시간 기준 하루). 2026-10-29
@@ -143,18 +223,29 @@ class ChallengeRun {
   final int n;
   final int? correct;
   final int? ms; // 걸린 시간
-  const ChallengeRun({required this.id, required this.at, required this.n, required this.correct, required this.ms});
+
+  /// 고른 분야 수. null 이면 전체 (카드에 '분야: 전체' / '분야: N개 선택')
+  final int? cats;
+  const ChallengeRun({
+    required this.id,
+    required this.at,
+    required this.n,
+    required this.correct,
+    required this.ms,
+    this.cats,
+  });
 
   bool get scored => correct != null && ms != null;
   int get percent => n == 0 || correct == null ? 0 : (correct! * 100 / n).round();
 
-  Map<String, dynamic> toJson() => {'id': id, 'at': at, 'n': n, 'ok': ?correct, 'ms': ?ms};
+  Map<String, dynamic> toJson() => {'id': id, 'at': at, 'n': n, 'ok': ?correct, 'ms': ?ms, 'cats': ?cats};
   factory ChallengeRun.fromJson(Map<String, dynamic> j) => ChallengeRun(
     id: j['id'] as String,
     at: (j['at'] as num).toInt(),
     n: (j['n'] as num).toInt(),
     correct: (j['ok'] as num?)?.toInt(),
     ms: (j['ms'] as num?)?.toInt(),
+    cats: (j['cats'] as num?)?.toInt(),
   );
 }
 
@@ -169,7 +260,17 @@ class ChallengeRun {
 }
 
 /// 챌린지 문항 수 선택지
-const kChallengeSizes = [20, 30, 50];
+const kChallengeSizes = [10, 20, 30, 50];
+
+/// 챌린지 문항 수 기본값 (마지막 선택이 없으면)
+const kChallengeDefaultSize = 20;
+
+/// 고른 문항 수 [n] 을 [count](선택 분야 문항 수) 에 맞춘다: 가능하면 그대로, 아니면 가능한 최대값, 하나도 안 되면 null
+int? fitChallengeSize(int n, int count) {
+  if (challengeSizeEnabled(n, count)) return n;
+  final ok = kChallengeSizes.where((s) => challengeSizeEnabled(s, count)).toList();
+  return ok.isEmpty ? null : ok.last;
+}
 
 /// 활성 문항 수보다 큰 문항 수는 고를 수 없다
 bool challengeSizeEnabled(int n, int activeCount) => n <= activeCount;
@@ -231,10 +332,17 @@ class QuizStore {
   /// 새로 생긴 활성 문항은 남은 순서 안 아무 데나 섞어 넣고, 빠진(비활성·삭제) 문항은 순서에서 뺀다.
   /// [exclude] (오늘 이미 푼 문제)는 건너뛴다. 남은 순서가 전부 제외 대상이면 새 바퀴를 섞고,
   /// 활성 문항이 전부 제외 대상이면 null (오늘 준비된 문제 소진).
-  Future<QuizQuestion?> next(QuizBank bank, {Set<String> exclude = const {}, Random? random}) async {
+  /// [where] (분야 선택 등)을 주면 그 조건에 맞는 문제만 낸다. 셔플백 순서 자체는 전체 문항 기준으로 유지한다.
+  Future<QuizQuestion?> next(
+    QuizBank bank, {
+    Set<String> exclude = const {},
+    bool Function(QuizQuestion q)? where,
+    Random? random,
+  }) async {
     final rnd = random ?? Random();
     final active = {for (final q in bank.active) q.id: q};
-    if (active.keys.every(exclude.contains)) return null;
+    bool ok(String id) => !exclude.contains(id) && (where == null || where(active[id]!));
+    if (!active.keys.any(ok)) return null;
     var bag = (_p.getStringList(_kBag) ?? const []).where(active.containsKey).toList();
     final known = (_p.getStringList(_kKnown) ?? const []).toSet();
     final fresh = active.keys.where((id) => !known.contains(id)).toList()..shuffle(rnd);
@@ -242,14 +350,14 @@ class QuizStore {
       bag.insert(rnd.nextInt(bag.length + 1), id);
     }
     known.addAll(fresh);
-    if (!bag.any((id) => !exclude.contains(id))) {
+    if (!bag.any(ok)) {
       // 한 바퀴 끝(또는 남은 게 다 오늘 푼 문제): 전체를 다시 섞는다
       bag = active.keys.toList()..shuffle(rnd);
       known
         ..clear()
         ..addAll(active.keys);
     }
-    final id = bag.firstWhere((id) => !exclude.contains(id));
+    final id = bag.firstWhere(ok);
     bag.remove(id);
     await _p.setStringList(_kBag, bag);
     await _p.setStringList(_kKnown, known.toList());
@@ -316,9 +424,20 @@ class QuizStore {
         jsonEncode(QuizRecord(r.day, r.id, null, null, src: r.src, run: r.run, at: r.at).toJson()),
     ]);
     await _p.setStringList(_kRuns, [
-      for (final r in runs) jsonEncode(ChallengeRun(id: r.id, at: r.at, n: r.n, correct: null, ms: null).toJson()),
+      for (final r in runs)
+        jsonEncode(ChallengeRun(id: r.id, at: r.at, n: r.n, correct: null, ms: null, cats: r.cats).toJson()),
     ]);
   }
+
+  /// 분야 선택 ('그룹|분야' 목록). [practice] 면 '한 문제 더 풀기', 아니면 챌린지 (따로 저장). 저장값이 없으면 null = 전체 선택
+  Set<String>? cats({required bool practice}) =>
+      _p.getStringList(practice ? 'quiz_cats_practice_v1' : 'quiz_cats_challenge_v1')?.toSet();
+  Future<void> setCats(Set<String> keys, {required bool practice}) =>
+      _p.setStringList(practice ? 'quiz_cats_practice_v1' : 'quiz_cats_challenge_v1', keys.toList());
+
+  /// 챌린지 문항 수 마지막 선택 (없으면 20)
+  int get challengeSize => _p.getInt('quiz_challenge_size_v1') ?? kChallengeDefaultSize;
+  Future<void> setChallengeSize(int n) => _p.setInt('quiz_challenge_size_v1', n);
 
   /// 결과 카드에 넣는 이름 (선택). 한 번도 안 물었으면 null, 비워 두기로 했으면 ''
   String? get name => _p.getString(_kName);
@@ -338,9 +457,9 @@ class QuizStore {
 
   String? get cached => _p.getString(_kCache);
 
-  /// 앱에 넣은 기본본과 기기 캐시(원격에서 받은 것) 중 버전이 높은 쪽
+  /// 앱에 넣은 기본본과 기기 캐시(원격에서 받은 것) 중 버전이 높은 쪽. 캐시가 깨졌거나 활성 문항이 없으면 기본본.
   static QuizBank pick(QuizBank builtIn, QuizBank? cache) =>
-      cache != null && cache.version > builtIn.version ? cache : builtIn;
+      cache != null && cache.active.isNotEmpty && cache.version > builtIn.version ? cache : builtIn;
 
   /// 지금 쓸 문제 풀. 화면 쪽에서 한 번 읽고 들고 있으므로 asset 캐시는 쓰지 않는다.
   Future<QuizBank> load({Future<String> Function()? readAsset}) async {

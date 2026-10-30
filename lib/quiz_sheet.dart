@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'quiz.dart';
+import 'quiz_category_picker.dart';
 
 const _gold = Color(0xFFF0A500);
 const _navy = Color(0xFF1F3A68);
@@ -33,7 +34,7 @@ Widget quizOxButton(bool value, {required bool picked, required bool answered, V
 );
 
 /// 골드 큰 버튼 ([확인], [다음 문제] 등)
-Widget quizGoldButton(String label, VoidCallback onPressed) => FilledButton(
+Widget quizGoldButton(String label, VoidCallback? onPressed) => FilledButton(
   style: FilledButton.styleFrom(
     backgroundColor: _gold,
     foregroundColor: const Color(0xFF3E2700),
@@ -156,7 +157,7 @@ class _QuizSheetState extends State<QuizSheet> {
             children: [
               Expanded(
                 child: Text(
-                  '${widget.label}${q.category.isEmpty ? '' : ' · ${q.category}'}',
+                  widget.label,
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _gold),
                 ),
               ),
@@ -178,6 +179,8 @@ class _QuizSheetState extends State<QuizSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const SizedBox(height: 4),
+                QuizCategoryChip(q),
                 const SizedBox(height: 8),
                 Text(q.question, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, height: 1.4)),
                 const SizedBox(height: 20),

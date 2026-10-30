@@ -51,6 +51,8 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 요약표 색: 행 제목 차량비 초록·운영비 노랑(버튼과 같은 색), 잔여 열 네이비(#1F3A68)/블루그레이 배경, 주의는 잔여 숫자만 빨강(#D93025), 초과는 빨간 칸+흰 글씨, 사용 칸은 초과일 때만 빨간 글씨. 표 안에 골드·주황 쓰지 않음
 - 스크롤 화면은 edge-to-edge 라 목록 끝 패딩 = `listBottomPad(context)` (`lib/layout.dart`: max(viewPadding.bottom, 48) + 24). 새 스크롤 화면도 반드시 적용
 - 메인 월 이동: 월 진행 표시줄(`_MonthStrip`, 1~12 터치 이동) + ◀ 제목 ▶ (화살표 좌우 끝 고정 48×48, 제목은 FittedBox). 요약표 좌우 스와이프(`_SwipeArea`, 60px 이상 또는 플릭, 가로 > 세로×2) = ◀ ▶, 전환은 `_SlideSwitcher` 200ms 슬라이드
+- 메인 틀고정: 월 진행 표시줄·◀ ▶·요약표는 고정, 1px 구분선 아래(권한 배너·분류 대기·확인 필요 줄·내역)만 세로 스크롤. 고정 영역이 화면 절반을 넘으면 전체 스크롤(`_checkFreeze`). 요약표는 가로 드래그 인식기로 먼저 잡아 스와이프 중 세로 흔들림 없음
+- 내역 편집 시트에는 [삭제]가 없다 ([무시] 사용). 업체 관리는 섹션별 [전체 삭제](+되돌리기)와 [기본 키워드 다시 넣기]
 - `android/.../CardSms.kt` — 알림 리스너·SMS 리시버 공용 처리: 판정, 중복 방지(금액+일시+취소 키), 네이티브 inbox 적재 (알림은 띄우지 않음)
 - `CardNotificationListener.kt` — 메시지 앱 알림 감지(두 판 공통). 알림 제목 발신번호 또는 본문 카드번호로 판정
 - 지난 문자: 두 판 모두 메시지 앱 공유(ACTION_SEND/SEND_MULTIPLE → `takeShared`)·붙여넣기. 전용판은 추가로 SMS+MMS 1년치 조회(MMS date 는 초 단위, 발신번호는 addr type=137, 본문은 part ct=text/plain)
@@ -66,7 +68,7 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 연속 일수 = 오늘의 문제를 푼 날이 이어진 일수 (오늘 아직이면 어제까지)
 - 메뉴 '업데이트 확인'은 메뉴를 닫지 않음(항목 오른쪽 로딩, 결과는 메뉴 위). 메뉴 맨 아래 크레딧 'Made by wani'(가운데, 12, #9AA0A6, 누르는 반응 없음)
 
-테스트: `test/quiz_test.dart`(하루 1회·날짜 경계·셔플백·새 문항·active=false·원격 실패/캐시·연속 일수·오늘 푼 문제 제외·챌린지 최고 기록), `test/quiz_screens_test.dart`(챌린지 진행·결과·그만두기, 지난 문제, 한 문제 더), `test/check_test.dart`(확인 필요 규칙 a~e, 중복 쌍 기억), `test/cancel_test.dart`(승인취소 묶음·바로잡기), `test/ignore_vendor_test.dart`(무시 사유·무시한 내역 화면·업체 관리 목록), `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
+테스트: `test/req39_test.dart`(퀴즈 v2·분야 선택·틀고정·업체 전체 삭제·메뉴 QUIZ 아이콘), `test/quiz_test.dart`(하루 1회·날짜 경계·셔플백·새 문항·active=false·원격 실패/캐시·연속 일수·오늘 푼 문제 제외·챌린지 최고 기록), `test/quiz_screens_test.dart`(챌린지 진행·결과·그만두기, 지난 문제, 한 문제 더), `test/check_test.dart`(확인 필요 규칙 a~e, 중복 쌍 기억), `test/cancel_test.dart`(승인취소 묶음·바로잡기), `test/ignore_vendor_test.dart`(무시 사유·무시한 내역 화면·업체 관리 목록), `test/home_screen_test.dart`(메인 화면 그리기·넘김 위젯 테스트), `test/sms_parser_test.dart`, `test/budget_update_test.dart`, `test/ingest_ocr_test.dart`, `test/vendor_test.dart`
 
 ## 빌드 / 배포
 - `flutter test`, `flutter build apk --release --flavor public` / `--flavor full`
@@ -76,14 +78,23 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 새 버전 배포: `pubspec.yaml` version 올리고 main push + `git tag vX.Y.Z && git push origin vX.Y.Z`
 - 앱이 `releases/latest` 로 업데이트를 확인하므로 저장소는 public 이어야 한다. 실제 카드번호를 코드·문서·커밋에 넣지 말 것 (예시는 0000).
 
-## 퀴즈 문제 관리 (오늘의 안전 OX)
-- 원본: `quiz/questions_source.xlsx` '퀴즈' 시트 (번호, 분야, 문제, 정답 O/X, 해설(팝업용), 근거, 신뢰도, 채택(O/X), 수정 메모). 공개 파일이라 개인정보를 넣지 말 것
-- 1) xlsx 에서 '채택(O/X)'을 고르고 문제·해설을 고친다
+## 퀴즈 문제 관리 (안전 OX Quiz)
+- 파일 형식 version 2: `{version, updated, note, groups:[{name, categories}], questions:[{id, group, category, question, answer, explain, basis, active}]}`.
+  앱은 version 1(그룹·분야 없음 → '기타')도 읽고 모르는 필드는 무시한다. 원격본이 깨졌거나 활성 문항이 0개면 번들 사본을 쓴다
+- 원본(공개 파일, 개인정보 넣지 말 것): `quiz/source_2차_현장안전기준.xlsx`(그룹 '현장 안전기준', id w…), `quiz/source_3차_서류절차.xlsx`(그룹 '서류·절차', id d…).
+  '안내'를 뺀 시트 하나 = 분야 하나(시트 순서 = 표시 순서). 열: 번호, 문제, 정답(O/X), 해설(팝업용), 근거, 법령 원문(대조 구절), 채택(O/X), 수정 메모
+- 1) xlsx 에서 '채택(O/X)'을 고르고 문제·해설을 고친다 (채택=X 면 출제 제외)
 - 2) `python tools/quiz_export.py` → `quiz/questions.json` 재생성 (openpyxl 필요)
-  - active: 채택=O → 출제, 채택=X → 제외, 채택이 비어 있으면 신뢰도='확인 권장'만 제외
+  - id 는 기존 json 에서 같은 문제 문장의 id 를 그대로 쓴다(풀이 기록이 id 로 남음). 새 문제·문장이 바뀐 문제만 다음 번호
   - 문항이 바뀌었으면 version 을 자동으로 +1, updated 는 오늘. 안 바뀌었으면 파일 그대로
 - 3) xlsx + json 커밋 → main 에 푸시. 앱 재배포 없이 앱이 원격본(버전이 높으면)을 받아 캐시하고 다음 날부터 반영 (확인은 하루 1회라 최대 하루 늦을 수 있음)
-- 앱 빌드 때는 그 시점의 `quiz/questions.json` 이 assets 로 들어가 기본값이 된다
+- 앱 빌드 때는 그 시점의 `quiz/questions.json` 이 assets 로 들어가 기본값(번들 사본)이 된다
+
+## 버전 규칙 (고정)
+- 1.x(깃허브판)는 지금처럼 버전만 올리면 된다. 자리 구분은 신경 쓰지 않는다.
+- 스토어 등록 최종본은 v2.0.0. 2.x 부터 엄격 적용: 새 기능 덩어리(예: OX 퀴즈 처음 추가)는 Y(마이너), 그 밖의 화면 다듬기·버튼·문구·버그 수정·퀴즈 파일 변경은 Z(패치). 어느 쪽인지는 REQ 끝에 명시된다.
+- versionCode 는 지금처럼 GitHub Actions `run_number` 를 쓰고 절대 줄이지 않는다 (스토어와 기존 설치 앱의 덮어쓰기 업데이트 모두 versionCode 가 더 커야 함).
+- 버전을 낮추거나 1.0.0 으로 되돌리지 않는다 (앱 안 업데이트 확인이 v 태그를 숫자로 비교하므로 낮은 버전은 업데이트로 인식되지 않음).
 
 ## 설치 방식 (고정)
 - 폰 설치는 항상 GitHub Release 링크로만 한다. adb/USB 설치는 제안하지도 말 것.

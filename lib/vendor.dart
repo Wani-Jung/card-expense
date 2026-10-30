@@ -219,6 +219,28 @@ class VendorBook {
     if (k.isDefault) removedDefaults.add(keywordKey(k.keyword));
   }
 
+  /// 추천 키워드 전체 삭제 (기본 + 직접 등록). 기본 키워드는 지운 것으로 기억 (업데이트 때 안 되살아나게)
+  void removeAllKeywords() {
+    for (final k in List.of(keywords)) {
+      removeKeyword(k);
+    }
+  }
+
+  /// [기본 키워드 다시 넣기]: 지금 목록에 없는 기본 키워드를 다시 넣고 지운 목록에서 뺀다. 이미 있으면 건너뜀. 넣은 개수.
+  int restoreDefaults() {
+    final have = {for (final k in keywords) keywordKey(k.keyword)};
+    var n = 0;
+    for (final r in defaultKeywordRules()) {
+      final kk = keywordKey(r.keyword);
+      removedDefaults.remove(kk);
+      if (have.add(kk)) {
+        keywords.add(r);
+        n++;
+      }
+    }
+    return n;
+  }
+
   /// 우선순위: 자동 등록 업체(가맹점 이름 일치) > 직접 등록 키워드 > 기본 키워드.
   /// 같은 단계 안에서는 긴 키워드가 먼저 ('오일뱅크' 가 '오일' 보다 먼저).
   Recommendation? recommend(String merchant) {

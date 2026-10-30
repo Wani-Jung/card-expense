@@ -25,7 +25,7 @@ class MenuScreen extends StatefulWidget {
   final Future<void> Function() onPermissions;
   final String Function() permSummary;
 
-  /// 안전 OX: 설명 "연속 N일 · 정답률 NN%", 누르면 안전 OX 화면
+  /// 안전 OX Quiz: 설명 "연속 N일 · 정답률 NN%", 누르면 안전 OX Quiz 화면
   final String Function() quizSummary;
   final Future<void> Function() onQuiz;
 
@@ -109,10 +109,11 @@ class _MenuScreenState extends State<MenuScreen> {
       ),
     );
 
-    Widget item(IconData icon, String title, String subtitle, VoidCallback? onTap, {Widget? trailing}) => ListTile(
+    Widget item(IconData? icon, String title, String subtitle, VoidCallback? onTap, {Widget? trailing, Widget? leading}) =>
+        ListTile(
       dense: true,
       visualDensity: const VisualDensity(vertical: -1),
-      leading: Icon(icon),
+      leading: leading ?? Icon(icon),
       title: Text(title, style: const TextStyle(fontSize: 16)),
       subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
       trailing: trailing,
@@ -181,9 +182,9 @@ class _MenuScreenState extends State<MenuScreen> {
             sub(Icons.task_alt, '확인한 내역', openThen(w.onConfirmed), trailing: badge(c.confirmed)),
           ],
           line,
-          item(Icons.quiz_outlined, '안전 OX', w.quizSummary(), openThen(w.onQuiz)),
-          line,
           item(Icons.storefront, '등록 업체·추천 키워드', '가맹점 이름으로 차량비/운영비를 추천해요', openThen(w.onVendors)),
+          line,
+          item(null, '안전 OX Quiz', w.quizSummary(), openThen(w.onQuiz), leading: const QuizIcon()),
           line,
           item(Icons.credit_card, '카드 문자 설정', w.cardSummary(), openThen(w.onSettings)),
           line,
@@ -210,4 +211,57 @@ class _MenuScreenState extends State<MenuScreen> {
       ),
     );
   }
+}
+
+/// 메뉴 '안전 OX Quiz' 아이콘: 다른 메뉴 아이콘과 같은 24dp·같은 색, 둥근 사각 테두리 안에 굵은 'QUIZ'.
+/// 외부 폰트·이미지 없이 직접 그린다 (글자는 칸에 맞게 자동 크기).
+class QuizIcon extends StatelessWidget {
+  final double size;
+  const QuizIcon({super.key, this.size = 24});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = IconTheme.of(context).color ?? ListTileTheme.of(context).iconColor ?? const Color(0xFF5F6368);
+    return SizedBox.square(
+      dimension: size,
+      child: CustomPaint(painter: _QuizIconPainter(color)),
+    );
+  }
+}
+
+class _QuizIconPainter extends CustomPainter {
+  final Color color;
+  _QuizIconPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.shortestSide;
+    final stroke = s * 0.085;
+    final rect = Rect.fromLTWH(stroke / 2 + s * 0.04, s * 0.2, s - stroke - s * 0.08, s * 0.6);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, Radius.circular(s * 0.14)),
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke,
+    );
+    // 'QUIZ' 를 테두리 안쪽 폭에 맞춰 자동 크기
+    final inner = rect.deflate(stroke * 1.1);
+    var fontSize = inner.height;
+    TextPainter tp;
+    do {
+      tp = TextPainter(
+        text: TextSpan(
+          text: 'QUIZ',
+          style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w900, color: color, height: 1, letterSpacing: 0),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      fontSize -= 0.25;
+    } while ((tp.width > inner.width || tp.height > inner.height) && fontSize > 2);
+    tp.paint(canvas, Offset(inner.center.dx - tp.width / 2, inner.center.dy - tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(_QuizIconPainter old) => old.color != color;
 }

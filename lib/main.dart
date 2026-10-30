@@ -269,6 +269,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   PeriodView _view = PeriodView(DateTime.now()); // 지금 보는 달 (홀짝·짝홀이면 두 달 합산 단계도)
   DateTime get _month => _view.month;
 
+  /// 틀고정 영역(월 진행 표시줄·◀ ▶·요약표). 높이가 화면의 절반을 넘으면 고정을 푼다.
+  final _fixedKey = GlobalKey();
+  bool _freeze = true;
+
+  /// 그린 뒤 고정 영역 높이를 재서, 화면([maxHeight])의 절반을 넘으면 전체 스크롤로 (바뀔 때만 다시 그림)
+  void _checkFreeze(double maxHeight) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final h = _fixedKey.currentContext?.size?.height;
+      if (!mounted || h == null || !maxHeight.isFinite) return;
+      final freeze = h <= maxHeight / 2;
+      if (freeze != _freeze) setState(() => _freeze = freeze);
+    });
+  }
+
   /// 요약표 전환 방향 (1: 다음 ▶·왼쪽으로 밀기, -1: 이전 ◀·오른쪽으로 밀기, 0: 모드 변경·달 선택)
   int _slideDir = 0;
 
@@ -694,11 +708,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _reviveOffset(List<Expense> group) => _reviveToPending(group,
       okKeys: ['${CheckRule.cancelled.name}|${group.map((g) => g.id).join('+')}']);
 
-  Future<void> _delete(Expense e) async {
-    setState(() => _items.remove(e));
-    await widget.store.saveItems(_items);
-  }
-
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -1046,97 +1055,125 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           IconButton(icon: const Icon(Icons.settings_outlined), tooltip: '메뉴', onPressed: _openMenu),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _onResume,
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(12, 8, 12, listBottomPad(context)),
-          children: [
-            if (_needListener || _needSms) _PermissionBanner(listener: _needListener, sms: _needSms),
-            if (pending.isNotEmpty) ...[
-              _SectionTitle('분류 대기 ${pending.length}건'),
-              for (final e in pending)
-                _PendingCard(
-                  e: e,
-                  rec: _vendors.recommend(e.merchant),
-                  onCar: () => _classify(e, kCar, askBulk: true),
-                  onOps: () => _classify(e, kOps, askBulk: true),
-                  onIgnore: () => _classify(e, kIgnored),
-                ),
-              const SizedBox(height: 12),
-            ],
-            if (showCheck)
-              _CheckBanner(
-                count: issues.length,
-                onOpen: _openCheck,
-                onClose: () async {
-                  await widget.store.setCheckBannerClosed(issues.map((i) => i.key));
-                  setState(() {});
-                },
+      // 틀고정: 위쪽(월 진행 표시줄·◀ ▶·요약표)은 고정, 그 아래(안내·분류 대기·내역)만 세로 스크롤.
+      // 화면이 낮아 고정 영역이 절반을 넘으면 고정을 풀고 전체를 한 번에 스크롤한다 (잘림 방지).
+      body: LayoutBuilder(builder: (context, box) {
+        _checkFreeze(box.maxHeight);
+        final fixed = KeyedSubtree(
+          key: _fixedKey,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+              _MonthStrip(
+                year: _month.year,
+                selected: months,
+                pair: _period == PeriodMode.single ? const [] : periodMonths(_month, _period),
+                // 숫자를 누르면 그 달의 월 화면으로
+                onPick: (m) => setState(() {
+                  _slideDir = 0;
+                  _view = PeriodView(DateTime(_month.year, m));
+                }),
               ),
-            _MonthStrip(
-              year: _month.year,
-              selected: months,
-              pair: _period == PeriodMode.single ? const [] : periodMonths(_month, _period),
-              // 숫자를 누르면 그 달의 월 화면으로
-              onPick: (m) => setState(() {
-                _slideDir = 0;
-                _view = PeriodView(DateTime(_month.year, m));
-              }),
-            ),
-            _MonthHeader(
-              title: _view.title(_period),
-              onPrev: () => _step(-1),
-              onNext: () => _step(1),
-            ),
-            // 표를 왼쪽으로 밀면 ▶, 오른쪽으로 밀면 ◀ 와 같다. 수립 칸 터치·보기 선택은 그대로
-            _SwipeArea(
-              onSwipe: _step,
-              child: _SlideSwitcher(
-                dir: _slideDir,
-                childKey: '${_period.name}|${_view.title(_period)}',
-                child: _BudgetTable(
-              budget: period.budget,
-              usage: period.usage,
-              mode: _period,
-              modeLabel: periodModeShort(_period),
-              // 모드를 바꾸면 보고 있던 달의 월 화면부터
-              onMode: (m) => setState(() {
-                _slideDir = 0;
-                _period = m;
-                _view = PeriodView(_view.month);
-              }),
-              // 수립은 각 달 화면에서만 입력 (합산 화면은 연필도 숨김)
-              onEditTotal: combined
-                  ? null
-                  : () => _editBudget(
-                      '합계', _budgets.forMonth(_month).total, (w) => _budgets.setTotal(_month, w)),
-              onEditCar: combined
-                  ? null
-                  : () => _editBudget(
-                      '차량비', _budgets.forMonth(_month).car, (w) => _budgets.setCar(_month, w)),
+              _MonthHeader(
+                title: _view.title(_period),
+                onPrev: () => _step(-1),
+                onNext: () => _step(1),
+              ),
+              // 표를 왼쪽으로 밀면 ▶, 오른쪽으로 밀면 ◀ 와 같다. 수립 칸 터치·보기 선택은 그대로
+              _SwipeArea(
+                onSwipe: _step,
+                child: _SlideSwitcher(
+                  dir: _slideDir,
+                  childKey: '${_period.name}|${_view.title(_period)}',
+                  child: _BudgetTable(
+                budget: period.budget,
+                usage: period.usage,
+                mode: _period,
+                modeLabel: periodModeShort(_period),
+                // 모드를 바꾸면 보고 있던 달의 월 화면부터
+                onMode: (m) => setState(() {
+                  _slideDir = 0;
+                  _period = m;
+                  _view = PeriodView(_view.month);
+                }),
+                // 수립은 각 달 화면에서만 입력 (합산 화면은 연필도 숨김)
+                onEditTotal: combined
+                    ? null
+                    : () => _editBudget(
+                        '합계', _budgets.forMonth(_month).total, (w) => _budgets.setTotal(_month, w)),
+                onEditCar: combined
+                    ? null
+                    : () => _editBudget(
+                        '차량비', _budgets.forMonth(_month).car, (w) => _budgets.setCar(_month, w)),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            if (monthItems.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(32),
-                child: Center(
-                    child: Text(combined ? '이 기간 분류된 내역이 없어요' : '이 달 분류된 내역이 없어요',
-                        style: const TextStyle(color: Colors.black45))),
+          ]),
+        );
+        const line = Divider(height: 1, thickness: 1);
+        final below = <Widget>[
+          if (_needListener || _needSms) _PermissionBanner(listener: _needListener, sms: _needSms),
+          if (pending.isNotEmpty) ...[
+            _SectionTitle('분류 대기 ${pending.length}건'),
+            for (final e in pending)
+              _PendingCard(
+                e: e,
+                rec: _vendors.recommend(e.merchant),
+                onCar: () => _classify(e, kCar, askBulk: true),
+                onOps: () => _classify(e, kOps, askBulk: true),
+                onIgnore: () => _classify(e, kIgnored),
               ),
-            for (final (i, e) in monthItems.indexed) ...[
-              // 합산 화면: 달이 바뀌는 지점에 작은 구분선
-              if (combined && (i == 0 || monthItems[i - 1].dateTime.month != e.dateTime.month))
-                _MonthDivider(e.dateTime.month),
-              _ExpenseTile(e: e, onTap: () => _editSheet(e)),
-            ],
+            const SizedBox(height: 12),
           ],
-        ),
-      ),
+          if (showCheck)
+            _CheckBanner(
+              count: issues.length,
+              onOpen: _openCheck,
+              onClose: () async {
+                await widget.store.setCheckBannerClosed(issues.map((i) => i.key));
+                setState(() {});
+              },
+            ),
+          if (monthItems.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                  child: Text(combined ? '이 기간 분류된 내역이 없어요' : '이 달 분류된 내역이 없어요',
+                      style: const TextStyle(color: Colors.black45))),
+            ),
+          for (final (i, e) in monthItems.indexed) ...[
+            // 합산 화면: 달이 바뀌는 지점에 작은 구분선
+            if (combined && (i == 0 || monthItems[i - 1].dateTime.month != e.dateTime.month))
+              _MonthDivider(e.dateTime.month),
+            _ExpenseTile(e: e, onTap: () => _editSheet(e)),
+          ],
+        ];
+        if (!_freeze) {
+          return RefreshIndicator(
+            onRefresh: _onResume,
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, listBottomPad(context)),
+              children: [fixed, const SizedBox(height: 6), line, const SizedBox(height: 8), ...below],
+            ),
+          );
+        }
+        return Column(children: [
+          Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 6), child: fixed),
+          line,
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _onResume,
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(12, 8, 12, listBottomPad(context)),
+                children: below,
+              ),
+            ),
+          ),
+        ]);
+      }),
     );
   }
 
+  /// 내역 편집 시트: [차량비] [운영비], [미분류로 되돌리기] [무시]. [삭제]는 두지 않는다 (v1.20 —
+  /// 되돌릴 수 없고, 승인취소 묶음 한쪽만 지우면 묶음이 꼬이고, 지운 문자를 다시 불러오면 새 내역으로 들어오므로 [무시]를 쓴다)
   Future<void> _editSheet(Expense e) async {
     await showModalBottomSheet(
       context: context,
@@ -1204,26 +1241,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ]),
-              TextButton.icon(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                label: const Text('삭제', style: TextStyle(color: Colors.red)),
-                onPressed: () async {
-                  final ok = await showDialog<bool>(
-                    context: ctx,
-                    builder: (d) => AlertDialog(
-                      title: const Text('이 내역을 삭제할까요?'),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('취소')),
-                        TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('삭제')),
-                      ],
-                    ),
-                  );
-                  if (ok == true && ctx.mounted) {
-                    Navigator.pop(ctx);
-                    _delete(e);
-                  }
-                },
-              ),
             ],
           ),
         ),
@@ -1496,7 +1513,17 @@ class _SwipeAreaState extends State<_SwipeArea> {
   }
 
   @override
-  Widget build(BuildContext context) => Listener(
+  // 가로 드래그 인식기를 제스처 경쟁에 넣어, 가로로 먼저 움직이면 바깥 세로 스크롤이 같이 흔들리지 않게 한다.
+  // 넘김 판단은 아래 Listener (가로 > 세로×2, 60px 또는 플릭) 그대로.
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: (_) {},
+        onHorizontalDragUpdate: (_) {},
+        onHorizontalDragEnd: (_) {},
+        child: _listener(),
+      );
+
+  Widget _listener() => Listener(
         behavior: HitTestBehavior.translucent,
         onPointerDown: (e) {
           if (_pointer != null) return;
