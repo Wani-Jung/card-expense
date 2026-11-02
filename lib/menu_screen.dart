@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'flavor.dart';
 import 'layout.dart';
+import 'native.dart';
 
 /// 우측 상단 톱니 → 메뉴 화면. 섹션 제목 없이 한 목록, 항목 사이엔 얇은 구분선만.
 /// '결제내역 입력'·'내역 관리'는 그 자리에서 펼친다 (펼침 항목은 한 번에 하나만). 접힌 상태는 스크롤 없이 한 화면에.
@@ -35,6 +36,10 @@ class MenuScreen extends StatefulWidget {
   final ({int pending, int check, int ignored, int confirmed}) Function() counts;
   final Future<void> Function() onUnclassified, onCheck, onIgnored, onConfirmed;
 
+  /// 내역 관리 펼침 맨 아래 '미분류 알림 받기'. [remindBlocked] = 시스템 알림이 꺼져서 OFF 인 상태 (안내 한 줄)
+  final bool Function() remindOn, remindBlocked;
+  final Future<void> Function(bool on) onRemind;
+
   const MenuScreen({
     super.key,
     required this.onImport,
@@ -54,6 +59,9 @@ class MenuScreen extends StatefulWidget {
     required this.onCheck,
     required this.onIgnored,
     required this.onConfirmed,
+    required this.remindOn,
+    required this.remindBlocked,
+    required this.onRemind,
   });
 
   @override
@@ -137,7 +145,7 @@ class _MenuScreenState extends State<MenuScreen> {
       onTap: onTap,
     );
     // 펼친 하위 항목: 들여쓰기 + 약간 작은 글씨 + 아주 연한 회색 배경
-    Widget sub(IconData icon, String title, VoidCallback? onTap, {Widget? trailing}) => ListTile(
+    Widget sub(IconData icon, String title, VoidCallback? onTap, {Widget? trailing, bool onSurface = false}) => ListTile(
       tileColor: _subBg,
       dense: true,
       visualDensity: const VisualDensity(vertical: -2),
@@ -145,7 +153,7 @@ class _MenuScreenState extends State<MenuScreen> {
       leading: Icon(icon, size: 20),
       title: Text(title, style: const TextStyle(fontSize: 14)),
       trailing: trailing,
-      enabled: onTap != null,
+      enabled: onSurface || onTap != null,
       onTap: onTap,
     );
     Widget chevron(bool open) => Icon(open ? Icons.expand_less : Icons.expand_more, color: const Color(0xFF5F6368));
@@ -197,6 +205,44 @@ class _MenuScreenState extends State<MenuScreen> {
             sub(Icons.rule, '확인 필요 내역', openThen(w.onCheck), trailing: badge(c.check, alert: true)),
             sub(Icons.visibility_off_outlined, '무시한 내역', openThen(w.onIgnored), trailing: badge(c.ignored)),
             sub(Icons.task_alt, '확인한 내역', openThen(w.onConfirmed), trailing: badge(c.confirmed)),
+            sub(
+              Icons.notifications_none,
+              '미분류 알림 받기',
+              null,
+              onSurface: true,
+              trailing: Switch(
+                value: w.remindOn(),
+                onChanged: (v) async {
+                  await w.onRemind(v);
+                  if (mounted) setState(() {});
+                },
+              ),
+            ),
+            if (w.remindBlocked())
+              ColoredBox(
+                color: _subBg,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 56, right: 8),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '휴대폰 설정에서 알림을 허용해야 받을 수 있어요',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF5F6368)),
+                        ),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          textStyle: const TextStyle(fontSize: 12),
+                        ),
+                        onPressed: Native.openAppSettings,
+                        child: const Text('설정 열기'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
           line,
           item(Icons.storefront, '등록 업체·추천 키워드', '가맹점 이름으로 차량비/운영비를 추천해요', openThen(w.onVendors)),

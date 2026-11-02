@@ -465,6 +465,9 @@ void main() {
             onCheck: noop,
             onIgnored: noop,
             onConfirmed: noop,
+            remindOn: () => true,
+            remindBlocked: () => false,
+            onRemind: (_) async {},
           ),
         ),
       );

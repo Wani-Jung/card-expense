@@ -90,4 +90,7 @@ flutter {
 dependencies {
     // 문자 캡처 OCR: google_mlkit_text_recognition 플러그인은 한국어 모델을 compileOnly 로만 둔다. 기기 안에서 인식.
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+    // 미분류 7일 알림: 평일 오후 5시 확인, 재부팅 후에도 유지
+    implementation("androidx.work:work-runtime:2.10.1")
+    testImplementation("junit:junit:4.13.2")
 }

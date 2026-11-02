@@ -84,6 +84,14 @@ jobs:
           cp build/app/outputs/bundle/publicRelease/app-public-release.aab dist/app-store-public-release.aab
           cp build/app/outputs/bundle/fullRelease/app-full-release.aab dist/app-store-full-release.aab
 
+      # 미분류 알림 판정(Kotlin) 단위 테스트. gradlew 는 flutter build 가 만들어 둔다.
+      - name: Kotlin unit tests
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: cd android && ./gradlew :app:testPublicDebugUnitTest --console=plain
+
       # 권한 검사. 일반판에 문자 권한이 섞이면 Play Protect 가 설치를 막고, 스토어 심사도 통과 못 한다.
       # 설치 관련 권한(REQUEST_INSTALL_PACKAGES 등)은 어느 판에도 없어야 한다.
       - name: Check permissions
@@ -107,6 +115,11 @@ jobs:
           done
           for f in p-*.txt; do
             if grep -E "$INSTALL" "$f"; then echo "::error::$f 에 설치 관련 권한이 들어 있습니다"; fail=1; fi
+          done
+          # 미분류 알림 권한은 있어야 하고, 포그라운드 서비스는 없어야 한다 (WorkManager 기본값을 매니페스트에서 뺌)
+          for f in p-*.txt; do
+            if ! grep -q "POST_NOTIFICATIONS" "$f"; then echo "::error::$f 에 알림 권한이 없습니다"; fail=1; fi
+            if grep -q "permission.FOREGROUND_SERVICE" "$f"; then echo "::error::$f 에 포그라운드 서비스 권한이 들어 있습니다"; fail=1; fi
           done
           # versionCode·versionName·targetSdk 기록
           for f in p-aab-*.txt; do

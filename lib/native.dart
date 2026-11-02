@@ -92,6 +92,20 @@ class Native {
       _ch.invokeMethod('openNotificationAccessSettings');
   static Future<void> openAppSettings() => _ch.invokeMethod('openAppSettings');
 
+  /// 미분류 7일 알림: 미분류 내역 시각과 스위치를 네이티브에 넘긴다 (앱이 꺼져 있어도 판정하도록)
+  static Future<void> syncReminder(List<int> times, {required bool enabled}) =>
+      _ch.invokeMethod('syncReminder', {'times': times, 'enabled': enabled});
+
+  /// 알림을 눌러 앱이 열렸으면 열 화면 ('unclassified'). 가져가면 비워진다.
+  static Future<String?> takeOpenTarget() => _ch.invokeMethod<String>('takeOpenTarget');
+
+  /// 시스템 알림 허용 여부
+  static Future<bool> notificationsEnabled() async => await _ch.invokeMethod<bool>('notificationsEnabled') ?? true;
+
+  /// 알림 권한 요청 (안드로이드 13 이상만 창이 뜬다). 결과 = 허용 여부
+  static Future<bool> requestNotificationPermission() async =>
+      await _ch.invokeMethod<bool>('requestNotificationPermission') ?? true;
+
   /// 앱 전용 캐시 폴더 (공유 이미지 임시 파일용, 저장소 권한 필요 없음). 못 받으면 null
   static Future<String?> cacheDir() async {
     try {

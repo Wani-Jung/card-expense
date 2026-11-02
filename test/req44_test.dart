@@ -59,6 +59,9 @@ void main() {
             onCheck: noop,
             onIgnored: noop,
             onConfirmed: noop,
+            remindOn: () => true,
+            remindBlocked: () => false,
+            onRemind: (_) async {},
           ),
         ),
       );
@@ -180,7 +183,7 @@ void main() {
       }
       expect(tester.getTopLeft(find.text('문제 1')).dy, greaterThan(dailyY));
 
-      // 챌린지 카드를 펼치면 그 회차 문제가 카드 안에, 골드 세로줄
+      // 챌린지 카드를 펼치면 그 회차 문제가 카드 안에, 남색 세로줄
       expect(find.text('문제 4'), findsNothing);
       await tester.tap(find.textContaining('챌린지 2문제'));
       await tester.pumpAndSettle();
@@ -188,7 +191,7 @@ void main() {
       expect(find.descendant(of: card, matching: find.text('문제 5')), findsOneWidget);
       final bar = tester.widgetList<Container>(find.descendant(of: card, matching: find.byType(Container))).where((c) {
         final d = c.decoration;
-        return d is BoxDecoration && d.border is Border && (d.border! as Border).left.color == kQuizGold;
+        return d is BoxDecoration && d.border is Border && (d.border! as Border).left.color == kQuizNavy;
       });
       expect(bar, hasLength(1));
     });

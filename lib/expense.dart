@@ -37,6 +37,13 @@ class Expense {
   /// '취소로 상쇄'로 무시하기 전 카테고리. [되살리기] 하면 이걸로 돌린다.
   String? ignoredFrom;
 
+  /// 미분류가 된 시각 (미분류 7일 알림). 1년치 불러오기·붙여넣기 등으로 넣은 때, 무시에서 되살린 때.
+  /// null 이면 승인 일시부터 센다 (실시간으로 들어온 문자, 예전 데이터).
+  DateTime? pendingSince;
+
+  /// 미분류 기간을 세는 기준 시각
+  DateTime get pendingFrom => pendingSince ?? dateTime;
+
   Expense({
     required this.id,
     required this.amount,
@@ -48,6 +55,7 @@ class Expense {
     this.ignoreReason,
     this.dupOf,
     this.ignoredFrom,
+    this.pendingSince,
   });
 
   /// 확인 필요 > 중복 의심의 [하나 무시]로 무시한 건
@@ -82,6 +90,7 @@ class Expense {
         if (ignoreReason != null) 'ignoreReason': ignoreReason,
         if (dupOf != null) 'dupOf': dupOf,
         if (ignoredFrom != null) 'ignoredFrom': ignoredFrom,
+        if (pendingSince != null) 'pendingSince': pendingSince!.toIso8601String(),
       };
 
   factory Expense.fromJson(Map<String, dynamic> j) => Expense(
@@ -95,6 +104,7 @@ class Expense {
         ignoreReason: j['ignoreReason'] as String?,
         dupOf: j['dupOf'] as String?,
         ignoredFrom: j['ignoredFrom'] as String?,
+        pendingSince: j['pendingSince'] == null ? null : DateTime.parse(j['pendingSince'] as String),
       );
 }
 
@@ -159,6 +169,14 @@ class Store {
   Future<void> setCancelFixDone() => _prefs.setBool('cancel_fix_v1', true);
 
   /// 권한 설정 > '앱에서 사용' 스위치. 기본값은 둘 다 켜짐
+  /// 메뉴 > 내역 관리 '미분류 알림 받기'. 기본 켜짐
+  bool get remindOn => _prefs.getBool('remind_unclassified_v1') ?? true;
+  Future<void> setRemindOn(bool v) => _prefs.setBool('remind_unclassified_v1', v);
+
+  /// 첫 실행 뒤 알림 권한을 물어봤는지 (한 번만 자동으로 묻는다)
+  bool get notifAsked => _prefs.getBool('notif_asked_v1') ?? false;
+  Future<void> setNotifAsked() => _prefs.setBool('notif_asked_v1', true);
+
   bool get useListener => _prefs.getBool('use_listener_v1') ?? true;
   bool get useSms => _prefs.getBool('use_sms_v1') ?? true;
   Future<void> setUse({bool? listener, bool? sms}) async {

@@ -1,8 +1,10 @@
 package com.wani.card_expense
 
+import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
@@ -16,14 +18,31 @@ class MainActivity : FlutterActivity() {
     // 메시지 앱에서 공유받은 문자. Flutter 가 takeShared 로 가져간다.
     private val shared = ArrayList<String>()
 
+    // 미분류 알림을 눌러 열 화면. Flutter 가 takeOpenTarget 으로 가져간다.
+    private var openTarget: String? = null
+
+    // 알림 권한 요청 결과를 기다리는 Flutter 쪽 응답
+    private var notificationResult: MethodChannel.Result? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         collectShared(intent)
+        collectOpenTarget(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (collectShared(intent)) channel?.invokeMethod("onShared", null)
+        if (collectOpenTarget(intent)) channel?.invokeMethod("openTarget", null)
+    }
+
+    private fun collectOpenTarget(intent: Intent?): Boolean {
+        // 최근 앱 목록에서 다시 열 때는 예전 인텐트가 그대로 오므로 무시한다
+        if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return false
+        val target = intent.getStringExtra(UnclassifiedReminder.EXTRA_OPEN) ?: return false
+        intent.removeExtra(UnclassifiedReminder.EXTRA_OPEN)
+        openTarget = target
+        return true
     }
 
     private fun collectShared(intent: Intent?): Boolean {
@@ -120,6 +139,28 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "cacheDir" -> result.success(cacheDir.absolutePath)
+                "syncReminder" -> {
+                    val times = call.argument<List<Number>>("times").orEmpty().map { it.toLong() }
+                    UnclassifiedReminder.sync(this, times, call.argument<Boolean>("enabled") ?: true)
+                    result.success(null)
+                }
+                "takeOpenTarget" -> {
+                    result.success(openTarget)
+                    openTarget = null
+                }
+                "notificationsEnabled" -> result.success(UnclassifiedReminder.canNotify(this))
+                "requestNotificationPermission" -> {
+                    // 안드로이드 13 미만은 권한 창이 없다. 이미 허용됐으면 바로 답한다
+                    if (Build.VERSION.SDK_INT < 33 ||
+                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        result.success(UnclassifiedReminder.canNotify(this))
+                    } else {
+                        notificationResult?.success(false)
+                        notificationResult = result
+                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -133,12 +174,21 @@ class MainActivity : FlutterActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_NOTIFICATIONS) {
+            notificationResult?.success(UnclassifiedReminder.canNotify(this))
+            notificationResult = null
+            return
+        }
         channel?.invokeMethod("permissionsChanged", null)
     }
 
     private fun listenerEnabled(): Boolean {
         val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: return false
         return flat.split(":").any { it.startsWith("$packageName/") }
+    }
+
+    private companion object {
+        const val REQUEST_NOTIFICATIONS = 2
     }
 
     private fun openAppSettings() {

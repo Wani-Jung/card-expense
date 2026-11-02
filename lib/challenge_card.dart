@@ -7,9 +7,9 @@ import 'quiz_sheet.dart';
 
 /// 결과 카드 상단 왼쪽 이미지. 지금은 앱 아이콘. 나중에 공식 로고를 받으면 assets/brand/ 에 넣고 이 상수만 바꾼다
 /// (pubspec.yaml assets 에도 추가). 기관 로고는 아직 넣지 않는다.
-const kShareCardLogo = 'assets/icon/wani_card_gold_1024.png';
+const kShareCardLogo = 'assets/icon/gonggam_navy_1024.png';
 
-const _goldLight = Color(0xFFFFE08A);
+const _navyLight = Color(0xFFA9BBD6);
 const _grey = Color(0xFF80868B);
 const _ribbonRed = Color(0xFFD93025);
 
@@ -17,7 +17,7 @@ const _ribbonRed = Color(0xFFD93025);
 String cardDate(DateTime d) => '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
 
 /// 챌린지 결과 카드 (세로 2:3). 화면 위쪽에 보이는 이 카드가 그대로 공유 이미지가 된다.
-/// 골드 → 연골드 → 네이비 대각선 그라데이션 테두리 10 + 흰 카드. 최고 기록이면 오른쪽 위 빨간 사선 띠.
+/// 네이비 → 연한 남색 → 네이비 대각선 그라데이션 테두리 10 + 흰 카드. 최고 기록이면 오른쪽 위 빨간 사선 띠.
 class ChallengeResultCard extends StatelessWidget {
   final ChallengeRun run;
   final String? name;
@@ -61,7 +61,7 @@ class ChallengeResultCard extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [kQuizGold, _goldLight, kQuizNavy],
+              colors: [kQuizNavy, _navyLight, kQuizNavy],
               stops: [0, 0.45, 1],
             ),
           ),
@@ -129,7 +129,7 @@ class ChallengeResultCard extends StatelessWidget {
                                 height: 132,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: kQuizGold, width: 5),
+                                  border: Border.all(color: kQuizNavy, width: 5),
                                 ),
                                 alignment: Alignment.center,
                                 child: Column(

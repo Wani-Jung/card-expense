@@ -12,7 +12,8 @@ import org.json.JSONObject
  * 앱이 꺼져 있어도 동작해야 하므로 Flutter 쪽 저장소를 쓰지 않고
  * 네이티브 SharedPreferences 에 "받은 편지함(inbox)"을 쌓아 둔다.
  * Flutter 가 켜지면 drainInbox 로 가져가서 분류 대기에 넣는다.
- * 이 앱은 상태바 알림을 띄우지 않는다. 조용히 쌓아 두고 앱을 열면 보이게 한다.
+ * 문자를 받았다고 상태바 알림을 띄우지는 않는다. 조용히 쌓아 두고 앱을 열면 보이게 한다.
+ * (상태바 알림은 미분류 7일 알림 하나뿐 → UnclassifiedReminder)
  */
 object CardSms {
     private const val PREFS = "card_expense_native"
@@ -110,6 +111,13 @@ object CardSms {
         p.edit().putString(KEY_SEEN, seen.toString()).putString(KEY_INBOX, inbox.toString()).commit()
 
         Handler(Looper.getMainLooper()).post { onNew?.invoke() }
+    }
+
+    /** 아직 Flutter 로 안 옮긴 문자의 받은 시각 (미분류 알림 판정용, 비우지 않음) */
+    @Synchronized
+    fun inboxTimes(ctx: Context): List<Long> {
+        val inbox = JSONArray(prefs(ctx).getString(KEY_INBOX, "[]"))
+        return List(inbox.length()) { inbox.getJSONObject(it).getLong("ts") }
     }
 
     @Synchronized

@@ -66,7 +66,7 @@ flutter:
   assets:
     - quiz/questions.json
     # 챌린지 결과 카드 상단 이미지 (lib/challenge_card.dart kShareCardLogo). 공식 로고는 나중에 assets/brand/ 로
-    - assets/icon/wani_card_gold_1024.png
+    - assets/icon/gonggam_navy_1024.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

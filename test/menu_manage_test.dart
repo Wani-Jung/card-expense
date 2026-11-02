@@ -85,9 +85,9 @@ void main() {
 
   testWidgets('펼침은 하나만, 메뉴 위 화면 → 뒤로가기 하면 메뉴(펼침 유지·배지 갱신), 배지 색', (tester) async {
     await pumpHome(tester, [
-      item('p1', '새가게', null, at(0, 1)),
-      item('i1', '무시가게', kIgnored, at(0, 2)),
-      item('c1', '분류가게', kCar, at(0, 3)),
+      item('p1', '새가게', null, at(1, 1)),
+      item('i1', '무시가게', kIgnored, at(1, 2)),
+      item('c1', '분류가게', kCar, at(1, 3)),
     ]);
     await openMenu(tester);
     // 확인 필요 0건 → 접힌 채 시작

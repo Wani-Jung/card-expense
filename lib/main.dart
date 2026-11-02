@@ -300,6 +300,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void setState(VoidCallback fn) {
     super.setState(fn);
     _changes.value++;
+    _syncReminder();
   }
 
   /// 확인 필요 내역 (실수 의심 자동 검사)
@@ -316,6 +317,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (method == 'onNewSms') await _drain();
       if (method == 'onShared') await _takeShared();
       if (method == 'permissionsChanged') await _refreshPerms();
+      if (method == 'openTarget') await _openTarget();
     });
     // 네이티브 저장소가 비어 있을 수 있으니 시작할 때마다 맞춰 둔다.
     Native.setSettings(widget.digits, widget.sender);
@@ -325,6 +327,51 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 스토어판은 자체 업데이트를 쓰지 않는다 (컴파일 시점 상수라 스토어 빌드에는 업데이트 코드가 안 들어감)
     if (!isStoreChannel) _checkUpdate(manual: false);
     _scheduleDailyQuiz();
+    _syncReminder();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _askNotificationOnce();
+      await _openTarget();
+    });
+  }
+
+  // ---------------- 미분류 7일 알림 ----------------
+
+  /// 시스템 알림 허용 여부 (앱으로 돌아올 때마다 다시 읽음)
+  bool _notifGranted = true;
+  String? _reminderSent;
+
+  /// 미분류 내역 시각·스위치를 네이티브에 넘긴다. 바뀌었을 때만.
+  void _syncReminder() {
+    final times = [
+      for (final e in _items)
+        if (e.category == null) e.pendingFrom.millisecondsSinceEpoch,
+    ];
+    final on = widget.store.remindOn;
+    final key = '$on|${times.join(',')}';
+    if (key == _reminderSent) return;
+    _reminderSent = key;
+    Native.syncReminder(times, enabled: on);
+  }
+
+  /// 첫 실행 뒤 한 번만 알림 권한을 묻는다. 거부하면 스위치 OFF + 메뉴에 안내 한 줄.
+  Future<void> _askNotificationOnce() async {
+    if (!widget.store.remindOn || widget.store.notifAsked) return;
+    await widget.store.setNotifAsked();
+    await _setRemind(true);
+  }
+
+  /// '미분류 알림 받기' 스위치. 켤 때 권한을 묻고, 거부되면 OFF 로 둔다.
+  Future<void> _setRemind(bool on) async {
+    if (on) _notifGranted = await Native.requestNotificationPermission();
+    await widget.store.setRemindOn(on && _notifGranted);
+    if (mounted) setState(() {});
+  }
+
+  /// 미분류 알림을 눌러 열렸으면 미분류 내역 화면으로 (떠 있던 화면은 닫는다)
+  Future<void> _openTarget() async {
+    if (await Native.takeOpenTarget() != 'unclassified' || !mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    unawaited(_openUnclassified()); // 화면이 닫힐 때까지 채널 응답을 붙잡지 않게
   }
 
   // ---------------- 오늘의 안전 OX ----------------
@@ -431,6 +478,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _drain();
     await _takeShared();
     await _refreshPerms();
+    await _refreshNotif();
+  }
+
+  Future<void> _refreshNotif() async {
+    _notifGranted = await Native.notificationsEnabled();
+    // 휴대폰 설정에서 알림을 끄면 스위치도 OFF (아직 안 물어본 첫 실행은 빼고)
+    if (widget.store.remindOn && !_notifGranted && widget.store.notifAsked) {
+      await widget.store.setRemindOn(false);
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _refreshPerms() async {
@@ -455,9 +512,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   IngestReport _classifyRaw(List<RawSms> raws, {bool requireCard = true}) =>
       classifyMessages(raws, digits: widget.digits, existing: _byId, requireCard: requireCard);
 
-  /// 알림 감지 등에서 조용히 들어온 문자. 새 내역만 넣는다.
+  /// 알림 감지 등에서 조용히 들어온 문자. 새 내역만 넣는다. 실시간 문자라 미분류 기간은 승인 일시부터 센다.
   Future<int> _ingest(List<RawSms> raws, {bool requireCard = true}) =>
-      _addParsed(_classifyRaw(raws, requireCard: requireCard).fresh);
+      _addParsed(_classifyRaw(raws, requireCard: requireCard).fresh, realtime: true);
 
   /// 무시했던 내역을 다시 분류 대기로.
   Future<void> _revive(Iterable<String> ids) async {
@@ -523,13 +580,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// 파싱된 문자를 내역에 넣는다. 이미 있는 id 는 건너뛴다. 추가된 건수를 돌려준다.
-  Future<int> _addParsed(List<ParsedSms> list) async {
+  Future<int> _addParsed(List<ParsedSms> list, {bool realtime = false}) async {
     final ids = _items.map((e) => e.id).toSet();
     final fresh = <String>{};
     var added = 0;
     for (final p in list) {
       if (ids.contains(p.id)) continue;
       final e = Expense.fromParsed(p);
+      // 지난 문자를 한꺼번에 넣어도 오래된 승인 일시 때문에 바로 '7일 넘음'이 되지 않게 넣은 때부터 센다
+      if (!realtime) e.pendingSince = DateTime.now();
       _items.add(e);
       ids.add(e.id);
       if (e.isCancel) fresh.add(e.id);
@@ -636,6 +695,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// 카테고리 바꾸기 + 무시 사유 정리
   void _setCategory(Expense t, String? cat, {String? dupOf}) {
+    if (cat == null && t.category == kIgnored) t.pendingSince = DateTime.now(); // 무시에서 되살림: 미분류 기간 새로
     t.category = cat;
     t.ignoreReason = cat == kIgnored ? (dupOf != null ? kIgnoreDuplicate : kIgnoreManual) : null;
     t.dupOf = cat == kIgnored ? dupOf : null;
@@ -875,6 +935,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ignored: _items.where((e) => e.category == kIgnored).length,
           confirmed: _items.where((e) => e.category == kCar || e.category == kOps).length,
         ),
+        remindOn: () => widget.store.remindOn,
+        remindBlocked: () => !widget.store.remindOn && !_notifGranted,
+        onRemind: _setRemind,
         onUnclassified: _openUnclassified,
         onCheck: _openCheck,
         onIgnored: _openIgnored,

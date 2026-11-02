@@ -492,7 +492,7 @@ class _RunAnswersListState extends State<RunAnswersList> {
   }
 }
 
-/// 챌린지 회차 트로피 카드 (시각·문항 수·정답률·시간). 누르면 카드 안에 그 회차 문제들 (왼쪽 골드 세로줄 + 연한 배경). 점수를 지운 회차는 '챌린지 · N문제'.
+/// 챌린지 회차 트로피 카드 (시각·문항 수·정답률·시간). 누르면 카드 안에 그 회차 문제들 (왼쪽 남색 세로줄 + 연한 배경). 점수를 지운 회차는 '챌린지 · N문제'.
 class _RunTile extends StatefulWidget {
   final ChallengeRun? run;
   final List<QuizRecord> answers;
@@ -537,8 +537,8 @@ class _RunTileState extends State<_RunTile> {
             Container(
               margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               decoration: const BoxDecoration(
-                color: Color(0xFFFFF8E6),
-                border: Border(left: BorderSide(color: kQuizGold, width: 3)),
+                color: Color(0xFFF1F4F9),
+                border: Border(left: BorderSide(color: kQuizNavy, width: 3)),
               ),
               child: RunAnswersList(answers: widget.answers, bank: widget.bank),
             ),

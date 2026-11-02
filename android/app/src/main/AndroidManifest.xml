@@ -1,6 +1,11 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- 퀴즈 문제 파일 받기, (깃허브판만) 업데이트 확인. 설치 관련 권한(REQUEST_INSTALL_PACKAGES)은 어느 판에도 넣지 말 것 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 미분류 7일 알림 (UnclassifiedReminder). 이 앱이 띄우는 유일한 상태바 알림 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- WorkManager 가 넣는 포그라운드 서비스는 쓰지 않는다 (포그라운드 알림 금지) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
 
     <application
         android:label="공감카드 관리"
@@ -49,6 +54,9 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            tools:node="remove" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
