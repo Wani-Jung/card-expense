@@ -66,6 +66,7 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
   - 미분류 기간 기준 `Expense.pendingFrom` = `pendingSince ?? dateTime`. 1년치 불러오기·붙여넣기·공유·캡처로 넣은 때·무시에서 되살린 때 `pendingSince` = 그 시각, 실시간 문자·예전 데이터는 승인 일시
   - 스위치: 메뉴 > 내역 관리 펼침 맨 아래 '미분류 알림 받기'(`remind_unclassified_v1`, 기본 ON). 첫 실행 뒤 한 번 권한을 묻고(`notif_asked_v1`), 거부·휴대폰 설정에서 끄면 OFF + 안내 한 줄과 [설정 열기]
   - 탭: 인텐트 extra `open_target` → `takeOpenTarget`/`openTarget` → `_openTarget`(떠 있던 화면 닫고 미분류 내역)
+  - R8: `proguard-rules.pro` 의 `-keep class * extends androidx.room.RoomDatabase { <init>(); }` 필수. room-runtime 규칙에는 생성자가 없어 R8 전체 모드에서 지워지고, 빠지면 모든 판이 시작하자마자 죽는다 (REQ-46)
   - 매니페스트: `POST_NOTIFICATIONS` 추가. WorkManager 의 `RECEIVE_BOOT_COMPLETED`·`WAKE_LOCK` 은 그대로, `FOREGROUND_SERVICE`·`SystemForegroundService` 는 `tools:node="remove"` 로 뺌 (CI 검사)
 - `lib/native.dart` — `card_expense/native` MethodChannel 래퍼
 - `lib/main.dart` — 테마(`buildTheme`: 흰 배경 무채색, 포인트 골드 #F0A500, 차량비 초록·운영비 노랑 버튼만 색), 화면 (설정, 분류 대기, 월별 수립/사용/잔여 표, 내역)
@@ -102,14 +103,14 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
   - 캐시: Flutter SDK·pub(`flutter-action` cache), Gradle(`gradle/actions/setup-gradle@v4`, `cache-read-only: false`), NDK 28.2(`actions/cache`, `$ANDROID_HOME/ndk/28.2.13676358`). `android/gradle.properties` 에 `org.gradle.caching=true`·`org.gradle.parallel=true`
   - 캐시 범위 주의: GitHub 캐시는 만든 ref 범위다. 태그 실행이 저장한 캐시는 **다른 태그에서는 못 쓰고**, 기본 브랜치(main) 캐시는 모든 태그가 쓴다. Gradle·NDK 캐시를 다음 태그에서 hit 시키려면 main 에서 수동 실행(workflow_dispatch)을 한 번 돌려 main 범위에 저장해야 한다 (dev 프리릴리스도 같이 갱신됨)
   - ABI 는 arm64-v8a·armeabi-v7a 2개(x86_64 없음): CI 의 `--target-platform android-arm,android-arm64`(Flutter 라이브러리) + `android/app/build.gradle.kts` 의 release 변형 `packaging.jniLibs.excludes += lib/x86_64/**`(ML Kit 등 플러그인 .so — `--target-platform` 만으로는 안 빠짐, 빌드타입 `ndk.abiFilters` 도 효과 없었음). debug 는 그대로. fat APK 하나씩, 파일 이름·고정 링크 그대로. split-per-abi 안 함
-  - `flutter test`(+스토어 채널 전체) → APK 2개 + AAB 2개 빌드 → 권한 검사(aapt + bundletool 1.17.2: 일반판 APK·AAB 문자 권한 없음, 전용판 있음, 전부 설치 권한 없음, AAB versionCode·targetSdk 로그) → Kotlin 단위 테스트 → 업데이트 코드 검사(깃허브 APK 에는 있고 스토어 AAB 에는 없어야 함). flavor 병렬(matrix)·ML Kit 변경은 하지 않음
+  - `flutter test`(+스토어 채널 전체) → APK 2개 + AAB 2개 빌드 → 권한 검사(aapt + bundletool 1.17.2: 일반판 APK·AAB 문자 권한 없음, 전용판 있음, 전부 설치 권한 없음, AAB versionCode·targetSdk 로그) → Kotlin 단위 테스트 → 업데이트 코드 검사(깃허브 APK 에는 있고 스토어 AAB 에는 없어야 함) → 스모크 테스트(`tools/smoke_test.sh`, API 36 에뮬레이터에 4개 산출물 설치·실행, AAB 는 bundletool 분할 설치, 크래시 없이 30초 생존해야 릴리스). flavor 병렬(matrix)·ML Kit 변경은 하지 않음
   - AAB 도 x86_64 없음(같은 release 변형 설정). targetSdk 는 `flutter.targetSdkVersion`(Flutter 3.44.9 = 36, Play 요구치 충족)
 - 새 버전 배포: `pubspec.yaml` version 올리고 main push + `git tag vX.Y.Z && git push origin vX.Y.Z` (태그 push 만 CI 를 돌린다)
 - **로컬 작업 루틴 (규칙)**
   - 수정 중에는 바뀐 파일만 `flutter analyze <파일>`, 관련 테스트 파일만 `flutter test <파일>`
   - 전체 analyze·전체 test 는 커밋 직전 1회
   - 흔들림 확인용 반복 실행은 새 위젯 테스트를 추가했을 때만
-  - 로컬 APK 빌드는 Kotlin·Gradle·네이티브 플러그인이 바뀐 REQ 에서만
+  - 로컬 APK 빌드는 Kotlin·Gradle·네이티브 플러그인이 바뀐 REQ 에서만. 이때는 빌드만 하지 말고 에뮬레이터에서 **실제로 실행**까지 확인한다 (`ADB=<adb 경로> bash tools/smoke_test.sh <bundletool.jar> <폴더>`. R8 문제는 빌드·권한 검사·단위 테스트로 안 잡힌다)
   - APP_STATUS versionCode 기록은 가능하면 릴리스 커밋에 같이 넣는다 (태그 실행의 run_number = 직전 실행 번호 + 1). 따로 커밋해도 이제 CI 는 돌지 않는다
 - 앱이 `releases/latest` 로 업데이트를 확인하므로 저장소는 public 이어야 한다. 실제 카드번호를 코드·문서·커밋에 넣지 말 것 (예시는 0000).
 

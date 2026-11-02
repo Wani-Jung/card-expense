@@ -139,6 +139,23 @@ jobs:
           if [ "$a" = 0 ]; then echo "::error::깃허브 APK 에서 업데이트 주소를 못 찾음 (검사 방법 확인 필요)"; exit 1; fi
           if [ "$b" != 0 ] || [ "$c" != 0 ]; then echo "::error::스토어 AAB 에 업데이트 코드가 들어 있습니다"; exit 1; fi
 
+      # 스모크 테스트: 4개 산출물을 에뮬레이터에 설치·실행해 크래시가 없을 때만 릴리스한다 (REQ-46).
+      # 앱은 ARM 라이브러리만 있어서 x86_64 이미지의 ARM 번역으로 돈다.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Smoke test on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: bash tools/smoke_test.sh "$RUNNER_TEMP/bundletool.jar" dist
+
       # v* 태그: 정식 릴리스 (releases/latest/download/app-release.apk·app-full-release.apk 가 이걸 가리킴). AAB 도 같이 첨부
       - name: Release (tag)
         if: startsWith(github.ref, 'refs/tags/v')
