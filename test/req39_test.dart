@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/main.dart';
+import 'package:card_expense/lab_screen.dart';
 import 'package:card_expense/menu_screen.dart';
 import 'package:card_expense/quiz.dart';
 import 'package:card_expense/quiz_category_picker.dart';
@@ -384,7 +385,7 @@ void main() {
       expect(find.byIcon(Icons.delete_outline), findsNothing);
     });
 
-    testWidgets('업체 관리: 섹션별 전체 삭제(서로 영향 없음)·확인·되돌리기·0개면 비활성, 기본 키워드 다시 넣기', (tester) async {
+    testWidgets('업체 관리: 섹션별 전체 삭제(서로 영향 없음)·확인·되돌리기·0개면 비활성, 지운 키워드 다시 넣기', (tester) async {
       phone(tester);
       final b = VendorBook.initial()
         ..learn('고야커피', kOps)
@@ -432,17 +433,21 @@ void main() {
       b.upgradeDefaults();
       expect(b.keywords, isEmpty);
 
-      // 3) 기본 키워드 다시 넣기
-      await tester.tap(find.text('기본 키워드 다시 넣기'));
+      // 3) 지운 키워드 (REQ-47): 지운 기본 + 직접 등록 키워드를 모두 골라 다시 넣기
+      await tester.tap(find.text('지운 키워드 ($total)'));
       await tester.pumpAndSettle();
-      final n = kDefaultCarKeywords.length + kDefaultOpsKeywords.length;
-      expect(b.keywords, hasLength(n));
+      await tester.tap(find.text('모두 선택'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('다시 넣기 ($total)'));
+      await tester.pumpAndSettle();
+      expect(b.keywords, hasLength(total));
+      expect(b.keywords.where((k) => !k.isDefault).map((k) => k.keyword), ['나의키워드']);
       expect(b.removedDefaults, isEmpty);
-      expect(find.text('$n개를 다시 넣었어요'), findsOneWidget);
-      expect(b.restoreDefaults(), 0); // 이미 있으면 건너뜀
+      expect(find.text('$total개를 다시 넣었어요'), findsOneWidget);
+      expect(b.removedKeywords, isEmpty);
     });
 
-    testWidgets('메뉴: 등록 업체가 안전 OX Quiz 위, QUIZ 아이콘', (tester) async {
+    testWidgets('메뉴: 실험실이 개인정보처리방침 위, 안전 OX Quiz 는 실험실 안 (QUIZ 아이콘)', (tester) async {
       phone(tester);
       Future<void> noop() async {}
       await tester.pumpWidget(
@@ -450,7 +455,6 @@ void main() {
           home: MenuScreen(
             onImport: noop,
             onPaste: noop,
-            onOcr: noop,
             onVendors: noop,
             onUpdate: noop,
             importEnabled: () => true,
@@ -458,8 +462,8 @@ void main() {
             cardSummary: () => '카드 0000',
             onPermissions: noop,
             permSummary: () => '',
-            quizSummary: () => '연속 3일',
-            onQuiz: noop,
+            onLab: noop,
+            onGuide: noop,
             counts: () => (pending: 0, check: 0, ignored: 0, confirmed: 0),
             onUnclassified: noop,
             onCheck: noop,
@@ -472,11 +476,23 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final vendorY = tester.getTopLeft(find.text('등록 업체·추천 키워드')).dy;
-      final quizY = tester.getTopLeft(find.text('안전 OX Quiz')).dy;
-      expect(vendorY, lessThan(quizY));
-      expect(find.text('안전 OX'), findsNothing);
+      final labY = tester.getTopLeft(find.text('실험실')).dy;
+      expect(labY, lessThan(tester.getTopLeft(find.text('개인정보처리방침')).dy));
+      expect(labY, greaterThan(tester.getTopLeft(find.text('사용법')).dy));
+      expect(find.text('안전 OX Quiz'), findsNothing);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LabScreen(
+            quizSummary: () => '연속 3일',
+            ruralSummary: () => 'OX·객관식',
+            onQuiz: noop,
+            onRural: noop,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('연속 3일'), findsOneWidget);
+      expect(find.text('농어촌정비법 퀴즈'), findsOneWidget);
       final icon = find.byType(QuizIcon);
       expect(icon, findsOneWidget);
       expect(tester.getSize(icon), const Size(24, 24));

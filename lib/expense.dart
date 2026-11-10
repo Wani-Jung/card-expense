@@ -44,6 +44,10 @@ class Expense {
   /// 미분류 기간을 세는 기준 시각
   DateTime get pendingFrom => pendingSince ?? dateTime;
 
+  /// 날짜 이상(확인 필요 e): 들어온 그 시점에 한 번만 판정해 둔다 ('future' / 'old', 없으면 정상).
+  /// 시간이 지났다고 나중에 다시 판정하지 않는다 (REQ-47). 필드가 없는 예전 데이터는 정상.
+  String? dateIssue;
+
   Expense({
     required this.id,
     required this.amount,
@@ -56,6 +60,7 @@ class Expense {
     this.dupOf,
     this.ignoredFrom,
     this.pendingSince,
+    this.dateIssue,
   });
 
   /// 확인 필요 > 중복 의심의 [하나 무시]로 무시한 건
@@ -91,6 +96,7 @@ class Expense {
         if (dupOf != null) 'dupOf': dupOf,
         if (ignoredFrom != null) 'ignoredFrom': ignoredFrom,
         if (pendingSince != null) 'pendingSince': pendingSince!.toIso8601String(),
+        if (dateIssue != null) 'dateIssue': dateIssue,
       };
 
   factory Expense.fromJson(Map<String, dynamic> j) => Expense(
@@ -105,6 +111,7 @@ class Expense {
         dupOf: j['dupOf'] as String?,
         ignoredFrom: j['ignoredFrom'] as String?,
         pendingSince: j['pendingSince'] == null ? null : DateTime.parse(j['pendingSince'] as String),
+        dateIssue: j['dateIssue'] as String?,
       );
 }
 
@@ -116,7 +123,7 @@ List<Expense> cleanupStoredItems(List<Expense> items) {
   final byId = <String, Expense>{};
   for (final e in items) {
     // JSON·리터럴 줄바꿈이 든 본문만 다시 읽는다. 나머지는 가맹점만 정리
-    // (캡처 확인 화면에서 손으로 고친 금액·날짜를 덮어쓰지 않도록).
+    // (예전 캡처 확인 화면에서 손으로 고친 금액·날짜를 덮어쓰지 않도록).
     final dirty = e.raw.trimLeft().startsWith('{') || e.raw.contains(r'\n') || e.raw.contains(r'\r');
     final raw = dirty ? normalizeBody(e.raw) : e.raw;
     // 원래 시각을 기준으로 다시 읽어서 연도는 그대로 유지한다
@@ -186,6 +193,9 @@ class Store {
 
   /// 오늘의 안전 OX 저장 (같은 shared_preferences)
   QuizStore get quiz => QuizStore(_prefs);
+
+  /// 실험실 퀴즈 등 따로 기록하는 기능용
+  SharedPreferences get prefs => _prefs;
 
   static const _kVendors = 'vendor_book_v1';
 

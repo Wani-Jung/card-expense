@@ -1,3 +1,4 @@
+import 'package:card_expense/layout.dart';
 import 'package:card_expense/disclosure.dart';
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/flavor.dart';
@@ -36,8 +37,9 @@ void main() {
   }
 
   group('채널', () {
-    testWidgets('${isStoreChannel ? '스토어' : '깃허브'}판: 자동 업데이트 확인 ${isStoreChannel ? '안 함' : '함'}, 메뉴 업데이트 항목',
-        (tester) async {
+    testWidgets('${isStoreChannel ? '스토어' : '깃허브'}판: 자동 업데이트 확인 ${isStoreChannel ? '안 함' : '함'}, 메뉴 업데이트 항목', (
+      tester,
+    ) async {
       phone(tester);
       PackageInfo.setMockInitialValues(
         appName: 'card_expense',
@@ -81,10 +83,16 @@ void main() {
     Future<Future<bool>> open(WidgetTester tester, Future<bool> Function(BuildContext) f) async {
       phone(tester);
       late BuildContext ctx;
-      await tester.pumpWidget(MaterialApp(home: Builder(builder: (c) {
-        ctx = c;
-        return const Scaffold();
-      })));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (c) {
+              ctx = c;
+              return const Scaffold();
+            },
+          ),
+        ),
+      );
       final result = f(ctx);
       await tester.pumpAndSettle();
       return result;
@@ -93,8 +101,11 @@ void main() {
     testWidgets('문자: 안내 문구 → [동의하고 계속]이면 시스템 권한 요청', (tester) async {
       final r = await open(tester, requestSmsWithDisclosure);
       expect(find.text('카드 승인 문자 읽기 권한 안내'), findsOneWidget);
-      expect(find.textContaining('카드 문자가 아닌 일반 문자는 저장하지 않으며'), findsOneWidget);
-      expect(find.textContaining("'지난 문자 불러오기'를 실행하면 최근 1년의 문자에서 카드 문자만 찾아 가져옵니다."), findsOneWidget);
+      expect(find.textContaining(keepWords('카드 문자가 아닌 일반 문자는 저장하지 않으며')), findsOneWidget);
+      expect(
+        find.textContaining(keepWords("'지난 문자 불러오기'를 실행하면 고른 기간(처음엔 최근 1년)의 문자에서 카드 문자만 찾아 가져옵니다.")),
+        findsOneWidget,
+      );
       expect(calls, isNot(contains('requestSmsPermission')));
       await tester.tap(find.text('동의하고 계속'));
       await tester.pumpAndSettle();
@@ -123,7 +134,7 @@ void main() {
     testWidgets('알림 접근: 안내 → 동의하면 설정 화면, 나중에면 안 엶', (tester) async {
       var r = await open(tester, openNotificationAccessWithDisclosure);
       expect(find.text('카드 승인 알림 읽기 권한 안내'), findsOneWidget);
-      expect(find.textContaining('카드 승인 알림만 저장'), findsOneWidget);
+      expect(find.textContaining(keepWords('카드 승인 알림만 저장')), findsOneWidget);
       await tester.tap(find.text('나중에'));
       await tester.pumpAndSettle();
       expect(await r, isFalse);
@@ -142,15 +153,17 @@ void main() {
       SharedPreferences.setMockInitialValues({'use_listener_v1': false});
       final store = await Store.open();
       final changes = ValueNotifier(0);
-      await tester.pumpWidget(MaterialApp(
-        home: PermissionScreen(
-          store: store,
-          perms: () => const PermStatus(listener: false),
-          changes: changes,
-          refresh: () async {},
-          onUsageChanged: () async {},
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PermissionScreen(
+            store: store,
+            perms: () => const PermStatus(listener: false),
+            changes: changes,
+            refresh: () async {},
+            onUsageChanged: () async {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byType(Switch).first);
       await tester.pumpAndSettle();

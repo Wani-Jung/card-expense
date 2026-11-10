@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  백업 규칙 (Android 11 이하, REQ-47): 전부 뺀다. 이 버전들은 클라우드 백업과 기기 이전이 같은 규칙을 써서 기기 이전으로도 옮겨지지 않는다.
+-->
+<full-backup-content>
+    <exclude domain="root" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="external" path="." />
+</full-backup-content>

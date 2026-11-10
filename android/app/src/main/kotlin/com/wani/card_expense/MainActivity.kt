@@ -104,27 +104,18 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "readSmsInbox" -> {
-                    val days = call.argument<Int>("days") ?: 365
+                    // 기간 [from, to) 밀리초. 지난 문자 불러오기 화면에서 고른 날짜
+                    val from = call.argument<Number>("from")?.toLong() ?: 0L
+                    val to = call.argument<Number>("to")?.toLong() ?: System.currentTimeMillis()
                     thread {
                         try {
-                            val map = Flavor.readInbox(this, days)
+                            val map = Flavor.readInbox(this, from, to)
                             runOnUiThread {
                                 if (map == null) result.error("UNSUPPORTED", "일반판에는 없는 기능", null)
                                 else result.success(map)
                             }
                         } catch (e: SecurityException) {
                             runOnUiThread { result.error("NO_PERMISSION", e.message, null) }
-                        } catch (e: Exception) {
-                            runOnUiThread { result.error("FAILED", e.message, null) }
-                        }
-                    }
-                }
-                "sliceImage" -> {
-                    val path = call.argument<String>("path")!!
-                    thread {
-                        try {
-                            val slices = ImageSlicer.slice(path, cacheDir)
-                            runOnUiThread { result.success(slices) }
                         } catch (e: Exception) {
                             runOnUiThread { result.error("FAILED", e.message, null) }
                         }

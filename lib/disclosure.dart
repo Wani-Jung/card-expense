@@ -27,7 +27,7 @@ class DisclosureScreen extends StatelessWidget {
                   const SizedBox(height: 20),
                   Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
-                  Text(body, style: const TextStyle(fontSize: 16, height: 1.6)),
+                  Text(keepWords(body), style: const TextStyle(fontSize: 16, height: 1.6)),
                 ],
               ),
             ),
@@ -62,7 +62,7 @@ const kSmsDisclosureBody =
     '공감카드 관리는 카드사에서 받은 승인·취소 문자를 읽어 날짜, 금액, 가맹점을 지출 내역으로 자동 정리합니다. '
     '이를 위해 문자 읽기 권한이 필요합니다.\n\n'
     '카드 문자가 아닌 일반 문자는 저장하지 않으며, 읽은 내용은 휴대폰 밖으로 보내지 않습니다.\n\n'
-    "'지난 문자 불러오기'를 실행하면 최근 1년의 문자에서 카드 문자만 찾아 가져옵니다.";
+    "'지난 문자 불러오기'를 실행하면 고른 기간(처음엔 최근 1년)의 문자에서 카드 문자만 찾아 가져옵니다.";
 
 const kListenerDisclosureTitle = '카드 승인 알림 읽기 권한 안내';
 const kListenerDisclosureBody =

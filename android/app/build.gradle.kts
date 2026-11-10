@@ -40,6 +40,11 @@ android {
     // 두 판: public(일반판, 문자 권한 없음) / full(전용판, 문자 권한 + 지난 문자 불러오기).
     // 같은 applicationId·서명키라 서로 덮어 설치해도 데이터가 유지된다.
     // 문자 권한·리시버는 src/full/ 에만 둔다. public 에는 절대 넣지 말 것.
+    // 앱 문자열 리소스는 한국어·영어만 (라이브러리가 넣는 다른 언어 번역 제외, REQ-47)
+    androidResources {
+        localeFilters += listOf("ko", "en")
+    }
+
     flavorDimensions += "edition"
     productFlavors {
         create("public") { dimension = "edition" }
@@ -88,8 +93,6 @@ flutter {
 }
 
 dependencies {
-    // 문자 캡처 OCR: google_mlkit_text_recognition 플러그인은 한국어 모델을 compileOnly 로만 둔다. 기기 안에서 인식.
-    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
     // 미분류 7일 알림: 평일 오후 5시 확인, 재부팅 후에도 유지
     implementation("androidx.work:work-runtime:2.10.1")
     testImplementation("junit:junit:4.13.2")

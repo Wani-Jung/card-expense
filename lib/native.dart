@@ -58,9 +58,13 @@ class Native {
   static Future<List<String>> takeShared() async =>
       await _ch.invokeListMethod<String>('takeShared') ?? [];
 
-  /// (전용판) 문자함(SMS + MMS)에서 최근 [days] 일 동안 발신번호가 일치하는 문자를 읽는다.
-  static Future<InboxScan> readSmsInbox(int days) async {
-    final m = await _ch.invokeMapMethod<String, dynamic>('readSmsInbox', {'days': days}) ?? {};
+  /// (전용판) 문자함(SMS + MMS + RCS 후보)에서 [from] 이상 [to] 미만 기간에 발신번호가 일치하는 문자를 읽는다.
+  static Future<InboxScan> readSmsInbox(DateTime from, DateTime to) async {
+    final m = await _ch.invokeMapMethod<String, dynamic>(
+          'readSmsInbox',
+          {'from': from.millisecondsSinceEpoch, 'to': to.millisecondsSinceEpoch},
+        ) ??
+        {};
     return InboxScan(
       _toRaw(m['items'] as List?),
       (m['smsScanned'] as num?)?.toInt() ?? 0,
@@ -69,10 +73,6 @@ class Native {
       (m['otherMatched'] as num?)?.toInt() ?? 0,
     );
   }
-
-  /// 세로로 긴 캡처를 겹치게 잘라 캐시에 쓴 경로들. 짧으면 원본 경로 하나.
-  static Future<List<String>> sliceImage(String path) async =>
-      await _ch.invokeListMethod<String>('sliceImage', {'path': path}) ?? [path];
 
   static Future<PermStatus> permissionStatus() async {
     final m = await _ch.invokeMapMethod<String, bool>('permissionStatus') ?? {};

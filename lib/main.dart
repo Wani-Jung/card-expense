@@ -14,18 +14,23 @@ import 'disclosure.dart';
 import 'expense.dart';
 import 'flavor.dart';
 import 'ignored_screen.dart';
+import 'import_screen.dart';
 import 'ingest.dart';
+import 'lab_screen.dart';
 import 'layout.dart';
 import 'menu_screen.dart';
 import 'native.dart';
-import 'ocr_screen.dart';
+import 'onboarding_screen.dart';
 import 'paste_screen.dart';
 import 'permission_screen.dart';
 import 'quiz.dart';
 import 'quiz_screens.dart';
 import 'quiz_sheet.dart';
 import 'review_screens.dart';
+import 'rural_quiz.dart';
+import 'rural_quiz_screens.dart';
 import 'sms_parser.dart';
+import 'snack.dart';
 import 'update_check.dart';
 import 'vendor.dart';
 import 'vendor_screen.dart';
@@ -89,6 +94,8 @@ ThemeData buildTheme() {
     bottomSheetTheme:
         const BottomSheetThemeData(backgroundColor: Colors.white, surfaceTintColor: Colors.transparent),
     dividerTheme: const DividerThemeData(color: kLine),
+    // 스낵바 버튼 글자: 어두운 바탕에서 잘 보이게 (REQ-47)
+    snackBarTheme: const SnackBarThemeData(actionTextColor: kSnackAction),
     // 흰 배경 위 골드 글자는 흐려서 글자 버튼은 진한 골드로
     textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: const Color(0xFF8D6200))),
   );
@@ -110,8 +117,6 @@ void main() async {
   runApp(CardExpenseApp(store: store));
 }
 
-const kDefaultSender = '1588-1600';
-
 class CardExpenseApp extends StatefulWidget {
   final Store store;
   const CardExpenseApp({super.key, required this.store});
@@ -126,6 +131,21 @@ class _CardExpenseAppState extends State<CardExpenseApp> {
 
   /// 첫 실행 설정(카드번호 입력)부터 시작했는지. 그날은 퀴즈를 띄우지 않는다.
   late final bool _firstRun = _digits == null || _sender == null;
+
+  /// 첫 실행 사용법 3단계를 보는 중 (업데이트로 들어온 기존 사용자는 카드 설정이 있어 안 뜬다)
+  late bool _onboarding = _firstRun;
+
+  /// 사용법 마지막 단계에서 고른 일 (메인이 뜨면 이어서)
+  OnboardingAction _firstAction = OnboardingAction.none;
+
+  /// 사용법 ① 이번 달 수립 (메인이 뜨기 전이라 저장소에 바로)
+  Future<void> _saveFirstBudget(int? total, int? car) async {
+    final b = widget.store.loadBudgets();
+    final month = DateTime.now();
+    b.setTotal(month, total);
+    b.setCar(month, car);
+    await widget.store.saveBudgets(b);
+  }
 
   Future<void> _saveSettings(String digits, String sender) async {
     await widget.store.setSettings(digits, sender);
@@ -143,14 +163,26 @@ class _CardExpenseAppState extends State<CardExpenseApp> {
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
       // v1.0.0 에서 올라온 경우 카드번호만 있으므로 발신번호까지 받는다.
-      home: _digits == null || _sender == null
-          ? SettingsScreen(initialDigits: _digits, onSaved: _saveSettings)
+      home: _onboarding || _digits == null || _sender == null
+          ? OnboardingScreen(
+              firstRun: true,
+              budget: widget.store.loadBudgets().forMonth(DateTime.now()),
+              digits: _digits,
+              sender: _sender,
+              onBudget: _saveFirstBudget,
+              onSettings: _saveSettings,
+              onDone: (a) => setState(() {
+                _onboarding = false;
+                _firstAction = a;
+              }),
+            )
           : HomeScreen(
               store: widget.store,
               digits: _digits!,
               sender: _sender!,
               onSaveSettings: _saveSettings,
               firstRun: _firstRun,
+              firstAction: _firstAction,
             ),
     );
   }
@@ -173,8 +205,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final _digits = TextEditingController(text: widget.initialDigits ?? '');
   late final _sender = TextEditingController(text: widget.initialSender ?? kDefaultSender);
 
-  bool get _valid =>
-      RegExp(r'^\d{4}$').hasMatch(_digits.text) && normalizeNumber(_sender.text).length >= 7;
+  bool get _valid => validCardSettings(_digits.text, _sender.text);
 
   @override
   Widget build(BuildContext context) {
@@ -186,8 +217,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const Text('카드번호 네자리', style: label),
           const SizedBox(height: 4),
-          const Text('승인 문자에 적힌 카드번호 네자리 (예: "NH기업0000승인" 이면 0000)',
-              style: TextStyle(color: Colors.black54)),
+          Text(keepWords(kDigitsHelp), style: const TextStyle(color: Colors.black54)),
           const SizedBox(height: 12),
           TextField(
             controller: _digits,
@@ -209,7 +239,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: const Text('기본값으로'),
             ),
           ]),
-          const Text('카드 승인 문자를 보내는 번호 (기본값 $kDefaultSender)', style: TextStyle(color: Colors.black54)),
+          Text(keepWords('카드 승인 문자를 보내는 번호 (기본값 $kDefaultSender)'), style: const TextStyle(color: Colors.black54)),
           const SizedBox(height: 12),
           TextField(
             controller: _sender,
@@ -249,6 +279,9 @@ class HomeScreen extends StatefulWidget {
 
   /// 첫 실행 설정을 마치고 막 들어왔는지 (그날 퀴즈 건너뜀)
   final bool firstRun;
+
+  /// 첫 실행 사용법 마지막 단계에서 고른 일 (지난 문자 불러오기 / 붙여넣기)
+  final OnboardingAction firstAction;
   const HomeScreen({
     super.key,
     required this.store,
@@ -256,6 +289,7 @@ class HomeScreen extends StatefulWidget {
     required this.sender,
     required this.onSaveSettings,
     this.firstRun = false,
+    this.firstAction = OnboardingAction.none,
   });
 
   @override
@@ -331,6 +365,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _askNotificationOnce();
       await _openTarget();
+      await _runGuideAction(widget.firstAction);
     });
   }
 
@@ -580,7 +615,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// 파싱된 문자를 내역에 넣는다. 이미 있는 id 는 건너뛴다. 추가된 건수를 돌려준다.
-  Future<int> _addParsed(List<ParsedSms> list, {bool realtime = false}) async {
+  /// [realtime]: 실시간 문자(알림·수신). [fromStore]: 문자 저장소에서 불러온 문자.
+  /// 둘 다 날짜를 시스템이 주므로 날짜 이상(확인 필요 e)으로 보지 않는다.
+  Future<int> _addParsed(List<ParsedSms> list, {bool realtime = false, bool fromStore = false}) async {
+    final now = DateTime.now();
     final ids = _items.map((e) => e.id).toSet();
     final fresh = <String>{};
     var added = 0;
@@ -588,7 +626,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (ids.contains(p.id)) continue;
       final e = Expense.fromParsed(p);
       // 지난 문자를 한꺼번에 넣어도 오래된 승인 일시 때문에 바로 '7일 넘음'이 되지 않게 넣은 때부터 센다
-      if (!realtime) e.pendingSince = DateTime.now();
+      if (!realtime) e.pendingSince = now;
+      if (!realtime && !fromStore) e.dateIssue = dateIssueAt(e.dateTime, now);
       _items.add(e);
       ids.add(e.id);
       if (e.isCancel) fresh.add(e.id);
@@ -669,10 +708,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final who = e.merchant.isEmpty ? won(e.signedAmount) : e.merchant;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
+      ..showSnackBar(appSnackBar(
         content: Text(targets.length > 1 ? '$who ${targets.length}건 · $what' : '$who · $what'),
         duration: const Duration(seconds: 5),
-        persist: false,
         action: SnackBarAction(
           label: '되돌리기',
           onPressed: () async {
@@ -733,13 +771,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final messenger = ScaffoldMessenger.of(context);
     messenger
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
+      ..showSnackBar(appSnackBar(
         content: Row(children: [
           Expanded(
             child: Text(targets.length > 1 ? '${targets.length}건을 미분류 내역으로 옮겼어요' : '미분류 내역으로 옮겼어요'),
           ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: kGold),
+            style: TextButton.styleFrom(foregroundColor: kSnackAction),
             onPressed: () {
               messenger.hideCurrentSnackBar();
               _openUnclassified();
@@ -748,7 +786,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ]),
         duration: const Duration(seconds: 5),
-        persist: false,
         action: SnackBarAction(
           label: '되돌리기',
           onPressed: () async {
@@ -775,20 +812,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(msg)));
+      ..showSnackBar(appSnackBar(content: Text(msg)));
   }
 
-  // ---------------- (전용판) 지난 문자 1년치 불러오기 ----------------
+  // ---------------- (전용판) 지난 문자 불러오기 ----------------
 
-  /// 문자 권한이 처음 허용됐거나 설정이 바뀐 뒤면 1년치를 한 번 불러온다.
+  /// 문자 권한이 처음 허용됐거나 설정이 바뀐 뒤면 최근 1년치를 한 번 불러온다 (미리보기 없이).
   Future<void> _maybeAutoImport() async {
     if (!isFullEdition || !widget.store.useSms || _perms.sms != true || widget.store.autoImported || _importing) {
       return;
     }
-    await _importInbox();
+    final r = defaultImportRange(DateTime.now());
+    await _importRange(r.from, r.to);
     await widget.store.setAutoImported();
   }
 
+  /// 메뉴 > 결제내역 입력 > 지난 문자 불러오기: 권한 확인 → 기간 고르기·미리보기 화면 → [불러오기]
   Future<void> _importInbox() async {
     if (_importing) return;
     if (!widget.store.useSms) {
@@ -800,21 +839,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await requestSmsWithDisclosure(context);
       return; // 허용되면 permissionsChanged → 자동 불러오기
     }
+    final picked = await Navigator.of(context).push<ImportPreview>(MaterialPageRoute(
+      builder: (_) => ImportRangeScreen(preview: _previewRange),
+    ));
+    if (picked != null) await _applyImport(picked);
+  }
+
+  /// 기간 미리보기: 문자를 읽어 새·중복·무시했던 건수를 센다 (아직 넣지 않음)
+  Future<ImportPreview> _previewRange(DateTime from, DateTime to) async {
+    final scan = await Native.readSmsInbox(from, to);
+    final ids = {
+      for (final r in scan.items) parseSms(r.body, cardDigits: widget.digits, receivedAt: r.receivedAt)?.id,
+    }..remove(null);
+    return ImportPreview(scan, _classifyRaw(scan.items), unique: ids.length);
+  }
+
+  Future<void> _importRange(DateTime from, DateTime to) async {
+    if (_importing) return;
     _importing = true;
-    _toast('최근 1년 문자를 불러오는 중…');
     try {
-      final scan = await Native.readSmsInbox(365);
-      final r = _classifyRaw(scan.items);
-      final added = await _addParsed(r.fresh);
-      if (r.fresh.isEmpty && r.ignoredHits.isEmpty) {
-        await _showScanResult(scan, r.fresh.length + r.dup + r.ignoredHits.length);
-      } else {
-        await _showResult('지난 문자 불러오기', r, added);
-      }
+      await _applyImport(await _previewRange(from, to));
     } on PlatformException catch (e) {
       _toast(e.code == 'NO_PERMISSION' ? '문자 권한을 먼저 허용해주세요' : '불러오기 실패: ${e.message}');
     } finally {
       _importing = false;
+    }
+  }
+
+  Future<void> _applyImport(ImportPreview p) async {
+    final r = p.report;
+    final added = await _addParsed(r.fresh, fromStore: true);
+    if (r.fresh.isEmpty && r.ignoredHits.isEmpty) {
+      await _showScanResult(p.scan, r.fresh.length + r.dup + r.ignoredHits.length);
+    } else {
+      await _showResult('지난 문자 불러오기', r, added);
     }
   }
 
@@ -826,12 +884,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('새로 불러온 문자가 없어요'),
-        content: Text(
+        content: Text(keepWords(
           'SMS ${scan.smsScanned}건, MMS ${scan.mmsScanned}건'
           '${scan.otherScanned > 0 ? ', 기타 저장소 ${scan.otherScanned}건' : ''} 검사\n'
           '발신번호 일치 ${scan.senderMatched}건\n'
           '카드번호 일치 $cardMatched건\n\n'
-          '${cardMatched > 0 ? '모두 이미 들어와 있는 내역이에요.' : '카드 문자가 RCS 기업메시지로 왔다면 문자 저장소에 없을 수 있어요. 메뉴에서 문자 캡처화면 업로드로 넣어주세요.'}',
+          '${cardMatched > 0 ? '모두 이미 들어와 있는 내역이에요.' : '카드 문자가 RCS 기업메시지로 왔다면 문자 저장소에 없을 수 있어요. 메시지 앱에서 문자를 길게 눌러 복사한 뒤 붙여넣기하거나 공유하기로 넣어주세요.'}'),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
       ),
@@ -898,35 +956,75 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _showResult('붙여넣은 문자', res.report, added, revived: res.revive);
   }
 
-  Future<void> _openOcr() async {
-    final res = await Navigator.of(context).push<OcrResult>(MaterialPageRoute(
-      builder: (_) => OcrScreen(digits: widget.digits, existing: _byId, recommend: _vendors.recommend),
-    ));
-    if (res == null) return;
-    final added = await _addParsed(res.add);
-    if (res.revive.isNotEmpty) await _revive(res.revive);
-    _toast([
-      '캡처에서 $added건 추가',
-      if (res.revive.isNotEmpty) '무시했던 문자 ${res.revive.length}건 되살림',
-    ].join(' · '));
+  /// 사용법 마지막 단계의 버튼: 지난 문자 불러오기 / 문자 붙여넣기
+  Future<void> _runGuideAction(OnboardingAction a) async {
+    if (!mounted) return;
+    if (a == OnboardingAction.importInbox) await _importInbox();
+    if (a == OnboardingAction.paste) await _openPaste();
   }
+
+  /// 메뉴 > 사용법: 같은 3단계 (지금 값이 들어 있고, 바꾸면 바로 반영)
+  Future<void> _openGuide() async {
+    final nav = Navigator.of(context);
+    OnboardingAction? picked;
+    await nav.push(MaterialPageRoute(
+      builder: (ctx) => OnboardingScreen(
+        firstRun: false,
+        budget: _budgets.forMonth(DateTime.now()),
+        digits: widget.digits,
+        sender: widget.sender,
+        onBudget: (total, car) async {
+          final month = DateTime.now();
+          setState(() {
+            _budgets.setTotal(month, total);
+            _budgets.setCar(month, car);
+          });
+          await widget.store.saveBudgets(_budgets);
+        },
+        onSettings: widget.onSaveSettings,
+        onDone: (a) {
+          picked = a;
+          Navigator.of(ctx).pop();
+        },
+      ),
+    ));
+    await _runGuideAction(picked ?? OnboardingAction.none);
+  }
+
+  late final RuralStore _rural = RuralStore(widget.store.prefs);
+  RuralBank? _ruralBank;
+  Future<RuralBank?> _loadRural() async => _ruralBank ??= await RuralBank.load();
+
+  /// 메뉴 > 실험실 (안전 OX Quiz · 농어촌정비법 퀴즈)
+  Future<void> _openLab() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => LabScreen(
+          quizSummary: () => _quiz.menuText(quizDay(DateTime.now())),
+          ruralSummary: () {
+            final p = _rural.percent;
+            return p == null ? 'OX·객관식 문제를 분야별로 풀어요' : '푼 문제 ${_rural.solvedCount} · 정답률 $p%';
+          },
+          onQuiz: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => QuizHomeScreen(store: _quiz, bank: _bank),
+              )),
+          onRural: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => RuralQuizHomeScreen(store: _rural, bank: _loadRural),
+              )),
+        ),
+      ));
 
   void _openMenu() {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => MenuScreen(
         onImport: _importInbox,
         onPaste: _openPaste,
-        onOcr: _openOcr,
         onVendors: _openVendors,
         importEnabled: () => widget.store.useSms,
         onSettings: _openSettings,
         cardSummary: () => '카드 ${widget.digits} · 발신 ${widget.sender}',
         onPermissions: _openPermissions,
         permSummary: _permSummary,
-        quizSummary: () => _quiz.menuText(quizDay(DateTime.now())),
-        onQuiz: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => QuizHomeScreen(store: _quiz, bank: _bank),
-            )),
+        onLab: _openLab,
+        onGuide: _openGuide,
         // 메뉴에 그대로 있고, 결과(스낵바·업데이트 창)도 메뉴 위에서
         onUpdate: isStoreChannel ? null : () => _checkUpdate(manual: true),
         counts: () => (

@@ -110,11 +110,11 @@ void main() {
     expect(find.text(t(prev)), findsOneWidget);
   });
 
-  testWidgets('메뉴: 섹션 없이 8개 한 화면, 내역 관리·결제내역 입력 펼침, 권한 설정', (tester) async {
+  testWidgets('메뉴: 섹션 없이 9개 한 화면, 내역 관리·결제내역 입력 펼침, 권한 설정', (tester) async {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    final titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '카드 문자 설정', '안전 OX Quiz', '권한 설정', '개인정보처리방침', isStoreChannel ? '버전 정보' : '업데이트 확인'];
+    final titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '카드 문자 설정', '권한 설정', '사용법', '실험실', '개인정보처리방침', isStoreChannel ? '버전 정보' : '업데이트 확인'];
     for (final t in titles) {
       expect(find.text(t), findsOneWidget);
     }
@@ -124,6 +124,7 @@ void main() {
       expect(ys[i], greaterThan(ys[i - 1]), reason: titles[i]);
     }
     expect(find.text('설정'), findsNothing);
+    expect(find.text('안전 OX Quiz'), findsNothing); // 실험실 안으로 (REQ-47)
     for (final gone in ['내역 넣기', '정산', '업체 관리', '앱 정보', '이번 달 내역 복사', '현재 버전', '알림 접근 설정', '제작자']) {
       expect(find.text(gone), findsNothing);
     }
@@ -134,7 +135,7 @@ void main() {
     expect(tester.getCenter(credit).dx, closeTo(360 / 2, 1));
     expect(find.ancestor(of: credit, matching: find.byType(InkWell)), findsNothing);
     expect(find.ancestor(of: credit, matching: find.byType(ListTile)), findsNothing);
-    expect(find.text('오늘의 문제를 풀어보세요'), findsOneWidget);
+    expect(find.text('안전 OX Quiz · 농어촌정비법 퀴즈'), findsOneWidget);
     expect(find.text('카드 0000 · 발신 1588-1600'), findsOneWidget);
     expect(find.text('알림 감지 권한 필요'), findsOneWidget);
 
@@ -146,7 +147,7 @@ void main() {
     await tester.tap(find.text('결제내역 입력'));
     await tester.pumpAndSettle();
     expect(find.text('문자 붙여넣기'), findsOneWidget);
-    expect(find.text('문자 캡처화면 업로드'), findsOneWidget);
+    expect(find.text('문자 캡처화면 업로드'), findsNothing); // REQ-47 캡처 제거
     // 펼침은 하나만: 결제내역 입력을 펼치면 내역 관리는 접힘 → 다시 펼침
     expect(find.text('미분류 내역'), findsNothing);
     await tester.tap(find.text('내역 관리'));
@@ -266,6 +267,8 @@ void main() {
     // 메뉴 '안전 OX' → 안전 OX 화면 → 한 문제 더 풀기 (오늘 푼 문제는 안 나옴)
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('실험실'));
+    await tester.pumpAndSettle();
     expect(find.textContaining('연속 1일 · 정답률 '), findsOneWidget);
     await tester.tap(find.text('안전 OX Quiz'));
     await tester.pumpAndSettle();
@@ -351,7 +354,9 @@ void main() {
       await tester.tap(find.byTooltip('메뉴'));
       await tester.pumpAndSettle();
 
-      // 안전 OX Quiz → 챌린지 시작 화면
+      // 실험실 > 안전 OX Quiz → 챌린지 시작 화면
+      await tester.tap(find.text('실험실'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('안전 OX Quiz'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('안전 OX 챌린지'));

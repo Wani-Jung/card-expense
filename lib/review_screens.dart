@@ -182,14 +182,41 @@ class CheckScreen extends StatelessWidget {
           Text('현재 ${categoryLabel(e.category!)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           Text(i.reason, style: const TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
           const SizedBox(height: 10),
+          // 유지를 권하는 쪽으로 강조 (REQ-47): [이대로 맞아요] = 지금 분류 색 채움, [X로 변경] = 테두리만 + 바꿀 분류 색 글자
           Wrap(spacing: 6, runSpacing: 10, children: [
-            _smallOutlined('이대로 맞아요', () => onOk(i)),
-            button(to, null, () => onChange(e, to), label: '${categoryLabel(to)}로 변경'),
+            keepButton(e.category!, () => onOk(i)),
+            changeButton(to, () => onChange(e, to)),
           ]),
         ]),
       ),
     );
   }
+
+  /// [이대로 맞아요]: 지금 분류 색으로 채우고 진하게
+  static Widget keepButton(String cat, VoidCallback onPressed) => FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: cat == kCar ? kCarColor : kOpsColor,
+          foregroundColor: cat == kCar ? Colors.white : kOpsText,
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+        ),
+        onPressed: onPressed,
+        child: const Text('이대로 맞아요'),
+      );
+
+  /// [X로 변경]: 테두리만, 글자는 바꿀 분류 색 (운영비 노랑은 흰 바탕에서 안 보여 진한 갈색 글자 + 노랑 테두리)
+  static Widget changeButton(String to, VoidCallback onPressed) => OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: to == kCar ? kCarColor : kOpsText,
+          side: BorderSide(color: to == kCar ? kCarColor : kOpsColor, width: 1.5),
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        ),
+        onPressed: onPressed,
+        child: Text('${categoryLabel(to)}로 변경'),
+      );
 
   /// 승인 후 취소: 원승인 + 취소 한 카드. 한 건씩 따로 무시·분류하는 버튼은 없다.
   Widget _cancelledCard(CheckIssue i) {

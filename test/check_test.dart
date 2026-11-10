@@ -158,23 +158,49 @@ void main() {
     });
   });
 
-  group('e. 날짜 이상', () {
-    test('미래 날짜, 1년보다 오래된 날짜', () {
+  group('e. 날짜 이상 (들어올 때 한 번만 판정, REQ-47)', () {
+    /// 붙여넣기·공유처럼 [at] 시점에 들어온 내역
+    Expense pasted(String m, DateTime d, DateTime at) => _e(m, kOps, d)..dateIssue = dateIssueAt(d, at);
+
+    test('들어올 때 미래 날짜·1년보다 오래된 날짜만', () {
       final all = _of(
           _find([
-            _e('가게A', kOps, _now.add(const Duration(days: 3))),
-            _e('가게B', kOps, _now.subtract(const Duration(days: 400))),
-            _e('가게C', kOps, _now.subtract(const Duration(days: 300))),
+            pasted('가게A', _now.add(const Duration(days: 3)), _now),
+            pasted('가게B', _now.subtract(const Duration(days: 400)), _now),
+            pasted('가게C', _now.subtract(const Duration(days: 300)), _now),
           ]),
           CheckRule.oddDate);
       expect(all.map((i) => i.e.merchant), unorderedEquals(['가게A', '가게B']));
       expect(all.firstWhere((i) => i.e.merchant == '가게A').reason, contains('미래 날짜'));
       expect(all.firstWhere((i) => i.e.merchant == '가게B').reason, contains('1년보다 오래된'));
     });
+
+    test('들어올 때 정상이었으면 시간이 지나 1년을 넘어도 다시 안 올림', () {
+      final d = _now.subtract(const Duration(days: 400));
+      final e = pasted('가게D', d, d.add(const Duration(days: 1))); // 400일 전, 다음 날 들어옴
+      expect(e.dateIssue, isNull);
+      expect(_of(_find([e]), CheckRule.oddDate), isEmpty);
+    });
+
+    test('들어올 때 미래였던 날짜는 그날이 지나도 확인 전까지 남음', () {
+      final d = _now.subtract(const Duration(days: 2));
+      final e = pasted('가게E', d, d.subtract(const Duration(days: 5)));
+      expect(_of(_find([e]), CheckRule.oddDate).single.reason, contains('미래 날짜'));
+    });
+
+    test('예전 데이터(판정 기록 없음)·문자 저장소에서 불러온 건은 1년 넘어도 날짜 이상 아님 (= 1회 복귀)', () {
+      final old = _e('가게F', kCar, _now.subtract(const Duration(days: 500)));
+      final future = _e('가게G', kCar, _now.add(const Duration(days: 30)));
+      expect(old.dateIssue, isNull);
+      expect(_of(_find([old, future]), CheckRule.oddDate), isEmpty);
+      final json = Expense.fromJson(old.toJson());
+      expect(json.dateIssue, isNull);
+      expect(Expense.fromJson((_e('가게H', kOps, _now)..dateIssue = kDateOld).toJson()).dateIssue, kDateOld);
+    });
   });
 
   test('이대로 맞아요 한 건은 다시 안 나옴, 규칙 순서로 정렬', () {
-    final future = _e('가게A', kOps, _now.add(const Duration(days: 3)));
+    final future = _e('가게A', kOps, _now.add(const Duration(days: 3)))..dateIssue = kDateFuture;
     final cancel = _e('빵집', kOps, DateTime(2026, 10, 2), cancel: true);
     final all = _find([future, cancel]);
     expect(all.map((i) => i.rule), [CheckRule.cancelPair, CheckRule.oddDate]);

@@ -134,7 +134,9 @@ void main() {
       // 중복은 한 번만
       final keys = [for (final k in b.keywords) keywordKey(k.keyword)];
       expect(keys.toSet().length, keys.length);
-      expect(kDefaultCarKeywords, containsAll(kDefaultCarKeywordsV1));
+      // v1 키워드는 v3 정리(더 짧은 키워드에 덮이는 것 제외)를 빼고 모두 남아 있다
+      final removed = {for (final w in kRemovedDefaultKeywords) keywordKey(w)};
+      expect(kDefaultCarKeywords, containsAll(kDefaultCarKeywordsV1.where((w) => !removed.contains(keywordKey(w)))));
     });
 
     test('영문 3자 이하 키워드(LPG)는 가맹점 이름 앞부분 일치만', () {

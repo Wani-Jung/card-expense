@@ -11,13 +11,12 @@ object Flavor {
     val smsPermissions = arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS)
 
     /**
-     * 문자함에서 최근 days 일 동안 발신번호가 일치하는 문자를 읽는다. READ_SMS 권한 필요.
+     * 문자함에서 [fromMs, toMs) 기간에 발신번호가 일치하는 문자를 읽는다. READ_SMS 권한 필요.
      * [Web발신] 장문(LMS)은 MMS 테이블에 저장되므로 SMS·MMS 를 둘 다 본다.
      * 카드번호 확인은 Dart 쪽 parseSms 가 한다. (건수 통계를 내기 위해)
      */
-    fun readInbox(ctx: Context, days: Int): Map<String, Any>? {
+    fun readInbox(ctx: Context, fromMs: Long, toMs: Long): Map<String, Any>? {
         val sender = CardSms.sender(ctx)
-        val sinceMs = System.currentTimeMillis() - days * 24L * 60 * 60 * 1000
         val items = ArrayList<Map<String, Any>>()
         val cr = ctx.contentResolver
 
@@ -25,8 +24,8 @@ object Flavor {
         cr.query(
             Uri.parse("content://sms"),
             arrayOf("address", "body", "date"),
-            "date >= ?",
-            arrayOf(sinceMs.toString()),
+            "date >= ? AND date < ?",
+            arrayOf(fromMs.toString(), toMs.toString()),
             "date ASC",
         )?.use { c ->
             while (c.moveToNext()) {
@@ -41,8 +40,8 @@ object Flavor {
         cr.query(
             Uri.parse("content://mms"),
             arrayOf("_id", "date"),
-            "date >= ?",
-            arrayOf((sinceMs / 1000).toString()), // MMS date 는 초 단위
+            "date >= ? AND date < ?",
+            arrayOf((fromMs / 1000).toString(), (toMs / 1000).toString()), // MMS date 는 초 단위
             "date ASC",
         )?.use { c ->
             while (c.moveToNext()) {
@@ -59,7 +58,7 @@ object Flavor {
         var otherScanned = 0
         var otherMatched = 0
         for (uri in OTHER_STORES) {
-            val r = scanOther(ctx, uri, sinceMs, CardSms.digits(ctx)) ?: continue
+            val r = scanOther(ctx, uri, fromMs, toMs, CardSms.digits(ctx)) ?: continue
             otherScanned += r.scanned
             otherMatched += r.items.size
             items.addAll(r.items)
@@ -91,7 +90,7 @@ object Flavor {
     private class OtherScan(val scanned: Int, val items: List<Map<String, Any>>)
 
     /** 열리면 카드번호+승인 문자를 찾아 돌려준다. 막혀 있거나 본문 컬럼이 없으면 null. 예외는 삼킨다. */
-    private fun scanOther(ctx: Context, uri: String, sinceMs: Long, digits: String?): OtherScan? = try {
+    private fun scanOther(ctx: Context, uri: String, fromMs: Long, toMs: Long, digits: String?): OtherScan? = try {
         ctx.contentResolver.query(Uri.parse(uri), null, null, null, null)?.use { c ->
             val bodyIdx = BODY_COLUMNS.map { c.getColumnIndex(it) }.firstOrNull { it >= 0 } ?: return@use null
             val dateIdx = DATE_COLUMNS.map { c.getColumnIndex(it) }.firstOrNull { it >= 0 }
@@ -102,7 +101,7 @@ object Flavor {
                 val body = try { c.getString(bodyIdx) } catch (_: Exception) { null } ?: continue
                 if (!CardSms.hasCardApproval(body, digits)) continue
                 val ts = dateIdx?.let { toMillis(c.getLong(it)) } ?: System.currentTimeMillis()
-                if (ts < sinceMs) continue
+                if (ts < fromMs || ts >= toMs) continue
                 items.add(mapOf("body" to body, "ts" to ts))
             }
             OtherScan(scanned, items)

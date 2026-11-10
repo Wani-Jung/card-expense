@@ -12,6 +12,7 @@ import 'native.dart';
 import 'quiz.dart';
 import 'quiz_category_picker.dart';
 import 'quiz_sheet.dart';
+import 'snack.dart';
 
 const _grey = Color(0xFF5F6368);
 
@@ -51,7 +52,7 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('점수 기록을 지울까요?'),
-        content: const Text(kClearScoresMessage),
+        content: Text(keepWords(kClearScoresMessage)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
           TextButton(
@@ -70,7 +71,7 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        appSnackBar(
           content: const Text('점수 기록을 지웠어요'),
           duration: const Duration(seconds: 5),
           action: SnackBarAction(
@@ -124,18 +125,7 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
               ],
             ),
           ),
-          item(Icons.history_edu, '지난 문제 다시 보기', '푼 문제를 날짜별로 다시 봐요', QuizHistoryScreen(store: s, bank: widget.bank)),
-          const Divider(height: 1, thickness: 0.5),
-          item(Icons.add_task, '한 문제 더 풀기', '원하는 만큼 계속 풀어요', QuizPracticeScreen(store: s, bank: widget.bank)),
-          const Divider(height: 1, thickness: 0.5),
-          item(
-            Icons.emoji_events_outlined,
-            '안전 OX 챌린지',
-            '10~50문제, 시간과 정답률로 기록에 도전',
-            ChallengeStartScreen(store: s, bank: widget.bank),
-          ),
-          const SizedBox(height: 24),
-          const Divider(height: 1, thickness: 0.5),
+          // REQ-47: 매일 OX 퀴즈 → 챌린지 → 한 문제 더 → 지난 문제 순
           SwitchListTile(
             title: const Text('매일 OX 퀴즈'),
             subtitle: const Text('켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나옵니다.', style: TextStyle(fontSize: 12)),
@@ -146,7 +136,17 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
             },
           ),
           const Divider(height: 1, thickness: 0.5),
-          const SizedBox(height: 16),
+          item(
+            Icons.emoji_events_outlined,
+            '안전 OX 챌린지',
+            '10~50문제, 시간과 정답률로 기록에 도전',
+            ChallengeStartScreen(store: s, bank: widget.bank),
+          ),
+          const Divider(height: 1, thickness: 0.5),
+          item(Icons.add_task, '한 문제 더 풀기', '원하는 만큼 계속 풀어요', QuizPracticeScreen(store: s, bank: widget.bank)),
+          const Divider(height: 1, thickness: 0.5),
+          item(Icons.history_edu, '지난 문제 다시 보기', '푼 문제를 날짜별로 다시 봐요', QuizHistoryScreen(store: s, bank: widget.bank)),
+          const SizedBox(height: 32),
           Center(
             child: TextButton(
               style: TextButton.styleFrom(
@@ -354,39 +354,41 @@ class _QuizRecordTileState extends State<QuizRecordTile> {
                   height: 30,
                   child: _open
                       ? FilledButton(
-                          style: _explainStyle(filled: true),
+                          style: quizExplainButtonStyle(filled: true),
                           onPressed: () => setState(() => _open = false),
                           child: const Text('해설'),
                         )
                       : OutlinedButton(
-                          style: _explainStyle(filled: false),
+                          style: quizExplainButtonStyle(filled: false),
                           onPressed: () => setState(() => _open = true),
                           child: const Text('해설'),
                         ),
                 ),
             ],
           ),
-          if (_open && q != null) _ExplainBubble(q),
+          if (_open && q != null) QuizExplainBubble(explain: q.explain, catLabel: q.catLabel, basis: q.basis),
         ],
       ),
     );
   }
-
-  static ButtonStyle _explainStyle({required bool filled}) => ButtonStyle(
-    padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 14)),
-    minimumSize: const WidgetStatePropertyAll(Size(0, 30)),
-    visualDensity: VisualDensity.compact,
-    textStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-    backgroundColor: WidgetStatePropertyAll(filled ? kQuizNavy : Colors.white),
-    foregroundColor: WidgetStatePropertyAll(filled ? Colors.white : kQuizNavy),
-    side: const WidgetStatePropertyAll(BorderSide(color: kQuizNavy, width: 1.2)),
-  );
 }
 
+/// [해설] 버튼 모양: 펼쳤을 때 네이비 채움, 접었을 때 테두리 (안전 OX·농어촌정비법 퀴즈 공용)
+ButtonStyle quizExplainButtonStyle({required bool filled}) => ButtonStyle(
+  padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 14)),
+  minimumSize: const WidgetStatePropertyAll(Size(0, 30)),
+  visualDensity: VisualDensity.compact,
+  textStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+  backgroundColor: WidgetStatePropertyAll(filled ? kQuizNavy : Colors.white),
+  foregroundColor: WidgetStatePropertyAll(filled ? Colors.white : kQuizNavy),
+  side: const WidgetStatePropertyAll(BorderSide(color: kQuizNavy, width: 1.2)),
+);
+
 /// 해설 말풍선: 위쪽 오른편(해설 버튼 아래)에 꼬리, 연한 네이비 바탕
-class _ExplainBubble extends StatelessWidget {
-  final QuizQuestion q;
-  const _ExplainBubble(this.q);
+/// 안전 OX·농어촌정비법 퀴즈 공용
+class QuizExplainBubble extends StatelessWidget {
+  final String explain, catLabel, basis;
+  const QuizExplainBubble({super.key, required this.explain, required this.catLabel, required this.basis});
 
   static const _bg = Color(0xFFEEF2F8);
 
@@ -407,10 +409,10 @@ class _ExplainBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (q.explain.isNotEmpty) Text(q.explain, style: const TextStyle(fontSize: 13, height: 1.45)),
+            if (explain.isNotEmpty) Text(explain, style: const TextStyle(fontSize: 13, height: 1.45)),
             const SizedBox(height: 6),
-            Text('분야: ${q.catLabel}', style: const TextStyle(fontSize: 12, color: _grey)),
-            if (q.basis.isNotEmpty) Text('근거: ${q.basis}', style: const TextStyle(fontSize: 12, color: _grey)),
+            Text('분야: $catLabel', style: const TextStyle(fontSize: 12, color: _grey)),
+            if (basis.isNotEmpty) Text('근거: $basis', style: const TextStyle(fontSize: 12, color: _grey)),
           ],
         ),
       ),
@@ -1106,7 +1108,7 @@ class _ChallengeResultScreenState extends State<ChallengeResultScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('공유하지 못했어요: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(appSnackBar(content: Text('공유하지 못했어요: $e')));
       }
     } finally {
       try {

@@ -9,15 +9,15 @@ import 'native.dart';
 /// 우측 상단 톱니 → 메뉴 화면. 섹션 제목 없이 한 목록, 항목 사이엔 얇은 구분선만.
 /// '결제내역 입력'·'내역 관리'는 그 자리에서 펼친다 (펼침 항목은 한 번에 하나만). 접힌 상태는 스크롤 없이 한 화면에.
 /// 모든 항목은 메뉴를 닫지 않고 메뉴 위에 화면을 띄운다 → 뒤로가기 하면 메뉴로. 돌아오면 건수·설명을 다시 읽고
-/// 펼침 상태는 그대로. 1년치 불러오기·업데이트 확인도 메뉴에 머문 채 진행 표시와 결과 창을 띄운다.
+/// 펼침 상태는 그대로. 업데이트 확인은 메뉴에 머문 채 진행 표시와 결과 창을 띄운다.
 class MenuScreen extends StatefulWidget {
-  final Future<void> Function() onImport, onPaste, onOcr, onVendors;
+  final Future<void> Function() onImport, onPaste, onVendors;
 
   /// 업데이트 확인. 메뉴를 닫지 않고, 확인하는 동안 항목 오른쪽에 작은 로딩 표시.
   /// null(스토어판)이면 '업데이트 확인' 대신 누를 수 없는 '버전 정보'만 보인다.
   final Future<void> Function()? onUpdate;
 
-  /// (전용판) 권한 설정에서 문자 읽기를 끄면 1년치 불러오기를 흐리게
+  /// (전용판) 권한 설정에서 문자 읽기를 끄면 지난 문자 불러오기를 흐리게
   final bool Function() importEnabled;
 
   /// 카드 문자 설정 (카드번호·발신번호). 저장하고 돌아오면 설명의 현재 값을 다시 읽는다.
@@ -28,9 +28,11 @@ class MenuScreen extends StatefulWidget {
   final Future<void> Function() onPermissions;
   final String Function() permSummary;
 
-  /// 안전 OX Quiz: 설명 "연속 N일 · 정답률 NN%", 누르면 안전 OX Quiz 화면
-  final String Function() quizSummary;
-  final Future<void> Function() onQuiz;
+  /// 실험실 (안전 OX Quiz·농어촌정비법 퀴즈). 설명은 안의 항목 이름
+  final Future<void> Function() onLab;
+
+  /// 사용법 3단계 다시 보기
+  final Future<void> Function() onGuide;
 
   /// 내역 관리 건수 (미분류, 확인 필요, 무시한, 확인한 = 차량비·운영비로 분류된 전체). 각 화면에서 돌아오면 다시 센다.
   final ({int pending, int check, int ignored, int confirmed}) Function() counts;
@@ -44,7 +46,6 @@ class MenuScreen extends StatefulWidget {
     super.key,
     required this.onImport,
     required this.onPaste,
-    required this.onOcr,
     required this.onVendors,
     this.onUpdate,
     required this.importEnabled,
@@ -52,8 +53,8 @@ class MenuScreen extends StatefulWidget {
     required this.cardSummary,
     required this.onPermissions,
     required this.permSummary,
-    required this.quizSummary,
-    required this.onQuiz,
+    required this.onLab,
+    required this.onGuide,
     required this.counts,
     required this.onUnclassified,
     required this.onCheck,
@@ -73,7 +74,7 @@ class _MenuScreenState extends State<MenuScreen> {
   late String? _expanded = widget.counts().check > 0 ? 'manage' : null;
   void _toggle(String key) => setState(() => _expanded = _expanded == key ? null : key);
 
-  /// 진행 중인 항목 (오른쪽 작은 로딩): 'import' 1년치 불러오기, 'update' 업데이트 확인
+  /// 진행 중인 항목 (오른쪽 작은 로딩): 'update' 업데이트 확인
   final _busy = <String>{};
   late final Future<PackageInfo> _info = PackageInfo.fromPlatform();
 
@@ -84,7 +85,7 @@ class _MenuScreenState extends State<MenuScreen> {
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        content: const Text('개인정보처리방침 페이지(GitHub)를 인터넷 브라우저로 엽니다.'),
+        content: Text(keepWords('개인정보처리방침 페이지(GitHub)를 인터넷 브라우저로 엽니다.')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('열기')),
@@ -170,20 +171,14 @@ class _MenuScreenState extends State<MenuScreen> {
           item(
             Icons.add_card,
             '결제내역 입력',
-            '문자 불러오기 · 붙여넣기 · 캡처 업로드',
+            isFullEdition ? '지난 문자 불러오기 · 붙여넣기' : '문자 붙여넣기 · 공유하기',
             () => _toggle('input'),
             trailing: chevron(_expanded == 'input'),
           ),
           if (_expanded == 'input') ...[
             if (isFullEdition)
-              sub(
-                Icons.history,
-                '지난 문자 1년치 불러오기',
-                importOn ? busyThen('import', w.onImport) : null,
-                trailing: spinner('import'),
-              ),
+              sub(Icons.history, '지난 문자 불러오기', importOn ? openThen(w.onImport) : null),
             sub(Icons.content_paste, '문자 붙여넣기', openThen(w.onPaste)),
-            sub(Icons.image_search, '문자 캡처화면 업로드', openThen(w.onOcr)),
           ],
           line,
           item(
@@ -249,9 +244,11 @@ class _MenuScreenState extends State<MenuScreen> {
           line,
           item(Icons.credit_card, '카드 문자 설정', w.cardSummary(), openThen(w.onSettings)),
           line,
-          item(null, '안전 OX Quiz', w.quizSummary(), openThen(w.onQuiz), leading: const QuizIcon()),
-          line,
           item(Icons.shield_outlined, '권한 설정', w.permSummary(), openThen(w.onPermissions)),
+          line,
+          item(Icons.menu_book_outlined, '사용법', '수립 금액 · 카드 문자 설정 · 지난 결제 넣기', openThen(w.onGuide)),
+          line,
+          item(Icons.science_outlined, '실험실', '안전 OX Quiz · 농어촌정비법 퀴즈', openThen(w.onLab)),
           line,
           item(Icons.privacy_tip_outlined, '개인정보처리방침', '문자·알림은 휴대폰 안에서만 처리해요', _openPrivacy),
           line,

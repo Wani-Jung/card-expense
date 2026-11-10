@@ -2,7 +2,7 @@ import 'expense.dart';
 import 'native.dart';
 import 'sms_parser.dart';
 
-/// 붙여넣기·공유·문자 불러오기·캡처로 들어온 문자를 분류한 결과.
+/// 붙여넣기·공유·문자 불러오기로 들어온 문자를 분류한 결과.
 class IngestReport {
   /// 처음 보는 승인 문자.
   final List<ParsedSms> fresh;

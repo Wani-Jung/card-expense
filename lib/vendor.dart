@@ -20,17 +20,9 @@ const kDefaultCarKeywordsV1 = [
 ];
 
 /// 차량비 기본 키워드 (v2 = v1 + 확장). 처음 설치하면 업체 관리 목록에 들어가고, 사용자가 지울 수 있다.
-final kDefaultCarKeywords = _dedupe([
+final kDefaultCarKeywords = _without(kRemovedDefaultKeywords, [
   ...kDefaultCarKeywordsV1,
-  '주유소',
-  '셀프주유',
-  '알뜰주유',
-  'SK에너지',
-  'GS칼텍스',
   'S-OIL',
-  '에스오일',
-  '현대오일뱅크',
-  '오일뱅크',
   '충전소',
   'LPG',
   '가스충전',
@@ -38,7 +30,6 @@ final kDefaultCarKeywords = _dedupe([
   '하이패스',
   '한국도로공사',
   '톨게이트',
-  '주차장',
   '파킹',
   '정비',
   '카센터',
@@ -47,21 +38,15 @@ final kDefaultCarKeywords = _dedupe([
   '오토',
   '자동차',
   '타이어',
-  '한국타이어',
-  '금호타이어',
-  '넥센타이어',
   '블루핸즈',
-  '오토큐',
   '스피드메이트',
   '세차',
   '카워시',
-  '엔진오일',
-  '자동차검사',
   '교통안전공단',
 ]);
 
-/// 운영비 기본 키워드 (v2 에서 새로 생김)
-final kDefaultOpsKeywords = _dedupe([
+/// 운영비 기본 키워드 (v2 에서 새로 생김, v3 에 알파문구·드림디포 추가)
+final kDefaultOpsKeywords = _without(kRemovedDefaultKeywords, [
   '식당',
   '한식',
   '분식',
@@ -71,7 +56,6 @@ final kDefaultOpsKeywords = _dedupe([
   '냉면',
   '반점',
   '중화요리',
-  '식육식당',
   '고기',
   '갈비',
   '삼겹',
@@ -81,7 +65,6 @@ final kDefaultOpsKeywords = _dedupe([
   '맥도날드',
   '롯데리아',
   '맘스터치',
-  '버거킹',
   '서브웨이',
   '도시락',
   '한솥',
@@ -90,7 +73,6 @@ final kDefaultOpsKeywords = _dedupe([
   '스타벅스',
   '이디야',
   '투썸',
-  '메가커피',
   '메가MGC',
   '빽다방',
   '컴포즈',
@@ -103,13 +85,13 @@ final kDefaultOpsKeywords = _dedupe([
   '편의점',
   'GS25',
   '세븐일레븐',
-  '이마트24',
   '씨유',
   '다이소',
   '문구',
+  '알파문구',
+  '드림디포',
   '오피스',
   '철물',
-  '하나로마트',
   '마트',
   '우체국',
   '인쇄',
@@ -117,7 +99,42 @@ final kDefaultOpsKeywords = _dedupe([
 ]);
 
 /// 기본 키워드 세트 버전. 올리면 기존 설치 기기에 새 기본 키워드를 한 번 추가한다.
-const kDefaultKeywordsVersion = 2;
+/// v3 (REQ-47): 알파문구·드림디포 추가, 더 짧은 기본 키워드에 덮여 추천이 안 바뀌는 기본 키워드 정리.
+const kDefaultKeywordsVersion = 3;
+
+/// v3 에서 기본 목록에서 뺀 키워드: 같은 분류의 더 짧은 기본 키워드에 포함돼 추천 결과가 같다
+/// ('주유소' ⊂ '주유', 'SK에너지' ⊂ '에너지' …). '알파문구'는 '문구'에 덮이지만 요청대로 기본에 넣었다.
+const kRemovedDefaultKeywords = [
+  '주유소',
+  '에쓰오일',
+  '오일뱅크',
+  '셀프주유',
+  '알뜰주유',
+  'SK에너지',
+  'GS칼텍스',
+  '에스오일',
+  '현대오일뱅크',
+  '주차장',
+  '한국타이어',
+  '금호타이어',
+  '넥센타이어',
+  '오토큐',
+  '엔진오일',
+  '자동차검사',
+  '식육식당',
+  '버거킹',
+  '메가커피',
+  '이마트24',
+  '하나로마트',
+];
+
+List<String> _without(List<String> drop, List<String> words) {
+  final d = {for (final w in drop) keywordKey(w)};
+  return _dedupe([
+    for (final w in words)
+      if (!d.contains(keywordKey(w))) w,
+  ]);
+}
 
 List<String> _dedupe(List<String> words) {
   final seen = <String>{};
@@ -136,6 +153,13 @@ List<KeywordRule> defaultKeywordRules() => [
 /// 영문·숫자 3자 이하 키워드(LPG 등)는 가맹점 이름 앞부분 일치일 때만 (엉뚱한 부분 일치 방지)
 bool _shortLatin(String kk) => kk.length <= 3 && RegExp(r'^[a-z0-9]+$').hasMatch(kk);
 
+/// [short] 가 [long] 을 덮는지: [long] 에 맞는 가맹점은 반드시 [short] 에도 맞는다
+bool keywordCovers(String short, String long) {
+  final s = keywordKey(short), l = keywordKey(long);
+  if (s.isEmpty || s.length >= l.length) return false;
+  return _shortLatin(s) ? l.startsWith(s) : l.contains(s);
+}
+
 /// 키워드 비교용: 대소문자·공백·하이픈·점 무시. "S-OIL", "S OIL", "s-oil" → "soil"
 String keywordKey(String s) => s.toLowerCase().replaceAll(RegExp(r'[\s\-_.·]'), '');
 
@@ -150,6 +174,8 @@ class KeywordRule {
   const KeywordRule(this.keyword, this.category, {this.isDefault = false});
 
   KeywordRule withCategory(String c) => KeywordRule(keyword, c, isDefault: isDefault);
+
+  String get key => keywordKey(keyword);
 
   Map<String, dynamic> toJson() => {'keyword': keyword, 'category': category, 'isDefault': isDefault};
   factory KeywordRule.fromJson(Map<String, dynamic> j) =>
@@ -187,13 +213,24 @@ class VendorBook {
   int defaultsVersion;
 
   /// 사용자가 지운 기본 키워드 (keywordKey). 업데이트로 기본 키워드를 추가할 때 되살리지 않는다.
+  /// [영구 삭제] 해도 여기 남겨 둔다 (되살리지 않는 규칙 유지) — 목록에서만 [purged] 로 숨긴다.
   final Set<String> removedDefaults;
+
+  /// 지운 직접 등록 키워드 (분류와 함께 기억, REQ-47). '지운 키워드'에서 다시 넣을 수 있다.
+  final List<KeywordRule> removedCustom;
+
+  /// '지운 키워드'에서 [영구 삭제]한 기본 키워드 (keywordKey). 목록에 안 보이게만 한다.
+  final Set<String> purged;
   VendorBook(
     this.learned,
     this.keywords, {
     this.defaultsVersion = kDefaultKeywordsVersion,
     Set<String>? removedDefaults,
-  }) : removedDefaults = removedDefaults ?? {};
+    List<KeywordRule>? removedCustom,
+    Set<String>? purged,
+  }) : removedDefaults = removedDefaults ?? {},
+       removedCustom = removedCustom ?? [],
+       purged = purged ?? {};
 
   factory VendorBook.initial() => VendorBook({}, defaultKeywordRules());
 
@@ -201,6 +238,7 @@ class VendorBook {
   /// 예전 버전에 있던 것(사용자가 지웠을 수 있음)·지운 기본 키워드·이미 있는 키워드는 건너뛴다. 바꿨으면 true.
   bool upgradeDefaults() {
     if (defaultsVersion >= kDefaultKeywordsVersion) return false;
+    if (defaultsVersion < 3) _dropCoveredDefaults();
     final have = {for (final k in keywords) keywordKey(k.keyword)};
     final old = defaultsVersion <= 1 ? {for (final k in kDefaultCarKeywordsV1) keywordKey(k)} : <String>{};
     for (final r in defaultKeywordRules()) {
@@ -213,10 +251,77 @@ class VendorBook {
     return true;
   }
 
-  /// 키워드 지우기. 기본 키워드면 지운 것으로 기억한다.
+  /// v3 정리: 이 기기 목록에 있는 기본 키워드 중 [kRemovedDefaultKeywords] 이면서, 같은 분류의 더 짧은
+  /// 키워드가 목록에 남아 있어 추천이 안 바뀌는 것만 뺀다. 짧은 쪽을 지운 기기는 그대로 둔다.
+  /// 직접 등록 키워드는 건드리지 않는다. 뺀 것은 '지운 키워드'에도 안 나온다 (사용자가 지운 게 아니므로).
+  void _dropCoveredDefaults() {
+    final drop = {for (final w in kRemovedDefaultKeywords) keywordKey(w)};
+    keywords.removeWhere((k) =>
+        k.isDefault &&
+        drop.contains(k.key) &&
+        keywords.any((s) => !identical(s, k) && s.category == k.category && keywordCovers(s.keyword, k.keyword)));
+  }
+
+  /// 키워드 지우기. 기본 키워드는 지운 것으로 기억(업데이트 때 안 되살림), 직접 등록은 분류와 함께 기억.
   void removeKeyword(KeywordRule k) {
     keywords.remove(k);
-    if (k.isDefault) removedDefaults.add(keywordKey(k.keyword));
+    if (k.isDefault) {
+      removedDefaults.add(k.key);
+      purged.remove(k.key);
+    } else {
+      removedCustom
+        ..removeWhere((r) => r.key == k.key)
+        ..add(k);
+    }
+  }
+
+  /// '지운 키워드': 지운 기본 키워드(지금 기본 목록 기준) + 지운 직접 등록 키워드. 목록에 다시 있거나 영구 삭제한 것은 뺀다.
+  List<KeywordRule> get removedKeywords {
+    final have = {for (final k in keywords) k.key};
+    return [
+      for (final r in removedCustom)
+        if (!have.contains(r.key)) r,
+      for (final r in defaultKeywordRules())
+        if (removedDefaults.contains(r.key) && !purged.contains(r.key) && !have.contains(r.key)) r,
+    ];
+  }
+
+  /// '지운 키워드' [다시 넣기]. 넣은 개수
+  int restoreRemoved(Iterable<KeywordRule> picked) {
+    final have = {for (final k in keywords) k.key};
+    var n = 0;
+    for (final r in picked) {
+      if (r.isDefault) {
+        removedDefaults.remove(r.key);
+      } else {
+        removedCustom.removeWhere((x) => x.key == r.key);
+      }
+      if (have.add(r.key)) {
+        keywords.add(r);
+        n++;
+      }
+    }
+    return n;
+  }
+
+  /// '지운 키워드' [영구 삭제]: 목록에서 완전히 지운다. 기본 키워드는 계속 '지운 것'으로 남아 업데이트로 안 되살아난다.
+  void purgeRemoved(Iterable<KeywordRule> picked) {
+    for (final r in picked) {
+      if (r.isDefault) {
+        purged.add(r.key);
+      } else {
+        removedCustom.removeWhere((x) => x.key == r.key);
+      }
+    }
+  }
+
+  /// 키워드를 새로 넣을 때: 지운 목록에 있던 같은 키워드는 지운 목록에서 뺀다
+  void addKeyword(KeywordRule k) {
+    keywords
+      ..removeWhere((x) => x.key == k.key)
+      ..insert(0, k);
+    removedCustom.removeWhere((x) => x.key == k.key);
+    removedDefaults.remove(k.key);
   }
 
   /// 추천 키워드 전체 삭제 (기본 + 직접 등록). 기본 키워드는 지운 것으로 기억 (업데이트 때 안 되살아나게)
@@ -224,21 +329,6 @@ class VendorBook {
     for (final k in List.of(keywords)) {
       removeKeyword(k);
     }
-  }
-
-  /// [기본 키워드 다시 넣기]: 지금 목록에 없는 기본 키워드를 다시 넣고 지운 목록에서 뺀다. 이미 있으면 건너뜀. 넣은 개수.
-  int restoreDefaults() {
-    final have = {for (final k in keywords) keywordKey(k.keyword)};
-    var n = 0;
-    for (final r in defaultKeywordRules()) {
-      final kk = keywordKey(r.keyword);
-      removedDefaults.remove(kk);
-      if (have.add(kk)) {
-        keywords.add(r);
-        n++;
-      }
-    }
-    return n;
   }
 
   /// 우선순위: 자동 등록 업체(가맹점 이름 일치) > 직접 등록 키워드 > 기본 키워드.
@@ -286,6 +376,8 @@ class VendorBook {
     'keywords': keywords.map((k) => k.toJson()).toList(),
     'defaultsVersion': defaultsVersion,
     'removedDefaults': removedDefaults.toList(),
+    'removedCustom': removedCustom.map((k) => k.toJson()).toList(),
+    'purged': purged.toList(),
   };
 
   factory VendorBook.fromJson(Map<String, dynamic> j) => VendorBook(
@@ -295,6 +387,10 @@ class VendorBook {
     [for (final k in (j['keywords'] as List? ?? [])) KeywordRule.fromJson(k as Map<String, dynamic>)],
     defaultsVersion: (j['defaultsVersion'] as num?)?.toInt() ?? 1,
     removedDefaults: {for (final k in (j['removedDefaults'] as List? ?? [])) k as String},
+    removedCustom: [
+      for (final k in (j['removedCustom'] as List? ?? [])) KeywordRule.fromJson(k as Map<String, dynamic>),
+    ],
+    purged: {for (final k in (j['purged'] as List? ?? [])) k as String},
   );
 }
 

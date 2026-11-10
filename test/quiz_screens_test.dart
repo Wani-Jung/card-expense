@@ -1,3 +1,4 @@
+import 'package:card_expense/layout.dart';
 import 'package:card_expense/challenge_card.dart';
 import 'package:card_expense/quiz.dart';
 import 'package:card_expense/quiz_category_picker.dart';
@@ -209,7 +210,7 @@ void main() {
     expect(find.text('50%'), findsOneWidget);
     await tester.tap(find.text('점수 기록 지우기'));
     await tester.pumpAndSettle();
-    expect(find.text(kClearScoresMessage), findsOneWidget);
+    expect(find.text(keepWords(kClearScoresMessage)), findsOneWidget);
     await tester.tap(find.text('지우기'));
     await tester.pumpAndSettle();
     expect(find.text('50%'), findsNothing);

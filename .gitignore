@@ -54,3 +54,6 @@ pepk.jar
 output.zip
 encryption_public_key.pem
 key.properties
+
+# CI 의 Kotlin 테스트 통과 표시 (REQ-47)
+.kotlin-tests-passed

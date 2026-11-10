@@ -6,5 +6,5 @@ import android.content.Context
 object Flavor {
     val smsPermissions: Array<String> = emptyArray()
 
-    fun readInbox(ctx: Context, days: Int): Map<String, Any>? = null
+    fun readInbox(ctx: Context, fromMs: Long, toMs: Long): Map<String, Any>? = null
 }

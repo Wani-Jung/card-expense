@@ -50,6 +50,17 @@ List<String> okKeysFor(CheckIssue i) => i.rule == CheckRule.duplicate
 
 const _dupWindow = Duration(minutes: 10);
 
+const kDateFuture = 'future';
+const kDateOld = 'old';
+
+/// 날짜 이상 판정 (내역이 들어오는 그 시점 [now] 기준, 한 번만). 정상이면 null.
+/// 문자 저장소·실시간 수신처럼 날짜를 시스템이 준 경우는 부르지 않는다.
+String? dateIssueAt(DateTime dateTime, DateTime now) {
+  if (dateTime.isAfter(now.add(const Duration(minutes: 10)))) return kDateFuture;
+  if (dateTime.isBefore(now.subtract(const Duration(days: 365)))) return kDateOld;
+  return null;
+}
+
 bool _classified(Expense e) => e.category == kCar || e.category == kOps;
 String _other(String cat) => cat == kCar ? kOps : kCar;
 
@@ -159,12 +170,12 @@ List<CheckIssue> findIssues(
     }
   }
 
-  // e. 미래 날짜 / 1년보다 오래된 날짜
+  // e. 미래 날짜 / 1년보다 오래된 날짜: 들어올 때 판정해 둔 것만 (시간이 지났다고 새로 올리지 않음)
   for (final e in classified) {
-    if (e.dateTime.isAfter(now.add(const Duration(minutes: 10)))) {
-      out.add(CheckIssue(CheckRule.oddDate, e, '미래 날짜예요. 붙여넣기·캡처 인식 오류일 수 있어요'));
-    } else if (e.dateTime.isBefore(now.subtract(const Duration(days: 365)))) {
-      out.add(CheckIssue(CheckRule.oddDate, e, '1년보다 오래된 날짜예요. 붙여넣기·캡처 인식 오류일 수 있어요'));
+    if (e.dateIssue == kDateFuture) {
+      out.add(CheckIssue(CheckRule.oddDate, e, '들어올 때 미래 날짜였어요. 붙여넣기 오류일 수 있어요'));
+    } else if (e.dateIssue == kDateOld) {
+      out.add(CheckIssue(CheckRule.oddDate, e, '들어올 때 1년보다 오래된 날짜였어요. 붙여넣기 오류일 수 있어요'));
     }
   }
 

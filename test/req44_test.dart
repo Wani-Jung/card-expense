@@ -1,3 +1,4 @@
+import 'package:card_expense/layout.dart';
 import 'package:card_expense/menu_screen.dart';
 import 'package:card_expense/quiz.dart';
 import 'package:card_expense/quiz_category_picker.dart';
@@ -44,7 +45,6 @@ void main() {
           home: MenuScreen(
             onImport: noop,
             onPaste: noop,
-            onOcr: noop,
             onVendors: noop,
             onUpdate: noop,
             importEnabled: () => true,
@@ -52,8 +52,8 @@ void main() {
             cardSummary: () => '카드 0000',
             onPermissions: noop,
             permSummary: () => '',
-            quizSummary: () => '연속 3일',
-            onQuiz: noop,
+            onLab: noop,
+            onGuide: noop,
             counts: () => (pending: 0, check: 0, ignored: 0, confirmed: 0),
             onUnclassified: noop,
             onCheck: noop,
@@ -72,7 +72,7 @@ void main() {
       await pumpMenu(tester);
       await tester.tap(find.text('개인정보처리방침'));
       await tester.pumpAndSettle();
-      expect(find.text('개인정보처리방침 페이지(GitHub)를 인터넷 브라우저로 엽니다.'), findsOneWidget);
+      expect(find.text(keepWords('개인정보처리방침 페이지(GitHub)를 인터넷 브라우저로 엽니다.')), findsOneWidget);
       await tester.tap(find.text('취소'));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
@@ -99,7 +99,11 @@ void main() {
     for (final saved in [null, true, false]) {
       testWidgets('C1 매일 OX 퀴즈 스위치: 저장값 $saved → ${saved ?? false}, 점수 기록 지우기 위', (tester) async {
         final store = await pumpQuiz(tester, {'quiz_daily_on_v1': ?saved});
-        await tester.pumpWidget(MaterialApp(home: QuizHomeScreen(store: store, bank: () async => _bank(3))));
+        await tester.pumpWidget(
+          MaterialApp(
+            home: QuizHomeScreen(store: store, bank: () async => _bank(3)),
+          ),
+        );
         await tester.pumpAndSettle();
         final sw = find.widgetWithText(SwitchListTile, '매일 OX 퀴즈');
         expect(tester.widget<SwitchListTile>(sw).value, saved ?? false);
@@ -116,14 +120,18 @@ void main() {
       final today = quizDay(DateTime.now());
       await store.record(QuizRecord(today, 'q1', true, true));
       await store.record(QuizRecord(today, 'q2', true, false, src: kQuizExtra));
-      await tester.pumpWidget(MaterialApp(home: QuizHomeScreen(store: store, bank: () async => _bank(3))));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: QuizHomeScreen(store: store, bank: () async => _bank(3)),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('50%'), findsOneWidget);
       await tester.tap(find.text('점수 기록 지우기'));
       await tester.pumpAndSettle();
       expect(find.text('점수 기록을 지울까요?'), findsOneWidget);
       for (final s in ['푼 문제 수', '연속 일수', '챌린지 정답률·걸린 시간·최고 기록', '지난 문제 다시 보기 목록']) {
-        expect(find.textContaining(s), findsOneWidget, reason: s);
+        expect(find.textContaining(keepWords(s)), findsOneWidget, reason: s);
       }
       await tester.tap(find.text('지우기'));
       await tester.pumpAndSettle();
@@ -157,7 +165,11 @@ void main() {
 
     Future<void> pumpHistory(WidgetTester tester) async {
       phone(tester);
-      await tester.pumpWidget(MaterialApp(home: QuizHistoryScreen(store: store, bank: () async => _bank(5))));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: QuizHistoryScreen(store: store, bank: () async => _bank(5)),
+        ),
+      );
       await tester.pumpAndSettle();
     }
 
@@ -227,7 +239,9 @@ void main() {
         find.descendant(of: find.widgetWithText(QuizSelectChip, label).first, matching: find.byType(Material)),
       );
       Color textColor(String label) => tester
-          .widget<Text>(find.descendant(of: find.widgetWithText(QuizSelectChip, label).first, matching: find.text(label)))
+          .widget<Text>(
+            find.descendant(of: find.widgetWithText(QuizSelectChip, label).first, matching: find.text(label)),
+          )
           .style!
           .color!;
       expect(mat('전체').color, kQuizNavy);
@@ -254,17 +268,16 @@ void main() {
       QuizQuestion(id: 'b', group: '현장 안전기준', category: '화재', question: 'B', answer: false, explain: '', basis: ''),
     ]);
     var selected = <String>{'현장 안전기준|추락'};
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: StatefulBuilder(
-          builder: (context, setState) => QuizCategoryPicker(
-            bank: bank,
-            selected: selected,
-            onChanged: (v) => setState(() => selected = v),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) =>
+                QuizCategoryPicker(bank: bank, selected: selected, onChanged: (v) => setState(() => selected = v)),
           ),
         ),
       ),
-    ));
+    );
     expect(find.byType(FilterChip), findsNothing);
     final chip = find.widgetWithText(QuizSelectChip, '화재 1');
     expect(tester.widget<QuizSelectChip>(chip).selected, isFalse);
