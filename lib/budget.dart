@@ -14,8 +14,7 @@ class MonthBudget {
 
   Map<String, dynamic> toJson() => {'total': total, 'car': car};
 
-  factory MonthBudget.fromJson(Map<String, dynamic> j) =>
-      MonthBudget(total: j['total'] as int?, car: j['car'] as int?);
+  factory MonthBudget.fromJson(Map<String, dynamic> j) => MonthBudget(total: j['total'] as int?, car: j['car'] as int?);
 }
 
 /// 월별 수립 모음. 수립이 없는 달은 직전에 수립한 달의 값을 그대로 쓴다.
@@ -85,6 +84,25 @@ bool isOverBudget(int used, int? budget) => budget != null && used > budget;
 /// 잔여 = 수립 − 사용 (원). 수립이 비면 null.
 int? remaining(int? plan, int used) => plan == null ? null : plan - used;
 
+/// 차량비 잔여 표시 (REQ-48). 운영비를 초과해 쓰면 실제로 남은 차량비는 합계 잔여만큼이므로,
+/// 차량비 잔여가 합계 잔여보다 크면 합계 잔여 값으로 보여 준다 ([adjusted] = true, [original] = 원래 차량비 잔여).
+/// 같으면 보정하지 않는다. 수립이 비어 있으면 그대로. 저장값·수립은 바꾸지 않는다 (표시만).
+({int? shown, int? original, bool adjusted}) carRemainShown(MonthBudget b, MonthUsage u) {
+  final car = remaining(b.car, u.car);
+  final total = remaining(b.total, u.total);
+  if (car == null || total == null || car <= total) return (shown: car, original: car, adjusted: false);
+  return (shown: total, original: car, adjusted: true);
+}
+
+/// 잔여 값 기준 상태 (보정한 값에도 같은 색 규칙): 사용 = 수립 − 잔여 로 보고 [budgetLevel]
+BudgetLevel remainLevel(int? plan, int? rem) =>
+    plan == null || rem == null ? BudgetLevel.ok : budgetLevel(plan - rem, plan);
+
+/// 보정 안내 팝업 문구
+String carRemainAdjustedMessage(int original) =>
+    '운영비를 초과해 써서, 실제로 남은 차량비는 합계 잔여만큼이에요. 그래서 합계 잔여 값으로 표시했어요. '
+    '(원래 차량비 잔여 ${remainingText(original)})';
+
 /// 잔여 표기 (만원). 비면 '-', 마이너스면 부호 대신 '초과 3.50'.
 String remainingText(int? rem) => rem == null ? '-' : (rem < 0 ? '초과 ${manwon(-rem)}' : manwon(rem));
 
@@ -102,10 +120,10 @@ BudgetLevel budgetLevel(int used, int? plan) {
 enum PeriodMode { single, oddEven, evenOdd }
 
 String periodModeLabel(PeriodMode m) => switch (m) {
-      PeriodMode.single => '1개월',
-      PeriodMode.oddEven => '홀짝 (1·2월, 3·4월 …)',
-      PeriodMode.evenOdd => '짝홀 (2·3월, 4·5월 …)',
-    };
+  PeriodMode.single => '1개월',
+  PeriodMode.oddEven => '홀짝 (1·2월, 3·4월 …)',
+  PeriodMode.evenOdd => '짝홀 (2·3월, 4·5월 …)',
+};
 
 /// [month] 가 들어 있는 묶음의 달들. 홀짝은 (1·2)(3·4)…(11·12), 짝홀은 (2·3)…(12·1) — 12·1 은 연도를 넘긴다.
 List<DateTime> periodMonths(DateTime month, PeriodMode mode) {
@@ -114,17 +132,15 @@ List<DateTime> periodMonths(DateTime month, PeriodMode mode) {
   final odd = m.month.isOdd;
   final startsHere = mode == PeriodMode.oddEven ? odd : !odd;
   // DateTime 은 13월·0월을 다음 해 1월·전년 12월로 넘겨 준다.
-  return startsHere
-      ? [m, DateTime(m.year, m.month + 1)]
-      : [DateTime(m.year, m.month - 1), m];
+  return startsHere ? [m, DateTime(m.year, m.month + 1)] : [DateTime(m.year, m.month - 1), m];
 }
 
 /// 버튼 글씨는 모드 이름만. 어느 기간인지는 위쪽 제목에서 보인다.
 String periodModeShort(PeriodMode m) => switch (m) {
-      PeriodMode.single => '1개월',
-      PeriodMode.oddEven => '홀짝',
-      PeriodMode.evenOdd => '짝홀',
-    };
+  PeriodMode.single => '1개월',
+  PeriodMode.oddEven => '홀짝',
+  PeriodMode.evenOdd => '짝홀',
+};
 
 /// 메인 화면이 보고 있는 단계. 월 화면이면 그 달, 합산 화면이면 묶음의 첫째 달 + [combined].
 class PeriodView {
@@ -195,5 +211,4 @@ class PeriodSummary {
     }
     return PeriodSummary(months, MonthBudget(total: sum((b) => b.total), car: sum((b) => b.car)), MonthUsage(car, ops));
   }
-
 }

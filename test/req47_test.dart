@@ -246,18 +246,14 @@ void main() {
       expect(find.text('지운 키워드 (0)'), findsNothing); // 0개면 숨김
       expect(find.text('기본 키워드 다시 넣기'), findsNothing);
 
-      // 칩 → 바텀시트 [삭제] → 확인 → 지운 키워드 1
-      await tester.tap(find.widgetWithText(KeywordChip, '나의가게'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('삭제'));
+      // 칩 길게 누르기 → 확인 → 지운 키워드 1 (REQ-48)
+      await tester.longPress(find.widgetWithText(KeywordChip, '나의가게'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('빼기'));
       await tester.pumpAndSettle();
       expect(b.keywords.map((k) => k.keyword), isNot(contains('나의가게')));
       expect(find.text('되돌리기'), findsOneWidget);
-      await tester.tap(find.widgetWithText(KeywordChip, '세차'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('삭제'));
+      await tester.longPress(find.widgetWithText(KeywordChip, '세차'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('빼기'));
       await tester.pumpAndSettle();
@@ -406,7 +402,7 @@ void main() {
       expect(find.text('1 / 3'), findsNothing);
       await tester.tap(find.byTooltip('메뉴'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('사용법'));
+      await tester.tap(find.text('사전입력사항'));
       await tester.pumpAndSettle();
       expect(find.text('1 / 3'), findsOneWidget);
       await tester.tap(find.text('다음'));

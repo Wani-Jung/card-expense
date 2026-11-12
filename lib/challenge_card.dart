@@ -23,19 +23,25 @@ class ChallengeResultCard extends StatelessWidget {
   final String? name;
   final DateTime date;
   final bool newBest;
+
+  /// 카드 가운데 제목·위쪽 작은 설명·등급 앞말 (안전 OX / 농어촌정비법 챌린지)
+  final String title, subtitle, gradeTopic;
   const ChallengeResultCard({
     super.key,
     required this.run,
     required this.name,
     required this.date,
     required this.newBest,
+    this.title = '안전 OX 챌린지',
+    this.subtitle = '한국농어촌공사 현장 안전 OX',
+    this.gradeTopic = '안전',
   });
 
   @override
   Widget build(BuildContext context) {
     final correct = run.correct ?? 0;
     final ms = run.ms ?? 0;
-    final grade = quizGrade(correct, run.n);
+    final grade = quizGrade(correct, run.n, topic: gradeTopic);
     final avg = run.n == 0 ? 0.0 : ms / 1000 / run.n;
     final who = (name ?? '').trim();
     Widget stat(String value, String label) => Expanded(
@@ -90,11 +96,11 @@ class ChallengeResultCard extends StatelessWidget {
                                     child: Image.asset(kShareCardLogo, width: 32, height: 32, cacheWidth: 128),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Expanded(
+                                  Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(
+                                        const Text(
                                           '공감카드 관리',
                                           style: TextStyle(
                                             fontSize: 14,
@@ -102,16 +108,16 @@ class ChallengeResultCard extends StatelessWidget {
                                             color: Color(0xFF1F1F1F),
                                           ),
                                         ),
-                                        Text('한국농어촌공사 현장 안전 OX', style: TextStyle(fontSize: 10, color: _grey)),
+                                        Text(subtitle, style: const TextStyle(fontSize: 10, color: _grey)),
                                       ],
                                     ),
                                   ),
                                 ],
                               ),
                               const Spacer(),
-                              const Text(
-                                '안전 OX 챌린지',
-                                style: TextStyle(
+                              Text(
+                                title,
+                                style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,
                                   color: kQuizNavy,
@@ -185,8 +191,8 @@ class ChallengeResultCard extends StatelessWidget {
                                   color: Color(0xFF3C4043),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              const Text('Made by wani', style: TextStyle(fontSize: 10, color: Color(0xFF9AA0A6))),
+                              // 크레딧은 넣지 않는다 (REQ-48). 날짜 줄 아래 여백만
+                              const SizedBox(height: 8),
                             ],
                           ),
                         ),

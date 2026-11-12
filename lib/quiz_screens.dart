@@ -1054,6 +1054,46 @@ List<({String label, int correct, int n})> challengeByCategory(List<QuizQuestion
 /// 결과 이미지와 함께 보내는 짧은 문구
 String challengeShareText(ChallengeRun r) => '안전 OX 챌린지 ${r.percent}%! 공감카드 관리에서 도전해보세요';
 
+/// 결과 카드를 PNG(pixelRatio 3)로 → 임시 파일 → 공유 시트 (안전 OX·농어촌정비법 챌린지 공용).
+/// 저장소 권한 없이, 공유 뒤 임시 파일 삭제. 카드 이름을 한 번도 안 물었으면 먼저 묻고 다시 그린 뒤 찍는다.
+Future<void> shareChallengeCard(
+  BuildContext context, {
+  required GlobalKey cardKey,
+  required QuizStore nameStore,
+  required String fileName,
+  required String text,
+  required VoidCallback onNameChanged,
+}) async {
+  File? file;
+  try {
+    if (nameStore.name == null) {
+      await askCardName(context, nameStore);
+      if (!context.mounted) return;
+      onNameChanged();
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    final boundary = cardKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final image = await boundary.toImage(pixelRatio: 3);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    final dir = await Native.cacheDir() ?? Directory.systemTemp.path;
+    file = File('$dir/$fileName');
+    await file.writeAsBytes(bytes!.buffer.asUint8List(), flush: true);
+    // share_plus 가 자기 캐시로 복사해서 넘기므로 여기 파일은 바로 지워도 된다
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(file.path, mimeType: 'image/png')], text: text),
+    );
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(appSnackBar(content: Text('공유하지 못했어요: $e')));
+    }
+  } finally {
+    try {
+      if (file != null && file.existsSync()) file.deleteSync();
+    } catch (_) {}
+  }
+}
+
 /// 결과: 위쪽 결과 카드(그대로 공유 이미지) + [문제 전체 보기] [다시 도전] [결과 이미지 공유]
 class ChallengeResultScreen extends StatefulWidget {
   final QuizStore store;
@@ -1080,42 +1120,18 @@ class _ChallengeResultScreenState extends State<ChallengeResultScreen> {
   final _cardKey = GlobalKey();
   bool _sharing = false;
 
-  /// 결과 카드를 PNG(pixelRatio 3)로 → 임시 파일 → 공유 시트. 저장소 권한 없이, 공유 뒤 임시 파일 삭제.
   Future<void> _share() async {
     if (_sharing) return;
     setState(() => _sharing = true);
-    File? file;
-    try {
-      if (widget.store.name == null) {
-        await askCardName(context, widget.store);
-        if (!mounted) return;
-        setState(() {}); // 이름이 들어간 카드로 다시 그린 뒤 찍는다
-        await WidgetsBinding.instance.endOfFrame;
-      }
-      final boundary = _cardKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-      final image = await boundary.toImage(pixelRatio: 3);
-      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-      image.dispose();
-      final dir = await Native.cacheDir() ?? Directory.systemTemp.path;
-      file = File('$dir/safety_ox_${widget.run.id}.png');
-      await file.writeAsBytes(bytes!.buffer.asUint8List(), flush: true);
-      // share_plus 가 자기 캐시로 복사해서 넘기므로 여기 파일은 바로 지워도 된다
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path, mimeType: 'image/png')],
-          text: challengeShareText(widget.run),
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(appSnackBar(content: Text('공유하지 못했어요: $e')));
-      }
-    } finally {
-      try {
-        if (file != null && file.existsSync()) file.deleteSync();
-      } catch (_) {}
-      if (mounted) setState(() => _sharing = false);
-    }
+    await shareChallengeCard(
+      context,
+      cardKey: _cardKey,
+      nameStore: widget.store,
+      fileName: 'safety_ox_${widget.run.id}.png',
+      text: challengeShareText(widget.run),
+      onNameChanged: () => setState(() {}),
+    );
+    if (mounted) setState(() => _sharing = false);
   }
 
   @override

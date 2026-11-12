@@ -171,15 +171,27 @@ class KeywordRule {
   final String keyword;
   final String category; // kCar / kOps
   final bool isDefault;
-  const KeywordRule(this.keyword, this.category, {this.isDefault = false});
 
-  KeywordRule withCategory(String c) => KeywordRule(keyword, c, isDefault: isDefault);
+  /// 꺼 둔 키워드는 추천에 쓰지 않는다 (업체 관리에서 칩을 짧게 눌러 끄기/켜기, REQ-48). 기기에 같이 저장.
+  final bool enabled;
+  const KeywordRule(this.keyword, this.category, {this.isDefault = false, this.enabled = true});
+
+  KeywordRule withEnabled(bool v) => KeywordRule(keyword, category, isDefault: isDefault, enabled: v);
 
   String get key => keywordKey(keyword);
 
-  Map<String, dynamic> toJson() => {'keyword': keyword, 'category': category, 'isDefault': isDefault};
-  factory KeywordRule.fromJson(Map<String, dynamic> j) =>
-      KeywordRule(j['keyword'] as String, j['category'] as String, isDefault: j['isDefault'] as bool? ?? false);
+  Map<String, dynamic> toJson() => {
+    'keyword': keyword,
+    'category': category,
+    'isDefault': isDefault,
+    if (!enabled) 'enabled': false,
+  };
+  factory KeywordRule.fromJson(Map<String, dynamic> j) => KeywordRule(
+    j['keyword'] as String,
+    j['category'] as String,
+    isDefault: j['isDefault'] as bool? ?? false,
+    enabled: j['enabled'] as bool? ?? true,
+  );
 }
 
 /// 일괄 정리에서 배운 업체. [name] 은 화면 표시용 원래 이름.
@@ -259,12 +271,20 @@ class VendorBook {
     keywords.removeWhere((k) =>
         k.isDefault &&
         drop.contains(k.key) &&
-        keywords.any((s) => !identical(s, k) && s.category == k.category && keywordCovers(s.keyword, k.keyword)));
+        keywords.any((s) => !identical(s, k) && s.enabled && s.category == k.category && keywordCovers(s.keyword, k.keyword)));
+  }
+
+  /// 칩 짧게 누르기: 끄기 ↔ 켜기 (같은 자리에서 바꿔 끼움)
+  void toggleKeyword(KeywordRule k) {
+    final i = keywords.indexOf(k);
+    if (i >= 0) keywords[i] = k.withEnabled(!k.enabled);
   }
 
   /// 키워드 지우기. 기본 키워드는 지운 것으로 기억(업데이트 때 안 되살림), 직접 등록은 분류와 함께 기억.
+  /// 지운 목록에는 켜진 상태로 남긴다 (다시 넣으면 바로 추천에 쓰임).
   void removeKeyword(KeywordRule k) {
     keywords.remove(k);
+    k = k.withEnabled(true);
     if (k.isDefault) {
       removedDefaults.add(k.key);
       purged.remove(k.key);
@@ -340,7 +360,7 @@ class VendorBook {
     if (l != null) return Recommendation(l.category, RecSource.learned);
     final name = keywordKey(merchant);
     for (final isDefault in [false, true]) {
-      final rules = keywords.where((k) => k.isDefault == isDefault).toList()
+      final rules = keywords.where((k) => k.enabled && k.isDefault == isDefault).toList()
         ..sort((a, b) => keywordKey(b.keyword).length.compareTo(keywordKey(a.keyword).length));
       for (final k in rules) {
         final kk = keywordKey(k.keyword);

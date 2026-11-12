@@ -31,7 +31,7 @@ class MenuScreen extends StatefulWidget {
   /// 실험실 (안전 OX Quiz·농어촌정비법 퀴즈). 설명은 안의 항목 이름
   final Future<void> Function() onLab;
 
-  /// 사용법 3단계 다시 보기
+  /// 사전입력사항 3단계 다시 보기
   final Future<void> Function() onGuide;
 
   /// 내역 관리 건수 (미분류, 확인 필요, 무시한, 확인한 = 차량비·운영비로 분류된 전체). 각 화면에서 돌아오면 다시 센다.
@@ -246,7 +246,7 @@ class _MenuScreenState extends State<MenuScreen> {
           line,
           item(Icons.shield_outlined, '권한 설정', w.permSummary(), openThen(w.onPermissions)),
           line,
-          item(Icons.menu_book_outlined, '사용법', '수립 금액 · 카드 문자 설정 · 지난 결제 넣기', openThen(w.onGuide)),
+          item(Icons.menu_book_outlined, '사전입력사항', '수립 금액 · 카드 문자 설정 · 지난 결제 넣기', openThen(w.onGuide)),
           line,
           item(Icons.science_outlined, '실험실', '안전 OX Quiz · 농어촌정비법 퀴즈', openThen(w.onLab)),
           line,
@@ -272,7 +272,7 @@ class _MenuScreenState extends State<MenuScreen> {
           const Padding(
             padding: EdgeInsets.only(top: 32, bottom: 8),
             child: Center(
-              child: Text('Made by wani', style: TextStyle(fontSize: 12, color: Color(0xFF9AA0A6))),
+              child: Text('Made by wani', style: TextStyle(fontSize: 12, color: Colors.black)),
             ),
           ),
         ],

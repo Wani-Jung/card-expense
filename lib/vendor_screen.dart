@@ -6,8 +6,9 @@ import 'layout.dart';
 import 'vendor.dart';
 import 'snack.dart';
 
-/// 메뉴 > 업체 관리. 추천 키워드는 차량비/운영비 묶음 안에 칩으로 촘촘히 (직접 등록 = 색 채움, 기본 = 테두리).
-/// 칩을 누르면 분류 변경·삭제. 지운 키워드는 '지운 키워드 (n)'에서 골라 다시 넣거나 영구 삭제.
+/// 메뉴 > 업체 관리. 추천 키워드는 차량비/운영비 묶음 안에 칩으로 촘촘히 (켜짐 = 분류 색 채움, 꺼짐 = 흰 바탕 + 테두리).
+/// 칩을 짧게 누르면 끄기/켜기(꺼진 키워드는 추천에 안 씀), 길게 누르면 삭제(확인 + 되돌리기). 분류는 칩에서 바꾸지 않는다
+/// (다른 분류로 쓰려면 지우고 새로 추가). 지운 키워드는 '지운 키워드 (n)'에서 골라 다시 넣거나 영구 삭제.
 /// 자동 등록 업체는 한 줄씩.
 class VendorScreen extends StatefulWidget {
   final VendorBook book;
@@ -216,17 +217,15 @@ class _VendorScreenState extends State<VendorScreen> {
     if (mounted) _undoSnack("'$name'${_objectParticle(name)} 뺐어요", restore);
   }
 
-  void _editKeyword(KeywordRule k) => _edit(
-    name: k.keyword,
-    note: k.isDefault ? '기본 키워드' : '직접 등록',
-    current: k.category,
-    apply: (cat) {
-      final i = _book.keywords.indexOf(k);
-      if (i >= 0) _book.keywords[i] = k.withCategory(cat);
-    },
-    // 기본 키워드를 지우면 기억해서 업데이트 때 되살리지 않는다
-    remove: () => _book.removeKeyword(k),
-  );
+  /// 칩 짧게 누르기: 끄기 ↔ 켜기 (바로 저장)
+  Future<void> _toggle(KeywordRule k) async {
+    _book.toggleKeyword(k);
+    await _changed();
+  }
+
+  /// 칩 길게 누르기: "'키워드'를 목록에서 뺄까요?" → 지운 키워드로 (5초 되돌리기).
+  /// 기본 키워드를 지우면 기억해서 업데이트 때 되살리지 않는다.
+  Future<void> _removeKeyword(KeywordRule k) => _confirmRemove(k.keyword, () => _book.removeKeyword(k));
 
   Future<void> _openRemoved() async {
     await Navigator.of(context).push(MaterialPageRoute(
@@ -265,7 +264,10 @@ class _VendorScreenState extends State<VendorScreen> {
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: [for (final k in list) KeywordChip(rule: k, onTap: () => _editKeyword(k))],
+              children: [
+                for (final k in list)
+                  KeywordChip(rule: k, onTap: () => _toggle(k), onLongPress: () => _removeKeyword(k)),
+              ],
             ),
         ],
       ),
@@ -323,19 +325,13 @@ class _VendorScreenState extends State<VendorScreen> {
           ),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
-            child: Row(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                _LegendDot(filled: true),
-                SizedBox(width: 4),
-                Text('직접 등록', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                SizedBox(width: 12),
-                _LegendDot(filled: false),
-                SizedBox(width: 4),
-                Text('기본 키워드', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                SizedBox(width: 12),
-                Flexible(
-                  child: Text('누르면 분류 변경·삭제', style: TextStyle(fontSize: 12, color: Colors.black38)),
-                ),
+                Text('누르면 끄기/켜기 · 길게 누르면 삭제', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                SizedBox(width: 10),
+                Icon(Icons.person_outline, size: 13, color: Colors.black45),
+                Text(' 직접 등록', style: TextStyle(fontSize: 12, color: Colors.black45)),
               ],
             ),
           ),
@@ -385,50 +381,52 @@ class _VendorScreenState extends State<VendorScreen> {
   }
 }
 
-/// 키워드 칩: 직접 등록 = 분류 색 채움, 기본 = 흰 바탕 + 분류 색 테두리
+/// 키워드 칩 (메인 '차량'/'운영' 배지와 같은 색 조합).
+/// 켜짐 = 분류 색 채움(차량비 초록 + 흰 글자, 운영비 노랑 + 진한 갈색 글자), 꺼짐 = 흰 바탕 + 분류 색 테두리·글자(흐리게).
+/// 직접 등록 키워드는 앞에 작은 사람 아이콘.
 class KeywordChip extends StatelessWidget {
   final KeywordRule rule;
-  final VoidCallback? onTap;
-  const KeywordChip({super.key, required this.rule, this.onTap});
+  final VoidCallback? onTap, onLongPress;
+  const KeywordChip({super.key, required this.rule, this.onTap, this.onLongPress});
+
+  /// 칩 색 (테스트에서도 씀)
+  static ({Color bg, Color fg, Color border}) colors(KeywordRule r) {
+    final car = r.category == kCar;
+    final color = car ? kCarColor : kOpsColor;
+    if (r.enabled) return (bg: color, fg: car ? Colors.white : kOpsText, border: color);
+    return (
+      bg: Colors.white,
+      fg: (car ? kCarColor : kOpsText).withValues(alpha: 0.55),
+      border: color.withValues(alpha: 0.55),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final car = rule.category == kCar;
-    final color = car ? kCarColor : kOpsColor;
-    final custom = !rule.isDefault;
-    final fg = custom ? (car ? Colors.white : kOpsText) : (car ? kCarColor : kOpsText);
-    return Material(
-      color: custom ? color : Colors.white,
-      shape: StadiumBorder(side: BorderSide(color: color, width: 1.2)),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          child: Text(
-            rule.keyword,
-            style: TextStyle(fontSize: 13, color: fg, fontWeight: custom ? FontWeight.w600 : FontWeight.w500),
+    final c = colors(rule);
+    return Semantics(
+      toggled: rule.enabled,
+      child: Material(
+        color: c.bg,
+        shape: StadiumBorder(side: BorderSide(color: c.border, width: 1.2)),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!rule.isDefault) ...[Icon(Icons.person_outline, size: 13, color: c.fg), const SizedBox(width: 2)],
+                Text(rule.keyword, style: TextStyle(fontSize: 13, color: c.fg, fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
-}
-
-class _LegendDot extends StatelessWidget {
-  final bool filled;
-  const _LegendDot({required this.filled});
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 12,
-    height: 12,
-    decoration: BoxDecoration(
-      color: filled ? const Color(0xFF5F6368) : Colors.white,
-      shape: BoxShape.circle,
-      border: Border.all(color: const Color(0xFF5F6368)),
-    ),
-  );
 }
 
 /// 업체 관리 > 지운 키워드: 체크한 것만 [다시 넣기], [모두 선택], [영구 삭제](확인).

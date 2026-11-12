@@ -114,7 +114,7 @@ void main() {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    final titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '카드 문자 설정', '권한 설정', '사용법', '실험실', '개인정보처리방침', isStoreChannel ? '버전 정보' : '업데이트 확인'];
+    final titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '카드 문자 설정', '권한 설정', '사전입력사항', '실험실', '개인정보처리방침', isStoreChannel ? '버전 정보' : '업데이트 확인'];
     for (final t in titles) {
       expect(find.text(t), findsOneWidget);
     }

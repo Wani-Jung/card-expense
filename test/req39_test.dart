@@ -478,7 +478,7 @@ void main() {
       await tester.pumpAndSettle();
       final labY = tester.getTopLeft(find.text('실험실')).dy;
       expect(labY, lessThan(tester.getTopLeft(find.text('개인정보처리방침')).dy));
-      expect(labY, greaterThan(tester.getTopLeft(find.text('사용법')).dy));
+      expect(labY, greaterThan(tester.getTopLeft(find.text('사전입력사항')).dy));
       expect(find.text('안전 OX Quiz'), findsNothing);
       await tester.pumpWidget(
         MaterialApp(

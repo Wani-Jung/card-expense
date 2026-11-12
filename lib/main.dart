@@ -963,7 +963,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (a == OnboardingAction.paste) await _openPaste();
   }
 
-  /// 메뉴 > 사용법: 같은 3단계 (지금 값이 들어 있고, 바꾸면 바로 반영)
+  /// 메뉴 > 사전입력사항: 같은 3단계 (지금 값이 들어 있고, 바꾸면 바로 반영)
   Future<void> _openGuide() async {
     final nav = Navigator.of(context);
     OnboardingAction? picked;
@@ -1913,12 +1913,14 @@ class _BudgetTable extends StatelessWidget {
     return InkWell(onTap: onTap, child: child);
   }
 
-  /// 합계·차량비 잔여 칸. 가장 눈에 띄게. 주의는 숫자만 빨강, 초과는 빨간 칸에 흰 글씨.
-  Widget _remain(int? plan, int used) {
-    final level = budgetLevel(used, plan);
-    return _cell(
-      remainingText(remaining(plan, used)),
-      bg: level == BudgetLevel.over ? _red : _remainBg,
+  /// 합계·차량비 잔여 칸. 가장 눈에 띄게. 주의는 숫자만 빨강, 초과는 빨간 칸에 흰 글씨 (잔여 값 기준).
+  /// [adjustedFrom] 이 있으면 차량비 잔여를 합계 잔여로 보정한 칸: 오른쪽 아래 작은 경고 아이콘, 누르면 설명 팝업.
+  Widget _remain(BuildContext context, int? plan, int? rem, {int? adjustedFrom}) {
+    final level = remainLevel(plan, rem);
+    final over = level == BudgetLevel.over;
+    final cell = _cell(
+      remainingText(rem),
+      bg: over ? _red : _remainBg,
       fg: switch (level) {
         BudgetLevel.ok => _navy,
         BudgetLevel.warn => _red,
@@ -1926,6 +1928,26 @@ class _BudgetTable extends StatelessWidget {
       },
       bold: true,
       size: 18,
+    );
+    if (adjustedFrom == null) return cell;
+    return InkWell(
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          content: Text(keepWords(carRemainAdjustedMessage(adjustedFrom))),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
+        ),
+      ),
+      child: Stack(
+        children: [
+          cell,
+          Positioned(
+            right: 3,
+            bottom: 3,
+            child: Icon(Icons.warning_amber_rounded, size: 14, color: over ? Colors.white : _red, semanticLabel: '보정됨'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1959,6 +1981,8 @@ class _BudgetTable extends StatelessWidget {
   Widget build(BuildContext context) {
     // 사용 칸은 초과일 때만 빨간 글씨 (주의 단계 색 없음)
     Widget used(int won, int? plan) => _cell(manwon(won), fg: isOverBudget(won, plan) ? _red : null);
+    // 차량비 잔여가 합계 잔여보다 크면 합계 잔여로 보여 준다 (REQ-48, 표시만)
+    final car = carRemainShown(budget, usage);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -1989,13 +2013,13 @@ class _BudgetTable extends StatelessWidget {
               _cell('합계', bg: kSubBg, bold: true),
               _cell(manwonOrDash(budget.total), onTap: onEditTotal),
               used(usage.total, budget.total),
-              _remain(budget.total, usage.total),
+              _remain(context, budget.total, remaining(budget.total, usage.total)),
             ]),
             TableRow(children: [
               _cell('차량비', bg: kCarColor, fg: Colors.white, bold: true),
               _cell(manwonOrDash(budget.car), onTap: onEditCar),
               used(usage.car, budget.car),
-              _remain(budget.car, usage.car),
+              _remain(context, budget.car, car.shown, adjustedFrom: car.adjusted ? car.original : null),
             ]),
             TableRow(children: [
               _cell('운영비', bg: kOpsColor, fg: _opsTitleText, bold: true),

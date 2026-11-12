@@ -17,7 +17,7 @@ const kDigitsHelp = '승인 문자에 적힌 카드번호 네자리\n(예: "NH�
 bool validCardSettings(String digits, String sender) =>
     RegExp(r'^\d{4}$').hasMatch(digits) && normalizeNumber(sender).length >= 7;
 
-/// 사용법 3단계 (첫 실행, 메뉴 > 사용법에서 다시 보기). 넘기기·건너뛰기.
+/// 사전입력사항 3단계 (첫 실행, 메뉴 > 사전입력사항에서 다시 보기). 넘기기·건너뛰기.
 /// ① 이번 달 전체·차량비 수립 ② 발신번호·카드번호 네자리 ③ 과거 이력 불러오기(전용판) / 붙여넣기·공유하기 안내.
 /// 첫 실행에서는 ②가 꼭 필요하다 (카드번호가 없으면 문자를 못 알아봄) — 건너뛰기를 눌러도 ②에서 멈춘다.
 class OnboardingScreen extends StatefulWidget {
@@ -119,14 +119,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     widget.onDone(a);
   }
 
-  Widget _title(int n, String title, String sub) => Column(
+  Widget _title(int n, String title, [String? sub]) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text('$n / 3', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF8D6200))),
       const SizedBox(height: 6),
       Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 8),
-      Text(keepWords(sub), style: const TextStyle(fontSize: 15, height: 1.5, color: Color(0xFF5F6368))),
+      if (sub != null) ...[
+        const SizedBox(height: 8),
+        Text(keepWords(sub), style: const TextStyle(fontSize: 15, height: 1.5, color: Color(0xFF5F6368))),
+      ],
       const SizedBox(height: 20),
     ],
   );
@@ -146,10 +148,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget _budgetPage() => ListView(
     padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
     children: [
-      _title(1, '이번 달 수립 금액', '한 달에 쓸 수 있는 전체 금액과 그중 차량비를 넣어 주세요. 운영비는 전체에서 차량비를 뺀 값이에요. 나중에 메인 표에서 언제든 바꿀 수 있어요.'),
+      _title(1, '이번 달 수립 금액'),
       _money('전체 (합계)', _total),
       _money('차량비', _car),
-      Text(keepWords('예) 34.25 → 342,500원 · 비워 두면 나중에 넣어요'), style: const TextStyle(fontSize: 12, color: Colors.black54)),
       if (_budgetError != null)
         Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -161,7 +162,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget _cardPage() => ListView(
     padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
     children: [
-      _title(2, '카드 문자 설정', '이 번호로 온 문자 중 카드번호 네자리가 맞는 승인 문자만 내역으로 정리해요.'),
+      _title(2, '카드 문자 설정'),
       const Text('카드번호 네자리', style: _label),
       const SizedBox(height: 4),
       Text(keepWords(kDigitsHelp), style: const TextStyle(color: Colors.black54)),
@@ -253,7 +254,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final canNext = _page != 1 || _cardValid;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('사용법'),
+        title: const Text('사전입력사항'),
         automaticallyImplyLeading: !widget.firstRun,
         actions: [TextButton(onPressed: _skip, child: const Text('건너뛰기'))],
       ),

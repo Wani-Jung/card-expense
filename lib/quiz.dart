@@ -257,12 +257,13 @@ class ChallengeRun {
 
 /// 결과 카드 등급. 100% 🏆 안전 마스터 / 90% 이상 🥇 안전 달인 / 80% 이상 🦺 안전 베테랑 /
 /// 60% 이상 👷 안전 실무자 / 60% 미만 📘 안전 새내기 (반올림 없이 정답 수/문항 수로 판정)
-({String emoji, String label}) quizGrade(int correct, int n) {
-  if (n > 0 && correct >= n) return (emoji: '🏆', label: '안전 마스터');
-  if (correct * 10 >= n * 9) return (emoji: '🥇', label: '안전 달인');
-  if (correct * 10 >= n * 8) return (emoji: '🦺', label: '안전 베테랑');
-  if (correct * 10 >= n * 6) return (emoji: '👷', label: '안전 실무자');
-  return (emoji: '📘', label: '안전 새내기');
+/// [topic] 은 등급 앞말 (안전 OX '안전', 농어촌정비법 '정비법')
+({String emoji, String label}) quizGrade(int correct, int n, {String topic = '안전'}) {
+  if (n > 0 && correct >= n) return (emoji: '🏆', label: '$topic 마스터');
+  if (correct * 10 >= n * 9) return (emoji: '🥇', label: '$topic 달인');
+  if (correct * 10 >= n * 8) return (emoji: topic == '안전' ? '🦺' : '📗', label: '$topic 베테랑');
+  if (correct * 10 >= n * 6) return (emoji: topic == '안전' ? '👷' : '📝', label: '$topic 실무자');
+  return (emoji: '📘', label: '$topic 새내기');
 }
 
 /// 챌린지 문항 수 선택지

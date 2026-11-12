@@ -69,24 +69,19 @@ class RuralBank {
   RuralQuestion? byId(String id) => questions.where((q) => q.id == id).firstOrNull;
 
   /// 분야 선택 화면(QuizCategoryPicker)용: 분야·문항 수만 같은 QuizBank (정답 값은 쓰지 않음)
-  QuizBank get pickerBank => QuizBank(
-    version,
-    '',
-    [
-      for (final q in questions)
-        QuizQuestion(
-          id: q.id,
-          group: q.group,
-          category: q.category,
-          question: q.question,
-          answer: true,
-          explain: '',
-          basis: '',
-          active: q.active,
-        ),
-    ],
-    groups,
-  );
+  QuizBank get pickerBank => QuizBank(version, '', [
+    for (final q in questions)
+      QuizQuestion(
+        id: q.id,
+        group: q.group,
+        category: q.category,
+        question: q.question,
+        answer: true,
+        explain: '',
+        basis: '',
+        active: q.active,
+      ),
+  ], groups);
 
   /// 형식이 틀리거나 활성 문항이 0개면 null. 깨진 문항 하나는 건너뛴다.
   static RuralBank? parse(String text) {
@@ -118,17 +113,34 @@ class RuralBank {
   static Future<RuralBank?> load() async => parse(await rootBundle.loadString(kRuralAsset));
 }
 
-/// 푼 기록 한 건. [pick] = 고른 답 (OX 1/0, 객관식 1~4)
+/// 푼 기록 한 건. [pick] = 고른 답 (OX 1/0, 객관식 1~4). [src] 'extra'(한 문제 더) / 'challenge', [run] 챌린지 회차 id
 class RuralRecord {
   final String day, id;
   final int pick;
   final bool correct;
   final int? at;
-  const RuralRecord(this.day, this.id, this.pick, this.correct, {this.at});
+  final String src;
+  final String? run;
+  const RuralRecord(this.day, this.id, this.pick, this.correct, {this.at, this.src = kQuizExtra, this.run});
 
-  Map<String, dynamic> toJson() => {'d': day, 'q': id, 'p': pick, 'ok': correct, 't': ?at};
-  factory RuralRecord.fromJson(Map<String, dynamic> j) =>
-      RuralRecord(j['d'] as String, j['q'] as String, (j['p'] as num).toInt(), j['ok'] as bool, at: (j['t'] as num?)?.toInt());
+  Map<String, dynamic> toJson() => {
+    'd': day,
+    'q': id,
+    'p': pick,
+    'ok': correct,
+    't': ?at,
+    if (src != kQuizExtra) 's': src,
+    'r': ?run,
+  };
+  factory RuralRecord.fromJson(Map<String, dynamic> j) => RuralRecord(
+    j['d'] as String,
+    j['q'] as String,
+    (j['p'] as num).toInt(),
+    j['ok'] as bool,
+    at: (j['t'] as num?)?.toInt(),
+    src: j['s'] as String? ?? kQuizExtra,
+    run: j['r'] as String?,
+  );
 }
 
 /// 농어촌정비법 퀴즈 기록 (안전 OX 의 quiz_* 키와 따로)
@@ -136,17 +148,61 @@ class RuralStore {
   static const kLog = 'rural_log_v1';
   static const kBag = 'rural_bag_v1';
   static const kCats = 'rural_cats_v1';
+  static const kRuns = 'rural_runs_v1';
+  static const kChallengeCats = 'rural_cats_challenge_v1';
+  static const kChallengeSize = 'rural_challenge_size_v1';
 
   final SharedPreferences _p;
   RuralStore(this._p);
+
+  /// 결과 카드 이름은 안전 OX 와 같이 쓴다 (사람 이름이라 하나로)
+  QuizStore get nameStore => QuizStore(_p);
+
+  // ---------------- 챌린지 (REQ-48) ----------------
+
+  List<ChallengeRun> get runs => [
+    for (final s in _p.getStringList(kRuns) ?? const <String>[])
+      ChallengeRun.fromJson(jsonDecode(s) as Map<String, dynamic>),
+  ];
+
+  /// 챌린지 한 회차 저장 (회차 결과 + 문제별 기록)
+  Future<void> saveRun(ChallengeRun run, List<RuralRecord> answers) async {
+    await _p.setStringList(kRuns, [...?_p.getStringList(kRuns), jsonEncode(run.toJson())]);
+    await _p.setStringList(kLog, [...?_p.getStringList(kLog), for (final a in answers) jsonEncode(a.toJson())]);
+  }
+
+  /// 문항 수별 최고 기록 (정답률 → 시간)
+  ChallengeRun? best(int n) {
+    ChallengeRun? b;
+    for (final r in runs.where((r) => r.n == n)) {
+      if (isBetterRun(r, b)) b = r;
+    }
+    return b;
+  }
+
+  /// 챌린지 분야 선택 (한 문제 더 풀기와 따로). null = 전체
+  Set<String>? get challengeCats => _p.getStringList(kChallengeCats)?.toSet();
+  Future<void> setChallengeCats(Set<String> keys) => _p.setStringList(kChallengeCats, keys.toList());
+
+  int get challengeSize => _p.getInt(kChallengeSize) ?? kChallengeDefaultSize;
+  Future<void> setChallengeSize(int n) => _p.setInt(kChallengeSize, n);
+
+  /// 챌린지 문제: 고른 분야의 활성 문항에서 [n] 개를 무작위로 (OX·객관식 섞임, 오늘 푼 문제 포함 가능)
+  static List<RuralQuestion> challengeSet(RuralBank bank, int n, {Set<String>? cats, Random? random}) => ([
+    for (final q in bank.active)
+      if (cats == null || cats.contains(q.catKey)) q,
+  ]..shuffle(random ?? Random())).take(n).toList();
+
+  /// 고른 분야의 활성 문항 수
+  static int activeCount(RuralBank bank, Set<String>? cats) =>
+      bank.active.where((q) => cats == null || cats.contains(q.catKey)).length;
 
   List<RuralRecord> get records => [
     for (final s in _p.getStringList(kLog) ?? const <String>[])
       RuralRecord.fromJson(jsonDecode(s) as Map<String, dynamic>),
   ];
 
-  Future<void> record(RuralRecord r) =>
-      _p.setStringList(kLog, [...?_p.getStringList(kLog), jsonEncode(r.toJson())]);
+  Future<void> record(RuralRecord r) => _p.setStringList(kLog, [...?_p.getStringList(kLog), jsonEncode(r.toJson())]);
 
   int get solvedCount => records.length;
 
@@ -167,7 +223,12 @@ class RuralStore {
 
   /// 다음 문제: 섞어 둔 순서에서 하나씩 (한 바퀴 돌기 전엔 같은 문제 안 나옴). [exclude](오늘 푼 문제)는 건너뜀.
   /// 고른 분야에 낼 문제가 없으면 null.
-  Future<RuralQuestion?> next(RuralBank bank, {Set<String> exclude = const {}, Set<String>? cats, Random? random}) async {
+  Future<RuralQuestion?> next(
+    RuralBank bank, {
+    Set<String> exclude = const {},
+    Set<String>? cats,
+    Random? random,
+  }) async {
     final rnd = random ?? Random();
     final active = {for (final q in bank.active) q.id: q};
     bool ok(String id) => !exclude.contains(id) && (cats == null || cats.contains(active[id]!.catKey));
