@@ -1934,7 +1934,7 @@ class _BudgetTable extends StatelessWidget {
       onTap: () => showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          content: Text(keepWords(carRemainAdjustedMessage(adjustedFrom))),
+          content: Text(carRemainAdjustedMessage(adjustedFrom)),
           actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
         ),
       ),

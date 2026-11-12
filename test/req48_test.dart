@@ -172,11 +172,9 @@ void main() {
       // 차량 잔여가 더 작으면 그대로
       r = carRemainShown(budget(100, 40), use(35, 10));
       expect((r.shown, r.adjusted), (50000, false));
-      // 합계가 마이너스면 차량비도 같은 값(초과)
+      // 합계가 마이너스면 보정하지 않음 (REQ-49): 차량비는 자기 값
       r = carRemainShown(budget(100, 40), use(10, 100));
-      expect((r.shown, r.adjusted), (-100000, true));
-      expect(remainLevel(400000, r.shown), BudgetLevel.over);
-      expect(remainingText(r.shown), '초과 10.00');
+      expect((r.shown, r.adjusted), (300000, false));
       // 수립 없음
       r = carRemainShown(const MonthBudget(total: 1000000), use(10, 80));
       expect((r.shown, r.adjusted), (null, false));
@@ -192,7 +190,7 @@ void main() {
     test('팝업 문구', () {
       expect(
         carRemainAdjustedMessage(300000),
-        '운영비를 초과해 써서, 실제로 남은 차량비는 합계 잔여만큼이에요. 그래서 합계 잔여 값으로 표시했어요. (원래 차량비 잔여 30.00)',
+        '잔여 총액이 잔여 차량비보다 적어서,\n잔여 총액으로 표시했어요.\n(원래 차량비 잔여: 30만원)',
       );
     });
 
@@ -223,13 +221,13 @@ void main() {
       final store = await Store.open();
       await tester.pumpWidget(CardExpenseApp(store: store));
       await tester.pumpAndSettle();
-      // 합계 잔여 15.00, 차량비 칸도 15.00 (원래 35.00)
-      expect(find.text('15.00'), findsNWidgets(2));
-      expect(find.text('35.00'), findsNothing);
+      // 합계 잔여 15, 차량비 칸도 15 (원래 35)
+      expect(find.text('15'), findsNWidgets(2));
+      expect(find.text('35'), findsNothing);
       expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
       await tester.tap(find.byIcon(Icons.warning_amber_rounded));
       await tester.pumpAndSettle();
-      expect(find.text(keepWords(carRemainAdjustedMessage(350000))), findsOneWidget);
+      expect(find.text(carRemainAdjustedMessage(350000)), findsOneWidget);
       await tester.tap(find.text('확인'));
       await tester.pumpAndSettle();
       // 저장된 수립은 그대로

@@ -248,7 +248,12 @@ class _MenuScreenState extends State<MenuScreen> {
           line,
           item(Icons.menu_book_outlined, '사전입력사항', '수립 금액 · 카드 문자 설정 · 지난 결제 넣기', openThen(w.onGuide)),
           line,
-          item(Icons.science_outlined, '실험실', '안전 OX Quiz · 농어촌정비법 퀴즈', openThen(w.onLab)),
+          item(
+            Icons.science_outlined,
+            '실험실',
+            kShowRuralQuiz ? '안전 OX Quiz · 농어촌정비법 퀴즈' : '안전 OX Quiz',
+            openThen(w.onLab),
+          ),
           line,
           item(Icons.privacy_tip_outlined, '개인정보처리방침', '문자·알림은 휴대폰 안에서만 처리해요', _openPrivacy),
           line,

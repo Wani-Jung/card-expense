@@ -114,7 +114,17 @@ void main() {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    final titles = ['결제내역 입력', '내역 관리', '등록 업체·추천 키워드', '카드 문자 설정', '권한 설정', '사전입력사항', '실험실', '개인정보처리방침', isStoreChannel ? '버전 정보' : '업데이트 확인'];
+    final titles = [
+      '결제내역 입력',
+      '내역 관리',
+      '등록 업체·추천 키워드',
+      '카드 문자 설정',
+      '권한 설정',
+      '사전입력사항',
+      '실험실',
+      '개인정보처리방침',
+      isStoreChannel ? '버전 정보' : '업데이트 확인',
+    ];
     for (final t in titles) {
       expect(find.text(t), findsOneWidget);
     }
@@ -124,7 +134,10 @@ void main() {
       expect(ys[i], greaterThan(ys[i - 1]), reason: titles[i]);
     }
     expect(find.text('설정'), findsNothing);
-    expect(find.text('안전 OX Quiz'), findsNothing); // 실험실 안으로 (REQ-47)
+    expect(
+      find.byWidgetPredicate((w) => w is ListTile && w.title is Text && (w.title! as Text).data == '안전 OX Quiz'),
+      findsNothing,
+    ); // 실험실 안으로 (REQ-47)
     for (final gone in ['내역 넣기', '정산', '업체 관리', '앱 정보', '이번 달 내역 복사', '현재 버전', '알림 접근 설정', '제작자']) {
       expect(find.text(gone), findsNothing);
     }
@@ -135,7 +148,7 @@ void main() {
     expect(tester.getCenter(credit).dx, closeTo(360 / 2, 1));
     expect(find.ancestor(of: credit, matching: find.byType(InkWell)), findsNothing);
     expect(find.ancestor(of: credit, matching: find.byType(ListTile)), findsNothing);
-    expect(find.text('안전 OX Quiz · 농어촌정비법 퀴즈'), findsOneWidget);
+    expect(find.text(isStoreChannel ? '안전 OX Quiz' : '안전 OX Quiz · 농어촌정비법 퀴즈'), findsOneWidget);
     expect(find.text('카드 0000 · 발신 1588-1600'), findsOneWidget);
     expect(find.text('알림 감지 권한 필요'), findsOneWidget);
 

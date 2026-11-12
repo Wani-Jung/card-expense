@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/main.dart';
+import 'package:card_expense/flavor.dart';
 import 'package:card_expense/lab_screen.dart';
 import 'package:card_expense/menu_screen.dart';
 import 'package:card_expense/quiz.dart';
@@ -479,20 +480,18 @@ void main() {
       final labY = tester.getTopLeft(find.text('실험실')).dy;
       expect(labY, lessThan(tester.getTopLeft(find.text('개인정보처리방침')).dy));
       expect(labY, greaterThan(tester.getTopLeft(find.text('사전입력사항')).dy));
-      expect(find.text('안전 OX Quiz'), findsNothing);
+      expect(
+        find.byWidgetPredicate((w) => w is ListTile && w.title is Text && (w.title! as Text).data == '안전 OX Quiz'),
+        findsNothing,
+      ); // 메뉴 항목으로는 없음 (실험실 설명에만)
       await tester.pumpWidget(
         MaterialApp(
-          home: LabScreen(
-            quizSummary: () => '연속 3일',
-            ruralSummary: () => 'OX·객관식',
-            onQuiz: noop,
-            onRural: noop,
-          ),
+          home: LabScreen(quizSummary: () => '연속 3일', ruralSummary: () => 'OX·객관식', onQuiz: noop, onRural: noop),
         ),
       );
       await tester.pumpAndSettle();
       expect(find.text('연속 3일'), findsOneWidget);
-      expect(find.text('농어촌정비법 퀴즈'), findsOneWidget);
+      expect(find.text('농어촌정비법 퀴즈'), isStoreChannel ? findsNothing : findsOneWidget); // 스토어판은 숨김 (REQ-49)
       final icon = find.byType(QuizIcon);
       expect(icon, findsOneWidget);
       expect(tester.getSize(icon), const Size(24, 24));

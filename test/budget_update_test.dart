@@ -16,11 +16,11 @@ Expense _e(int amount, String cat, DateTime at, {bool cancel = false}) => Expens
 
 void main() {
   group('만원 변환', () {
-    test('원 → 만원 소수점 둘째 자리', () {
+    test('원 → 만원 소수점 둘째 자리, 끝자리 0 생략 (REQ-49)', () {
       expect(manwon(342500), '34.25');
-      expect(manwon(96000), '9.60');
-      expect(manwon(0), '0.00');
-      expect(manwon(-96000), '-9.60');
+      expect(manwon(96000), '9.6');
+      expect(manwon(0), '0');
+      expect(manwon(-96000), '-9.6');
       expect(manwonOrDash(null), '-');
     });
 
@@ -157,8 +157,8 @@ void main() {
     test('표기: 비면 -, 마이너스면 초과', () {
       expect(remainingText(null), '-');
       expect(remainingText(157500), '15.75');
-      expect(remainingText(0), '0.00');
-      expect(remainingText(-35000), '초과 3.50');
+      expect(remainingText(0), '0');
+      expect(remainingText(-35000), '초과 3.5');
     });
   });
 

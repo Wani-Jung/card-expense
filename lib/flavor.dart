@@ -13,6 +13,13 @@ String get editionLabel => isFullEdition ? '전용판' : '일반판';
 /// 컴파일 시점 상수라 스토어 빌드에서는 업데이트 코드가 트리셰이킹으로 빠진다.
 const isStoreChannel = String.fromEnvironment('CHANNEL') == 'store';
 
+/// 농어촌정비법 퀴즈를 스토어판에도 보일지 (REQ-49). 문제 검토가 끝나면 true 로 바꾸면 된다.
+/// 깃허브판(일반·전용)에는 이 값과 상관없이 보인다. 코드·문제 파일은 스토어판에도 그대로 들어 있다.
+const kRuralQuizInStore = false;
+
+/// 실험실에 농어촌정비법 퀴즈를 보일지
+const kShowRuralQuiz = !isStoreChannel || kRuralQuizInStore;
+
 const kAppName = '공감카드 관리';
 
 /// 개인정보처리방침 (메뉴 > 개인정보처리방침, 모든 판 공통)
