@@ -9,10 +9,23 @@ import 'quiz_category_picker.dart';
 import 'quiz_screens.dart';
 import 'quiz_sheet.dart';
 import 'rural_quiz.dart';
+import 'snack.dart';
 
 const _grey = Color(0xFF5F6368);
 
 String _today() => quizDay(DateTime.now());
+
+/// 정비법 점수 기록 지우기 확인 문구 (지워지는 것 / 남는 것. RuralStore.clearScores 동작 그대로)
+const kRuralClearScoresMessage =
+    '지워지는 것\n'
+    "· 정답률 (지운 뒤 다음에 푸는 문제부터 새로 계산, 그 전까지 '-')\n"
+    '· 문제마다 내 답·맞음/틀림\n'
+    '· 챌린지 정답률·걸린 시간·최고 기록\n\n'
+    '남는 것\n'
+    '· 푼 문제 수\n'
+    '· 지난 문제 다시 보기 목록 (문제·정답·해설, 챌린지 회차)\n'
+    '· 안전 OX Quiz 기록 (따로 지워요)\n\n'
+    '지운 직후 [되돌리기]로 되살릴 수 있어요.';
 
 /// 실험실 > 농어촌정비법 퀴즈: 요약(푼 문제·정답률) + 챌린지 / 한 문제 더 풀기 / 지난 문제 다시 보기.
 /// 매일 퀴즈는 없다.
@@ -29,6 +42,45 @@ class _RuralQuizHomeScreenState extends State<RuralQuizHomeScreen> {
   Future<void> _open(Widget screen) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
     if (mounted) setState(() {});
+  }
+
+  /// 점수 기록 지우기: 확인 → 지우기 → 5초 [되돌리기]. 정비법 기록만 (REQ-50)
+  Future<void> _clearScores() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('점수 기록을 지울까요?'),
+        content: Text(keepWords(kRuralClearScoresMessage)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD93025)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('지우기'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final snap = widget.store.snapshotScores();
+    await widget.store.clearScores();
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        appSnackBar(
+          content: const Text('점수 기록을 지웠어요'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: '되돌리기',
+            onPressed: () async {
+              await widget.store.restoreScores(snap);
+              if (mounted) setState(() {});
+            },
+          ),
+        ),
+      );
   }
 
   @override
@@ -82,6 +134,17 @@ class _RuralQuizHomeScreenState extends State<RuralQuizHomeScreen> {
           item(Icons.add_task, '한 문제 더 풀기', '분야를 골라 원하는 만큼 풀어요', RuralPracticeScreen(store: s, bank: widget.bank)),
           const Divider(height: 1, thickness: 0.5),
           item(Icons.history_edu, '지난 문제 다시 보기', '푼 문제를 날짜별로 다시 봐요', RuralHistoryScreen(store: s, bank: widget.bank)),
+          const SizedBox(height: 32),
+          Center(
+            child: TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF9AA0A6),
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+              onPressed: _clearScores,
+              child: const Text('점수 기록 지우기'),
+            ),
+          ),
         ],
       ),
     );
@@ -406,9 +469,9 @@ class _RuralHistoryScreenState extends State<RuralHistoryScreen> {
         var list = value;
         if (key.startsWith('run:')) {
           list = list.reversed.toList(); // 푼 순서대로
-          if (_wrongOnly && !list.any((r) => !r.correct)) continue;
+          if (_wrongOnly && !list.any((r) => r.correct == false)) continue;
         } else if (_wrongOnly) {
-          list = list.where((r) => !r.correct).toList();
+          list = list.where((r) => r.correct == false).toList();
           if (list.isEmpty) continue;
         }
         groups.add((day: day, key: key, records: list));
@@ -501,7 +564,8 @@ class _RuralRunTileState extends State<RuralRunTile> {
   Widget build(BuildContext context) {
     final run = widget.run;
     final n = run?.n ?? widget.answers.length;
-    final ok = run?.correct ?? widget.answers.where((a) => a.correct).length;
+    final scored = run != null ? run.scored : widget.answers.every((a) => a.correct != null);
+    final ok = run?.correct ?? widget.answers.where((a) => a.correct == true).length;
     final at = run == null ? null : DateTime.fromMillisecondsSinceEpoch(run.at);
     final time = at == null ? '' : '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
     return Card(
@@ -511,9 +575,13 @@ class _RuralRunTileState extends State<RuralRunTile> {
         children: [
           ListTile(
             leading: const Icon(Icons.emoji_events_outlined, color: kQuizGold),
-            title: Text('챌린지 $n문제 · 정답률 ${n == 0 ? 0 : (ok * 100 / n).round()}%'),
+            title: Text(scored ? '챌린지 $n문제 · 정답률 ${n == 0 ? 0 : (ok * 100 / n).round()}%' : '챌린지 · $n문제'),
             subtitle: Text(
-              [if (time.isNotEmpty) time, '$ok/$n 정답', if (run?.ms != null) quizDuration(run!.ms!)].join(' · '),
+              [
+                if (time.isNotEmpty) time,
+                if (scored) '$ok/$n 정답',
+                if (scored && run?.ms != null) quizDuration(run!.ms!),
+              ].join(' · '),
               style: const TextStyle(fontSize: 12),
             ),
             trailing: Icon(_open ? Icons.expand_less : Icons.expand_more),
@@ -549,7 +617,7 @@ class _RuralAnswersListState extends State<RuralAnswersList> {
 
   @override
   Widget build(BuildContext context) {
-    final list = _wrongOnly ? widget.answers.where((a) => !a.correct).toList() : widget.answers;
+    final list = _wrongOnly ? widget.answers.where((a) => a.correct == false).toList() : widget.answers;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -596,7 +664,8 @@ class _RuralRecordTileState extends State<RuralRecordTile> {
   Widget build(BuildContext context) {
     final r = widget.record;
     final q = widget.question;
-    final color = r.correct ? kQuizOk : kQuizMiss;
+    final scored = r.correct != null && r.pick != null;
+    final color = !scored ? _grey : (r.correct! ? kQuizOk : kQuizMiss);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       child: Column(
@@ -626,11 +695,13 @@ class _RuralRecordTileState extends State<RuralRecordTile> {
           const SizedBox(height: 6),
           Row(
             children: [
-              Icon(r.correct ? Icons.check_circle : Icons.info_outline, size: 16, color: color),
-              const SizedBox(width: 4),
+              if (scored) ...[
+                Icon(r.correct! ? Icons.check_circle : Icons.info_outline, size: 16, color: color),
+                const SizedBox(width: 4),
+              ],
               Expanded(
                 child: Text(
-                  '내 답 ${q.label(r.pick)} → 정답 ${q.label(q.answer)}',
+                  scored ? '내 답 ${q.label(r.pick!)} → 정답 ${q.label(q.answer)}' : '정답 ${q.label(q.answer)}',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
                 ),
               ),
@@ -910,7 +981,7 @@ class _RuralChallengeRunScreenState extends State<RuralChallengeRunScreen> {
       id: id,
       at: _startedAt,
       n: _qs.length,
-      correct: answers.where((a) => a.correct).length,
+      correct: answers.where((a) => a.correct == true).length,
       ms: _watch.elapsedMilliseconds,
       cats: widget.cats,
     );
@@ -1108,7 +1179,7 @@ class _RuralChallengeResultScreenState extends State<RuralChallengeResultScreen>
     for (var i = 0; i < w.questions.length && i < w.answers.length; i++) {
       final q = w.questions[i];
       final cur = byCat[q.catKey] ?? (label: q.catLabel, correct: 0, n: 0);
-      byCat[q.catKey] = (label: cur.label, correct: cur.correct + (w.answers[i].correct ? 1 : 0), n: cur.n + 1);
+      byCat[q.catKey] = (label: cur.label, correct: cur.correct + (w.answers[i].correct == true ? 1 : 0), n: cur.n + 1);
     }
     return Scaffold(
       appBar: AppBar(title: const Text('챌린지 결과')),

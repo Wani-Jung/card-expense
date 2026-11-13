@@ -113,11 +113,12 @@ class RuralBank {
   static Future<RuralBank?> load() async => parse(await rootBundle.loadString(kRuralAsset));
 }
 
-/// 푼 기록 한 건. [pick] = 고른 답 (OX 1/0, 객관식 1~4). [src] 'extra'(한 문제 더) / 'challenge', [run] 챌린지 회차 id
+/// 푼 기록 한 건. [pick] = 고른 답 (OX 1/0, 객관식 1~4). [src] 'extra'(한 문제 더) / 'challenge', [run] 챌린지 회차 id.
+/// '점수 기록 지우기' 뒤에는 [pick]·[correct] 가 null (푼 문제·날짜·출처·회차만 남음, REQ-50)
 class RuralRecord {
   final String day, id;
-  final int pick;
-  final bool correct;
+  final int? pick;
+  final bool? correct;
   final int? at;
   final String src;
   final String? run;
@@ -126,8 +127,8 @@ class RuralRecord {
   Map<String, dynamic> toJson() => {
     'd': day,
     'q': id,
-    'p': pick,
-    'ok': correct,
+    'p': ?pick,
+    'ok': ?correct,
     't': ?at,
     if (src != kQuizExtra) 's': src,
     'r': ?run,
@@ -135,8 +136,8 @@ class RuralRecord {
   factory RuralRecord.fromJson(Map<String, dynamic> j) => RuralRecord(
     j['d'] as String,
     j['q'] as String,
-    (j['p'] as num).toInt(),
-    j['ok'] as bool,
+    (j['p'] as num?)?.toInt(),
+    j['ok'] as bool?,
     at: (j['t'] as num?)?.toInt(),
     src: j['s'] as String? ?? kQuizExtra,
     run: j['r'] as String?,
@@ -207,9 +208,34 @@ class RuralStore {
   int get solvedCount => records.length;
 
   /// 정답률 (푼 게 없으면 null)
+  /// 정답률: 점수가 남아 있는 기록만 (지운 뒤 새로 푼 문제부터 다시 집계). 없으면 null
   int? get percent {
-    final rs = records;
-    return rs.isEmpty ? null : (rs.where((r) => r.correct).length * 100 / rs.length).round();
+    final rs = records.where((r) => r.correct != null).toList();
+    return rs.isEmpty ? null : (rs.where((r) => r.correct!).length * 100 / rs.length).round();
+  }
+
+  /// 점수가 남은 기록이 하나라도 있는지
+  bool get hasScores => records.any((r) => r.correct != null);
+
+  /// 지우기 직전 기록 (점수 기록 지우기 [되돌리기]용)
+  ({List<String>? log, List<String>? runs}) snapshotScores() =>
+      (log: _p.getStringList(kLog), runs: _p.getStringList(kRuns));
+  Future<void> restoreScores(({List<String>? log, List<String>? runs}) snap) async {
+    snap.log == null ? await _p.remove(kLog) : await _p.setStringList(kLog, snap.log!);
+    snap.runs == null ? await _p.remove(kRuns) : await _p.setStringList(kRuns, snap.runs!);
+  }
+
+  /// 점수 기록 지우기 (REQ-50, 안전 OX 와 같은 동작, 정비법 기록만): 내 답·정답 여부·챌린지 점수·시간(→ 정답률·최고 기록)을 지운다.
+  /// 푼 문제 id·날짜·출처·챌린지 회차(푼 문제 수·지난 문제 목록)는 남는다. 안전 OX 기록(quiz_*)은 건드리지 않는다.
+  Future<void> clearScores() async {
+    await _p.setStringList(kLog, [
+      for (final r in records)
+        jsonEncode(RuralRecord(r.day, r.id, null, null, at: r.at, src: r.src, run: r.run).toJson()),
+    ]);
+    await _p.setStringList(kRuns, [
+      for (final r in runs)
+        jsonEncode(ChallengeRun(id: r.id, at: r.at, n: r.n, correct: null, ms: null, cats: r.cats).toJson()),
+    ]);
   }
 
   Set<String> solvedOn(String day) => {

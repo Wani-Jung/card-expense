@@ -24,6 +24,9 @@ class OnboardingScreen extends StatefulWidget {
   /// 메뉴에서 연 경우 false (닫기 버튼, 카드 설정은 이미 있음)
   final bool firstRun;
   final MonthBudget budget;
+
+  /// 수립 입력 단위 (요약표에서 고른 단위, REQ-50)
+  final MoneyUnit unit;
   final String? digits, sender;
   final Future<void> Function(int? total, int? car) onBudget;
   final Future<void> Function(String digits, String sender) onSettings;
@@ -33,6 +36,7 @@ class OnboardingScreen extends StatefulWidget {
     super.key,
     required this.firstRun,
     required this.budget,
+    this.unit = MoneyUnit.man,
     required this.digits,
     required this.sender,
     required this.onBudget,
@@ -47,8 +51,12 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _pages = PageController();
   int _page = 0;
-  late final _total = TextEditingController(text: widget.budget.total == null ? '' : manwon(widget.budget.total!));
-  late final _car = TextEditingController(text: widget.budget.car == null ? '' : manwon(widget.budget.car!));
+  late final _total = TextEditingController(
+    text: widget.budget.total == null ? '' : moneyInputText(widget.budget.total!, widget.unit),
+  );
+  late final _car = TextEditingController(
+    text: widget.budget.car == null ? '' : moneyInputText(widget.budget.car!, widget.unit),
+  );
   late final _digits = TextEditingController(text: widget.digits ?? '');
   late final _sender = TextEditingController(text: widget.sender ?? kDefaultSender);
   late bool _settingsSaved = widget.digits != null && widget.sender != null;
@@ -64,8 +72,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   /// ① 수립 저장. 비우면 그대로 둔다. 잘못 넣었으면 안내하고 false.
   Future<bool> _saveBudget() async {
     try {
-      final t = _total.text.trim().isEmpty ? null : parseManwon(_total.text);
-      final c = _car.text.trim().isEmpty ? null : parseManwon(_car.text);
+      final t = parseMoney(_total.text, widget.unit);
+      final c = parseMoney(_car.text, widget.unit);
       if (t != null && c != null && c > t) {
         setState(() => _budgetError = '차량비가 전체보다 클 수 없어요');
         return false;
@@ -139,9 +147,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     padding: const EdgeInsets.only(bottom: 14),
     child: TextField(
       controller: c,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-      decoration: InputDecoration(labelText: label, suffixText: '만원', border: const OutlineInputBorder()),
+      keyboardType: TextInputType.numberWithOptions(decimal: widget.unit == MoneyUnit.man),
+      inputFormatters: [FilteringTextInputFormatter.allow(moneyInputChars(widget.unit))],
+      decoration: InputDecoration(labelText: label, suffixText: widget.unit.label, border: const OutlineInputBorder()),
     ),
   );
 

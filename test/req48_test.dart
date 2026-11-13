@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:card_expense/budget.dart';
 import 'package:card_expense/category_badge.dart';
 import 'package:card_expense/challenge_card.dart';
 import 'package:card_expense/expense.dart';
@@ -17,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// REQ-48: 사전입력사항 문구, 농어촌정비법 챌린지, 결과 카드 크레딧 삭제, 키워드 칩 켜기/끄기·길게 눌러 삭제,
-/// 차량비 잔여 보정.
+/// (차량비 잔여 보정은 REQ-50 에서 철회).
 void main() {
   void phone(WidgetTester tester) {
     tester.view.physicalSize = const Size(1080, 2340);
@@ -158,82 +157,7 @@ void main() {
     });
   });
 
-  group('E 차량비 잔여 보정', () {
-    MonthBudget budget(int total, int car) => MonthBudget(total: total * 10000, car: car * 10000);
-    MonthUsage use(int car, int ops) => MonthUsage(car * 10000, ops * 10000);
-
-    test('차량비 잔여 > 합계 잔여면 합계 잔여로, 같거나 작으면 그대로, 수립 없으면 그대로', () {
-      // 합계 100 · 차량 40, 차량 10 · 운영 80 사용 → 합계 잔여 10, 차량 잔여 30 → 10 으로
-      var r = carRemainShown(budget(100, 40), use(10, 80));
-      expect((r.shown, r.original, r.adjusted), (100000, 300000, true));
-      // 같을 때(합계 잔여 30 = 차량 잔여 30)는 보정 안 함
-      r = carRemainShown(budget(100, 40), use(10, 60));
-      expect((r.shown, r.adjusted), (300000, false));
-      // 차량 잔여가 더 작으면 그대로
-      r = carRemainShown(budget(100, 40), use(35, 10));
-      expect((r.shown, r.adjusted), (50000, false));
-      // 합계가 마이너스면 보정하지 않음 (REQ-49): 차량비는 자기 값
-      r = carRemainShown(budget(100, 40), use(10, 100));
-      expect((r.shown, r.adjusted), (300000, false));
-      // 수립 없음
-      r = carRemainShown(const MonthBudget(total: 1000000), use(10, 80));
-      expect((r.shown, r.adjusted), (null, false));
-    });
-
-    test('색 규칙은 보정 값 기준 (차량비 수립 대비): 20% 이하 남으면 주의', () {
-      expect(remainLevel(400000, 100000), BudgetLevel.ok); // 25% 남음
-      expect(remainLevel(400000, 80000), BudgetLevel.warn); // 20% 남음
-      expect(remainLevel(400000, 0), BudgetLevel.warn);
-      expect(remainLevel(400000, -1), BudgetLevel.over);
-    });
-
-    test('팝업 문구', () {
-      expect(
-        carRemainAdjustedMessage(300000),
-        '잔여 총액이 잔여 차량비보다 적어서,\n잔여 총액으로 표시했어요.\n(원래 차량비 잔여: 30만원)',
-      );
-    });
-
-    testWidgets('메인 표: 보정 칸에 경고 아이콘, 누르면 팝업', (tester) async {
-      phone(tester);
-      final now = DateTime.now();
-      final key = Budgets.keyOf(now);
-      Map<String, Object?> item(String id, String cat, int amount) => {
-        'id': id,
-        'amount': amount,
-        'dateTime': DateTime(now.year, now.month, 1, 12).toIso8601String(),
-        'merchant': '가게$id',
-        'isCancel': false,
-        'raw': '',
-        'category': cat,
-      };
-      SharedPreferences.setMockInitialValues({
-        'card_digits': '0000',
-        'sender_number': '1588-1600',
-        'update_checked_at': now.millisecondsSinceEpoch,
-        'quiz_last_day_v1': quizDay(now),
-        'notif_asked_v1': true,
-        'budgets_v1': jsonEncode({
-          key: {'total': 1000000, 'car': 400000},
-        }),
-        'expenses_v1': jsonEncode([item('a', kCar, 50000), item('b', kOps, 800000)]),
-      });
-      final store = await Store.open();
-      await tester.pumpWidget(CardExpenseApp(store: store));
-      await tester.pumpAndSettle();
-      // 합계 잔여 15, 차량비 칸도 15 (원래 35)
-      expect(find.text('15'), findsNWidgets(2));
-      expect(find.text('35'), findsNothing);
-      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
-      await tester.tap(find.byIcon(Icons.warning_amber_rounded));
-      await tester.pumpAndSettle();
-      expect(find.text(carRemainAdjustedMessage(350000)), findsOneWidget);
-      await tester.tap(find.text('확인'));
-      await tester.pumpAndSettle();
-      // 저장된 수립은 그대로
-      expect(store.loadBudgets().forMonth(now).car, 400000);
-    });
-  });
+  // 차량비 잔여 보정 테스트는 REQ-50 에서 기능을 철회하면서 뺐다 (test/req50_test.dart 가 '차량비는 언제나 자기 값'을 확인)
 
   group('B 농어촌정비법 챌린지', () {
     const json = '''{"version":1,"updated":"","groups":[{"name":"농어촌정비법","categories":["벌칙","총칙"]}],

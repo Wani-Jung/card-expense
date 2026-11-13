@@ -165,6 +165,7 @@ class _CardExpenseAppState extends State<CardExpenseApp> {
       // v1.0.0 에서 올라온 경우 카드번호만 있으므로 발신번호까지 받는다.
       home: _onboarding || _digits == null || _sender == null
           ? OnboardingScreen(
+              unit: widget.store.moneyUnit,
               firstRun: true,
               budget: widget.store.loadBudgets().forMonth(DateTime.now()),
               digits: _digits,
@@ -969,6 +970,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     OnboardingAction? picked;
     await nav.push(MaterialPageRoute(
       builder: (ctx) => OnboardingScreen(
+        unit: _unit,
         firstRun: false,
         budget: _budgets.forMonth(DateTime.now()),
         digits: widget.digits,
@@ -1152,9 +1154,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     ));
 
-  /// 수립 입력 (만원 단위, 소수점 가능). 빈칸으로 저장하면 지운다.
+  /// 요약표 단위 (만원/천원/원, REQ-50)
+  late MoneyUnit _unit = widget.store.moneyUnit;
+
+  /// 수립 입력 (고른 단위. 만원은 소수점 둘째 자리까지, 천원·원은 정수). 빈칸으로 저장하면 지운다.
   Future<void> _editBudget(String label, int? current, void Function(int?) apply) async {
-    final ctrl = TextEditingController(text: current == null ? '' : manwon(current));
+    final unit = _unit;
+    final ctrl = TextEditingController(text: current == null ? '' : moneyInputText(current, unit));
     final input = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1162,12 +1168,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-          decoration: const InputDecoration(
-            suffixText: '만원',
-            helperText: '예) 34.25 → 342,500원 · 비우면 지워져요',
-            border: OutlineInputBorder(),
+          keyboardType: TextInputType.numberWithOptions(decimal: unit == MoneyUnit.man),
+          inputFormatters: [FilteringTextInputFormatter.allow(moneyInputChars(unit))],
+          decoration: InputDecoration(
+            suffixText: unit.label,
+            helperText: switch (unit) {
+              MoneyUnit.man => '예) 34.25 → 342,500원 · 비우면 지워져요',
+              MoneyUnit.thousand => '예) 343 → 343,000원 · 비우면 지워져요',
+              MoneyUnit.won => '예) 342500 → 342,500원 · 비우면 지워져요',
+            },
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
@@ -1178,7 +1188,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
     if (input == null) return;
     try {
-      final won = parseManwon(input);
+      final won = parseMoney(input, unit);
       setState(() => apply(won));
       await widget.store.saveBudgets(_budgets);
     } on FormatException catch (e) {
@@ -1249,6 +1259,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   dir: _slideDir,
                   childKey: '${_period.name}|${_view.title(_period)}',
                   child: _BudgetTable(
+                unit: _unit,
+                onUnit: (u) async {
+                  setState(() => _unit = u);
+                  await widget.store.setMoneyUnit(u);
+                },
                 budget: period.budget,
                 usage: period.usage,
                 mode: _period,
@@ -1864,7 +1879,7 @@ class _MonthDivider extends StatelessWidget {
       );
 }
 
-/// 수립/사용/잔여 표 (단위: 만원, 참고용). 합계·차량비 수립은 터치해서 입력(연필 표시), 운영비 수립은 자동 계산.
+/// 수립/사용/잔여 표 (단위: 만원·천원·원 중 고른 것, 참고용). 합계·차량비 수립은 터치해서 입력(연필 표시), 운영비 수립은 자동 계산.
 /// 합계·차량비는 여유/주의(80%~)/초과 3단계로 색을 바꾸고, 운영비는 경고 없이 계획보다 더 썼을 때만 작게 알린다.
 class _BudgetTable extends StatelessWidget {
   final MonthBudget budget;
@@ -1873,7 +1888,13 @@ class _BudgetTable extends StatelessWidget {
   final String modeLabel;
   final ValueChanged<PeriodMode> onMode;
   final VoidCallback? onEditTotal, onEditCar; // null 이면 편집 불가 (합산 화면)
+
+  /// 표시 단위 (표 위 '단위: 만원 ▾' 드롭다운, 기기에 저장)
+  final MoneyUnit unit;
+  final ValueChanged<MoneyUnit> onUnit;
   const _BudgetTable({
+    required this.unit,
+    required this.onUnit,
     required this.budget,
     required this.usage,
     required this.mode,
@@ -1913,13 +1934,13 @@ class _BudgetTable extends StatelessWidget {
     return InkWell(onTap: onTap, child: child);
   }
 
-  /// 합계·차량비 잔여 칸. 가장 눈에 띄게. 주의는 숫자만 빨강, 초과는 빨간 칸에 흰 글씨 (잔여 값 기준).
-  /// [adjustedFrom] 이 있으면 차량비 잔여를 합계 잔여로 보정한 칸: 오른쪽 아래 작은 경고 아이콘, 누르면 설명 팝업.
-  Widget _remain(BuildContext context, int? plan, int? rem, {int? adjustedFrom}) {
+  /// 합계·차량비 잔여 칸. 가장 눈에 띄게. 주의는 숫자만 빨강, 초과는 빨간 칸에 흰 글씨.
+  /// 차량비는 언제나 자기 값 (REQ-48·49 의 합계 잔여 보정은 REQ-50 에서 철회).
+  Widget _remain(int? plan, int? rem) {
     final level = remainLevel(plan, rem);
     final over = level == BudgetLevel.over;
-    final cell = _cell(
-      remainingText(rem),
+    return _cell(
+      remainingIn(rem, unit),
       bg: over ? _red : _remainBg,
       fg: switch (level) {
         BudgetLevel.ok => _navy,
@@ -1929,27 +1950,30 @@ class _BudgetTable extends StatelessWidget {
       bold: true,
       size: 18,
     );
-    if (adjustedFrom == null) return cell;
-    return InkWell(
-      onTap: () => showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          content: Text(carRemainAdjustedMessage(adjustedFrom)),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
-        ),
-      ),
-      child: Stack(
-        children: [
-          cell,
-          Positioned(
-            right: 3,
-            bottom: 3,
-            child: Icon(Icons.warning_amber_rounded, size: 14, color: over ? Colors.white : _red, semanticLabel: '보정됨'),
-          ),
-        ],
-      ),
-    );
   }
+
+  /// '단위: 만원 ▾' → 만원 / 천원 / 원
+  Widget _unitButton() => PopupMenuButton<MoneyUnit>(
+        initialValue: unit,
+        onSelected: onUnit,
+        tooltip: '단위',
+        position: PopupMenuPosition.under,
+        itemBuilder: (_) => [
+          for (final u in MoneyUnit.values)
+            PopupMenuItem(
+              value: u,
+              height: 40,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                SizedBox(width: 24, child: u == unit ? const Icon(Icons.check, size: 18) : null),
+                Text(u.label, style: const TextStyle(fontSize: 14)),
+              ]),
+            ),
+        ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Text('단위: ${unit.label} ▾', style: const TextStyle(fontSize: 13, color: kSubText)),
+        ),
+      );
 
   Widget _modeButton(BuildContext context) => PopupMenuButton<PeriodMode>(
         initialValue: mode,
@@ -1980,15 +2004,13 @@ class _BudgetTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 사용 칸은 초과일 때만 빨간 글씨 (주의 단계 색 없음)
-    Widget used(int won, int? plan) => _cell(manwon(won), fg: isOverBudget(won, plan) ? _red : null);
-    // 차량비 잔여가 합계 잔여보다 크면 합계 잔여로 보여 준다 (REQ-48, 표시만)
-    final car = carRemainShown(budget, usage);
+    Widget used(int won, int? plan) => _cell(money(won, unit), fg: isOverBudget(won, plan) ? _red : null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          const Text('(단위: 만원)', style: TextStyle(fontSize: 12, color: kSubText)),
+          _unitButton(),
           const SizedBox(width: 4),
           _modeButton(context),
         ]),
@@ -2011,24 +2033,24 @@ class _BudgetTable extends StatelessWidget {
             ]),
             TableRow(children: [
               _cell('합계', bg: kSubBg, bold: true),
-              _cell(manwonOrDash(budget.total), onTap: onEditTotal),
+              _cell(moneyOrDash(budget.total, unit), onTap: onEditTotal),
               used(usage.total, budget.total),
-              _remain(context, budget.total, remaining(budget.total, usage.total)),
+              _remain(budget.total, remaining(budget.total, usage.total)),
             ]),
             TableRow(children: [
               _cell('차량비', bg: kCarColor, fg: Colors.white, bold: true),
-              _cell(manwonOrDash(budget.car), onTap: onEditCar),
+              _cell(moneyOrDash(budget.car, unit), onTap: onEditCar),
               used(usage.car, budget.car),
-              _remain(context, budget.car, car.shown, adjustedFrom: car.adjusted ? car.original : null),
+              _remain(budget.car, remaining(budget.car, usage.car)),
             ]),
             TableRow(children: [
               _cell('운영비', bg: kOpsColor, fg: _opsTitleText, bold: true),
               // 자동 계산. 음수면 입력 오류(차량비 수립 > 합계 수립)
-              _cell(manwonOrDash(budget.ops),
+              _cell(moneyOrDash(budget.ops, unit),
                   bg: budget.opsInvalid ? kOverBg : null,
                   fg: budget.opsInvalid ? kOverText : kSubText,
                   bold: budget.opsInvalid),
-              _cell(manwon(usage.ops)), // 운영비는 항상 기본색
+              _cell(money(usage.ops, unit)), // 운영비는 항상 기본색
               _cell('', bg: Colors.white), // 운영비 잔여는 항상 빈 흰 칸
             ]),
           ],

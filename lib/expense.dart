@@ -176,6 +176,10 @@ class Store {
   Future<void> setCancelFixDone() => _prefs.setBool('cancel_fix_v1', true);
 
   /// 권한 설정 > '앱에서 사용' 스위치. 기본값은 둘 다 켜짐
+  /// 요약표 단위 (만원/천원/원, REQ-50). 기본 만원
+  MoneyUnit get moneyUnit => MoneyUnit.byName(_prefs.getString('money_unit_v1'));
+  Future<void> setMoneyUnit(MoneyUnit u) => _prefs.setString('money_unit_v1', u.name);
+
   /// 메뉴 > 내역 관리 '미분류 알림 받기'. 기본 켜짐
   bool get remindOn => _prefs.getBool('remind_unclassified_v1') ?? true;
   Future<void> setRemindOn(bool v) => _prefs.setBool('remind_unclassified_v1', v);

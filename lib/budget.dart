@@ -88,27 +88,63 @@ bool isOverBudget(int used, int? budget) => budget != null && used > budget;
 /// 잔여 = 수립 − 사용 (원). 수립이 비면 null.
 int? remaining(int? plan, int used) => plan == null ? null : plan - used;
 
-/// 차량비 잔여 표시 (REQ-48, REQ-49). 운영비를 초과해 쓰면 실제로 남은 차량비는 합계 잔여만큼이므로,
-/// 합계 잔여 ≥ 0 이고 차량비 잔여 > 합계 잔여면 합계 잔여 값으로 보여 준다 ([adjusted] = true, [original] = 원래 차량비 잔여).
-/// 같거나, 합계 잔여가 마이너스(초과)면 보정하지 않는다 (차량비는 자기 값). 수립이 비어 있으면 그대로.
-/// 저장값·수립은 바꾸지 않는다 (표시만).
-({int? shown, int? original, bool adjusted}) carRemainShown(MonthBudget b, MonthUsage u) {
-  final car = remaining(b.car, u.car);
-  final total = remaining(b.total, u.total);
-  if (car == null || total == null || total < 0 || car <= total) return (shown: car, original: car, adjusted: false);
-  return (shown: total, original: car, adjusted: true);
-}
-
-/// 잔여 값 기준 상태 (보정한 값에도 같은 색 규칙): 사용 = 수립 − 잔여 로 보고 [budgetLevel]
+/// 잔여 값 기준 상태: 사용 = 수립 − 잔여 로 보고 [budgetLevel]
 BudgetLevel remainLevel(int? plan, int? rem) =>
     plan == null || rem == null ? BudgetLevel.ok : budgetLevel(plan - rem, plan);
 
-/// 보정 안내 팝업 문구 (사용자 확정, 줄바꿈 그대로, REQ-49)
-String carRemainAdjustedMessage(int original) =>
-    '잔여 총액이 잔여 차량비보다 적어서,\n잔여 총액으로 표시했어요.\n(원래 차량비 잔여: ${manwon(original)}만원)';
+/// 잔여 표기 (만원). 비면 '-', 마이너스면 부호 대신 '초과 3.5'.
+String remainingText(int? rem) => remainingIn(rem, MoneyUnit.man);
 
-/// 잔여 표기 (만원). 비면 '-', 마이너스면 부호 대신 '초과 3.50'.
-String remainingText(int? rem) => rem == null ? '-' : (rem < 0 ? '초과 ${manwon(-rem)}' : manwon(rem));
+/// 요약표 단위 (REQ-50). 화면 표시만 바꾸고 계산·저장은 원 단위 그대로.
+enum MoneyUnit {
+  man('만원'),
+  thousand('천원'),
+  won('원');
+
+  final String label;
+  const MoneyUnit(this.label);
+
+  static MoneyUnit byName(String? n) => values.firstWhere((u) => u.name == n, orElse: () => man);
+}
+
+/// 천 단위 쉼표. 1234560 → "1,234,560"
+String groupDigits(int n) {
+  final s = n.abs().toString();
+  final b = StringBuffer(n < 0 ? '-' : '');
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) b.write(',');
+    b.write(s[i]);
+  }
+  return b.toString();
+}
+
+/// 원 → 단위 표기. 만원 = 소수 둘째 자리 반올림·끝자리 0 생략, 천원 = 반올림·정수·쉼표, 원 = 쉼표
+String money(int won, MoneyUnit u) => switch (u) {
+  MoneyUnit.man => manwon(won),
+  MoneyUnit.thousand => groupDigits((won / 1000).round()),
+  MoneyUnit.won => groupDigits(won),
+};
+
+String moneyOrDash(int? won, MoneyUnit u) => won == null ? '-' : money(won, u);
+
+/// 잔여 표기 (단위). 비면 '-', 마이너스면 부호 대신 '초과 X' (같은 단위·규칙)
+String remainingIn(int? rem, MoneyUnit u) => rem == null ? '-' : (rem < 0 ? '초과 ${money(-rem, u)}' : money(rem, u));
+
+/// 단위 입력 → 원. 만원은 소수 둘째 자리까지, 천원·원은 정수만 (쉼표 무시). 빈칸은 null, 잘못되면 throw.
+int? parseMoney(String input, MoneyUnit u) {
+  if (u == MoneyUnit.man) return parseManwon(input);
+  final t = input.trim().replaceAll(',', '');
+  if (t.isEmpty) return null;
+  final v = int.tryParse(t);
+  if (v == null || v < 0) throw FormatException('${u.label} 단위 정수를 입력해주세요');
+  return u == MoneyUnit.thousand ? v * 1000 : v;
+}
+
+/// 입력칸에서 받는 글자 (만원은 소수점 허용)
+RegExp moneyInputChars(MoneyUnit u) => u == MoneyUnit.man ? RegExp(r'[0-9.]') : RegExp(r'[0-9,]');
+
+/// 입력칸 처음 값 (쉼표 없이)
+String moneyInputText(int won, MoneyUnit u) => money(won, u).replaceAll(',', '');
 
 /// 합계·차량비 상태. 여유: 사용 < 수립의 80% / 주의: 80% 이상 ~ 100% 이하 / 초과: 100% 초과.
 enum BudgetLevel { ok, warn, over }
