@@ -28,7 +28,7 @@ class MenuScreen extends StatefulWidget {
   final Future<void> Function() onPermissions;
   final String Function() permSummary;
 
-  /// 실험실 (안전 OX Quiz·농어촌정비법 퀴즈). 설명은 안의 항목 이름
+  /// 실험실 (안전 OX Quiz·법령 Quiz 4종). 설명은 안의 항목 이름
   final Future<void> Function() onLab;
 
   /// 사전입력사항 3단계 다시 보기
@@ -251,7 +251,7 @@ class _MenuScreenState extends State<MenuScreen> {
           item(
             Icons.science_outlined,
             '실험실',
-            kShowRuralQuiz ? '안전 OX Quiz · 농어촌정비법 퀴즈' : '안전 OX Quiz',
+            kShowRuralQuiz ? '안전 OX Quiz · 법령 Quiz 4종' : '안전 OX Quiz',
             openThen(w.onLab),
           ),
           line,

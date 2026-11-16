@@ -70,9 +70,9 @@ void main() {
                   name: '',
                   date: DateTime(2026, 11, 12),
                   newBest: false,
-                  title: kRuralChallengeTitle,
-                  subtitle: kRuralCardSubtitle,
-                  gradeTopic: '정비법',
+                  title: kRuralLaw.title,
+                  subtitle: kRuralLaw.cardSubtitle,
+                  gradeTopic: kRuralLaw.short,
                 ),
               ),
             ),
@@ -80,7 +80,7 @@ void main() {
         ),
       );
       expect(find.text('Made by wani'), findsNothing);
-      expect(find.text('농어촌정비법 챌린지'), findsOneWidget);
+      expect(find.text('농어촌정비법 Quiz'), findsOneWidget); // REQ-51: 카드 제목 = 그룹 이름 + ' Quiz'
       expect(find.text('농어촌정비법 OX·객관식'), findsOneWidget);
       expect(find.text('🥇 정비법 달인'), findsOneWidget);
     });
@@ -207,7 +207,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(find.text('챌린지 결과'), findsOneWidget);
-      expect(find.text('농어촌정비법 챌린지'), findsOneWidget);
+      expect(find.text('농어촌정비법 Quiz'), findsOneWidget); // 결과 카드 제목 (REQ-51)
       expect(find.text('최고 기록!'), findsOneWidget);
       expect(find.text('Made by wani'), findsNothing);
       expect(store.runs, hasLength(1));

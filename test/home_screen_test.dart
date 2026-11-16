@@ -148,7 +148,7 @@ void main() {
     expect(tester.getCenter(credit).dx, closeTo(360 / 2, 1));
     expect(find.ancestor(of: credit, matching: find.byType(InkWell)), findsNothing);
     expect(find.ancestor(of: credit, matching: find.byType(ListTile)), findsNothing);
-    expect(find.text(isStoreChannel ? '안전 OX Quiz' : '안전 OX Quiz · 농어촌정비법 퀴즈'), findsOneWidget);
+    expect(find.text(isStoreChannel ? '안전 OX Quiz' : '안전 OX Quiz · 법령 Quiz 4종'), findsOneWidget);
     expect(find.text('카드 0000 · 발신 1588-1600'), findsOneWidget);
     expect(find.text('알림 감지 권한 필요'), findsOneWidget);
 

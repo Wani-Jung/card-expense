@@ -415,9 +415,9 @@ void main() {
   });
 
   group('D 실험실·농어촌정비법 퀴즈', () {
-    test('D3 문제 파일: 198문항(객관식 59), 채점, 옛 questions.json 은 형식·내용 그대로', () {
-      final bank = RuralBank.parse(File('quiz/rural_questions.json').readAsStringSync())!;
-      expect(bank.questions, hasLength(198));
+    test('D3 문제 파일: 정비법 200문항(객관식 59, REQ-51 2027 기준), 채점, 옛 questions.json 은 형식·내용 그대로', () {
+      final bank = RuralBank.parse(File('quiz/rural_questions.json').readAsStringSync())!.only('농어촌정비법')!;
+      expect(bank.questions, hasLength(200));
       expect(bank.questions.where((q) => q.isChoice), hasLength(59));
       expect(bank.groups.single.categories, hasLength(8));
       final c = bank.questions.firstWhere((q) => q.isChoice);

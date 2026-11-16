@@ -107,6 +107,12 @@ enum MoneyUnit {
   static MoneyUnit byName(String? n) => values.firstWhere((u) => u.name == n, orElse: () => man);
 }
 
+/// 단위 옆 '(반올림)' 을 보일지 (만원·천원만, REQ-51)
+bool showsRounding(MoneyUnit u) => u != MoneyUnit.won;
+
+/// '(반올림)' 을 누르면 보이는 안내
+const kRoundingNote = "칸마다 반올림해서 합계와 1 정도 다를 수 있어요. 정확한 금액은 '원' 단위로 보세요.";
+
 /// 천 단위 쉼표. 1234560 → "1,234,560"
 String groupDigits(int n) {
   final s = n.abs().toString();
@@ -119,8 +125,10 @@ String groupDigits(int n) {
 }
 
 /// 원 → 단위 표기. 만원 = 소수 둘째 자리 반올림·끝자리 0 생략, 천원 = 반올림·정수·쉼표, 원 = 쉼표
+/// 화면 표시 (REQ-51): 만원·천원 = 그 단위로 반올림한 정수 + 천 단위 쉼표 (342,500 → 34 / 343), 원 = 쉼표.
+/// 칸마다 원 단위 값을 반올림하므로 칸의 합과 합계가 1 정도 다를 수 있다 (보정하지 않음, '(반올림)' 안내)
 String money(int won, MoneyUnit u) => switch (u) {
-  MoneyUnit.man => manwon(won),
+  MoneyUnit.man => groupDigits((won / 10000).round()),
   MoneyUnit.thousand => groupDigits((won / 1000).round()),
   MoneyUnit.won => groupDigits(won),
 };
@@ -144,7 +152,8 @@ int? parseMoney(String input, MoneyUnit u) {
 RegExp moneyInputChars(MoneyUnit u) => u == MoneyUnit.man ? RegExp(r'[0-9.]') : RegExp(r'[0-9,]');
 
 /// 입력칸 처음 값 (쉼표 없이)
-String moneyInputText(int won, MoneyUnit u) => money(won, u).replaceAll(',', '');
+/// 편집칸에 미리 채우는 값: 만원은 반올림하지 않은 원래 값(끝자리 0 생략, 34.25), 천원·원은 쉼표 없이
+String moneyInputText(int won, MoneyUnit u) => u == MoneyUnit.man ? manwon(won) : money(won, u).replaceAll(',', '');
 
 /// 합계·차량비 상태. 여유: 사용 < 수립의 80% / 주의: 80% 이상 ~ 100% 이하 / 초과: 100% 초과.
 enum BudgetLevel { ok, warn, over }

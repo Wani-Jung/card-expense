@@ -15,7 +15,7 @@ const _grey = Color(0xFF5F6368);
 
 String _today() => quizDay(DateTime.now());
 
-/// 정비법 점수 기록 지우기 확인 문구 (지워지는 것 / 남는 것. RuralStore.clearScores 동작 그대로)
+/// 법령 Quiz 점수 기록 지우기 확인 문구 (지워지는 것 / 남는 것. RuralStore.clearScores 동작 그대로)
 const kRuralClearScoresMessage =
     '지워지는 것\n'
     "· 정답률 (지운 뒤 다음에 푸는 문제부터 새로 계산, 그 전까지 '-')\n"
@@ -24,10 +24,10 @@ const kRuralClearScoresMessage =
     '남는 것\n'
     '· 푼 문제 수\n'
     '· 지난 문제 다시 보기 목록 (문제·정답·해설, 챌린지 회차)\n'
-    '· 안전 OX Quiz 기록 (따로 지워요)\n\n'
+    '· 안전 OX Quiz·다른 법령 Quiz 기록 (따로 지워요)\n\n'
     '지운 직후 [되돌리기]로 되살릴 수 있어요.';
 
-/// 실험실 > 농어촌정비법 퀴즈: 요약(푼 문제·정답률) + 챌린지 / 한 문제 더 풀기 / 지난 문제 다시 보기.
+/// 실험실 > 법령 Quiz (농어촌정비법 등, [RuralStore.quiz]): 요약(푼 문제·정답률) + 챌린지 / 한 문제 더 풀기 / 지난 문제 다시 보기.
 /// 매일 퀴즈는 없다.
 class RuralQuizHomeScreen extends StatefulWidget {
   final RuralStore store;
@@ -44,7 +44,7 @@ class _RuralQuizHomeScreenState extends State<RuralQuizHomeScreen> {
     if (mounted) setState(() {});
   }
 
-  /// 점수 기록 지우기: 확인 → 지우기 → 5초 [되돌리기]. 정비법 기록만 (REQ-50)
+  /// 점수 기록 지우기: 확인 → 지우기 → 5초 [되돌리기]. 이 법령 기록만 (REQ-50·51)
   Future<void> _clearScores() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -107,7 +107,7 @@ class _RuralQuizHomeScreenState extends State<RuralQuizHomeScreen> {
       onTap: () => _open(screen),
     );
     return Scaffold(
-      appBar: AppBar(title: const Text('농어촌정비법 퀴즈')),
+      appBar: AppBar(title: Text(s.quiz.title)),
       body: ListView(
         padding: EdgeInsets.only(bottom: listBottomPad(context)),
         children: [
@@ -120,13 +120,13 @@ class _RuralQuizHomeScreenState extends State<RuralQuizHomeScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(
-              keepWords('농어촌정비법·시행령에서 낸 OX·객관식 문제예요. 분야를 골라 풀 수 있어요.'),
+              keepWords('${s.quiz.group}·시행령에서 낸 OX·객관식 문제예요. 분야를 골라 풀 수 있어요.'),
               style: const TextStyle(fontSize: 12, color: _grey),
             ),
           ),
           item(
             Icons.emoji_events_outlined,
-            '농어촌정비법 챌린지',
+            s.quiz.challengeTitle,
             '10~50문제, 시간과 정답률로 기록에 도전',
             RuralChallengeStartScreen(store: s, bank: widget.bank),
           ),
@@ -216,7 +216,7 @@ class _RuralPracticeScreenState extends State<RuralPracticeScreen> {
             children: [QuizCategoryPicker(bank: bank.pickerBank, selected: _cats, onChanged: _setCats)],
           );
     return Scaffold(
-      appBar: AppBar(title: const Text('농어촌정비법 퀴즈')),
+      appBar: AppBar(title: Text(widget.store.quiz.title)),
       body: _loading
           ? const SizedBox.shrink()
           : ListView(
@@ -337,6 +337,7 @@ class _RuralQuestionCardState extends State<RuralQuestionCard> {
           Row(children: [_Chip(q.catLabel), const SizedBox(width: 6), _Chip(q.isChoice ? '객관식' : 'OX')]),
           const SizedBox(height: 10),
           Text(keepWords(q.question), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, height: 1.4)),
+          RuralBasisLine(q),
           const SizedBox(height: 16),
           if (q.isChoice)
             for (var i = 0; i < 4; i++) _choiceButton(i + 1, q.choices[i])
@@ -395,6 +396,38 @@ class _RuralQuestionCardState extends State<RuralQuestionCard> {
               child: const Text('그만하기'),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 문제 바로 아래 한 줄 (REQ-51): 아이콘 + '근거 · 개정 시점'. 개정 시점이 없으면 근거만, 둘 다 없으면 안 보임.
+class RuralBasisLine extends StatelessWidget {
+  final RuralQuestion question;
+  final double top;
+  const RuralBasisLine(this.question, {super.key, this.top = 6});
+
+  /// 약간 푸른 회색
+  static const color = Color(0xFF5F6B7A);
+
+  @override
+  Widget build(BuildContext context) {
+    final line = question.basisLine;
+    if (line.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(top: top),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.event_note, size: 14, color: color),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(keepWords(line), style: const TextStyle(fontSize: 13, color: color, height: 1.35)),
+          ),
         ],
       ),
     );
@@ -674,6 +707,7 @@ class _RuralRecordTileState extends State<RuralRecordTile> {
           Row(children: [_Chip(q.catLabel), const SizedBox(width: 6), _Chip(q.isChoice ? '객관식' : 'OX')]),
           const SizedBox(height: 4),
           Text(keepWords(q.question), style: const TextStyle(fontSize: 14)),
+          RuralBasisLine(q, top: 4),
           if (q.isChoice)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -729,14 +763,11 @@ class _RuralRecordTileState extends State<RuralRecordTile> {
 }
 
 // ------------------------------------------------------------------
-// 농어촌정비법 챌린지 (REQ-48): 안전 OX 챌린지와 같은 구조, 기록·최고 기록은 rural_* 키에 따로
+// 법령 Quiz 챌린지 (REQ-48·51): 안전 OX 챌린지와 같은 구조, 기록·최고 기록은 법령마다 따로 (RuralStore 키 접두어)
 // ------------------------------------------------------------------
 
-const kRuralChallengeTitle = '농어촌정비법 챌린지';
-const kRuralCardSubtitle = '농어촌정비법 OX·객관식';
-
 /// 결과 이미지와 함께 보내는 짧은 문구
-String ruralShareText(ChallengeRun r) => '$kRuralChallengeTitle ${r.percent}%! 공감카드 관리에서 도전해보세요';
+String ruralShareText(LawQuiz quiz, ChallengeRun r) => '${quiz.title} ${r.percent}%! 공감카드 관리에서 도전해보세요';
 
 /// 시작: 분야 선택 + 문항 수 [10] [20] [30] [50] (활성 문항보다 크면 비활성) + 내 최고 기록 + 결과 카드 이름 + [시작]
 class RuralChallengeStartScreen extends StatefulWidget {
@@ -802,7 +833,7 @@ class _RuralChallengeStartScreenState extends State<RuralChallengeStartScreen> {
     final count = _count;
     final n = _n;
     return Scaffold(
-      appBar: AppBar(title: const Text(kRuralChallengeTitle)),
+      appBar: AppBar(title: Text(widget.store.quiz.challengeTitle)),
       body: !_loaded
           ? const SizedBox.shrink()
           : bank == null
@@ -1090,6 +1121,7 @@ class _RuralChallengeRunScreenState extends State<RuralChallengeRunScreen> {
             Row(children: [_Chip(q.catLabel), const SizedBox(width: 6), _Chip(q.isChoice ? '객관식' : 'OX')]),
             const SizedBox(height: 8),
             Text(keepWords(q.question), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, height: 1.4)),
+            RuralBasisLine(q),
             const SizedBox(height: 24),
             if (q.isChoice)
               for (var n = 1; n <= 4; n++) _choice(q, n)
@@ -1164,8 +1196,8 @@ class _RuralChallengeResultScreenState extends State<RuralChallengeResultScreen>
       context,
       cardKey: _cardKey,
       nameStore: widget.store.nameStore,
-      fileName: 'rural_${widget.run.id}.png',
-      text: ruralShareText(widget.run),
+      fileName: '${widget.store.quiz.keyPrefix}_${widget.run.id}.png',
+      text: ruralShareText(widget.store.quiz, widget.run),
       onNameChanged: () => setState(() {}),
     );
     if (mounted) setState(() => _sharing = false);
@@ -1196,9 +1228,9 @@ class _RuralChallengeResultScreenState extends State<RuralChallengeResultScreen>
                   name: w.store.nameStore.name,
                   date: DateTime.fromMillisecondsSinceEpoch(w.run.at),
                   newBest: w.newBest,
-                  title: kRuralChallengeTitle,
-                  subtitle: kRuralCardSubtitle,
-                  gradeTopic: '정비법',
+                  title: w.store.quiz.title,
+                  subtitle: w.store.quiz.cardSubtitle,
+                  gradeTopic: w.store.quiz.short,
                 ),
               ),
             ),

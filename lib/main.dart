@@ -993,23 +993,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _runGuideAction(picked ?? OnboardingAction.none);
   }
 
-  late final RuralStore _rural = RuralStore(widget.store.prefs);
+  /// 법령 Quiz 기록 (법령마다 따로)
+  late final Map<String, RuralStore> _laws = {
+    for (final l in kLawQuizzes) l.group: RuralStore(widget.store.prefs, l),
+  };
   RuralBank? _ruralBank;
-  Future<RuralBank?> _loadRural() async => _ruralBank ??= await RuralBank.load();
+  Future<RuralBank?> _loadLaw(LawQuiz l) async => (_ruralBank ??= await RuralBank.load())?.only(l.group);
 
-  /// 메뉴 > 실험실 (안전 OX Quiz · 농어촌정비법 퀴즈)
+  /// 메뉴 > 실험실 (안전 OX Quiz · 법령 Quiz 4종)
   Future<void> _openLab() => Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => LabScreen(
           quizSummary: () => _quiz.menuText(quizDay(DateTime.now())),
-          ruralSummary: () {
-            final p = _rural.percent;
-            return p == null ? 'OX·객관식 문제를 분야별로 풀어요' : '푼 문제 ${_rural.solvedCount} · 정답률 $p%';
+          lawSummary: (l) {
+            final s = _laws[l.group]!;
+            final p = s.percent;
+            return p == null ? 'OX·객관식 문제를 분야별로 풀어요' : '푼 문제 ${s.solvedCount} · 정답률 $p%';
           },
           onQuiz: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => QuizHomeScreen(store: _quiz, bank: _bank),
               )),
-          onRural: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => RuralQuizHomeScreen(store: _rural, bank: _loadRural),
+          onLaw: (l) => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => RuralQuizHomeScreen(store: _laws[l.group]!, bank: () => _loadLaw(l)),
               )),
         ),
       ));
@@ -1975,6 +1979,22 @@ class _BudgetTable extends StatelessWidget {
         ),
       );
 
+  /// 단위 옆 작은 회색 '(반올림)' (만원·천원일 때만). 누르면 안내 (REQ-51)
+  Widget _roundingButton(BuildContext context) => InkWell(
+        borderRadius: BorderRadius.circular(4),
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            content: Text(keepWords(kRoundingNote)),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
+          ),
+        ),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          child: Text('(반올림)', style: TextStyle(fontSize: 11, color: Color(0xFF9AA0A6))),
+        ),
+      );
+
   Widget _modeButton(BuildContext context) => PopupMenuButton<PeriodMode>(
         initialValue: mode,
         onSelected: onMode,
@@ -2011,6 +2031,7 @@ class _BudgetTable extends StatelessWidget {
       children: [
         Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           _unitButton(),
+          if (showsRounding(unit)) _roundingButton(context),
           const SizedBox(width: 4),
           _modeButton(context),
         ]),

@@ -486,12 +486,12 @@ void main() {
       ); // 메뉴 항목으로는 없음 (실험실 설명에만)
       await tester.pumpWidget(
         MaterialApp(
-          home: LabScreen(quizSummary: () => '연속 3일', ruralSummary: () => 'OX·객관식', onQuiz: noop, onRural: noop),
+          home: LabScreen(quizSummary: () => '연속 3일', lawSummary: (_) => 'OX·객관식', onQuiz: noop, onLaw: (_) => noop()),
         ),
       );
       await tester.pumpAndSettle();
       expect(find.text('연속 3일'), findsOneWidget);
-      expect(find.text('농어촌정비법 퀴즈'), isStoreChannel ? findsNothing : findsOneWidget); // 스토어판은 숨김 (REQ-49)
+      expect(find.text('농어촌정비법 Quiz'), isStoreChannel ? findsNothing : findsOneWidget); // 스토어판은 숨김 (REQ-49)
       final icon = find.byType(QuizIcon);
       expect(icon, findsOneWidget);
       expect(tester.getSize(icon), const Size(24, 24));

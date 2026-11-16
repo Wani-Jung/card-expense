@@ -156,9 +156,9 @@ void main() {
 
     test('표기: 비면 -, 마이너스면 초과', () {
       expect(remainingText(null), '-');
-      expect(remainingText(157500), '15.75');
+      expect(remainingText(157500), '16'); // 만원 정수 반올림 (REQ-51)
       expect(remainingText(0), '0');
-      expect(remainingText(-35000), '초과 3.5');
+      expect(remainingText(-35000), '초과 4');
     });
   });
 

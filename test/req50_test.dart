@@ -70,26 +70,26 @@ void main() {
 
   group('A 잔여 보정 철회: 차량비 잔여는 언제나 자기 값', () {
     testWidgets('합계 잔여가 양수이고 차량비 잔여가 더 커도 그대로, 경고 아이콘 없음', (tester) async {
-      // 합계 100·차량 40, 사용 차량 31.5·운영 64.2 → 합계 잔여 4.3, 차량 잔여 8.5
-      await pumpMonth(tester, total: 100, car: 40, usedCar: w(31.5), usedOps: w(64.2));
-      expect(find.text('4.3'), findsOneWidget);
-      expect(find.text('8.5'), findsOneWidget);
+      // 합계 100·차량 40, 사용 차량 31.5·운영 64.2 → 합계 잔여 4.3, 차량 잔여 8.5 (원 단위로 확인, 만원은 REQ-51 부터 정수)
+      await pumpMonth(tester, total: 100, car: 40, usedCar: w(31.5), usedOps: w(64.2), extra: {'money_unit_v1': 'won'});
+      expect(find.text('43,000'), findsOneWidget);
+      expect(find.text('85,000'), findsOneWidget);
       expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
     });
 
     testWidgets('합계 잔여가 음수여도 차량비는 자기 값 (7월 예시: 초과 8.2 / 초과 6.9)', (tester) async {
-      await pumpMonth(tester, total: 70, car: 54, usedCar: w(60.9), usedOps: w(17.3));
-      expect(find.text('초과 8.2'), findsOneWidget);
-      expect(find.text('초과 6.9'), findsOneWidget);
+      await pumpMonth(tester, total: 70, car: 54, usedCar: w(60.9), usedOps: w(17.3), extra: {'money_unit_v1': 'won'});
+      expect(find.text('초과 82,000'), findsOneWidget);
+      expect(find.text('초과 69,000'), findsOneWidget);
       expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
     });
   });
 
   group('B 단위 선택', () {
     test('만원 / 천원 / 원 표기 (반올림·쉼표·0·초과)', () {
-      expect(money(342500, MoneyUnit.man), '34.25');
+      expect(money(342500, MoneyUnit.man), '34'); // REQ-51: 만원도 정수 반올림
       expect(money(350000, MoneyUnit.man), '35');
-      expect(money(85000, MoneyUnit.man), '8.5');
+      expect(money(85000, MoneyUnit.man), '9');
       expect(money(342500, MoneyUnit.thousand), '343');
       expect(money(342499, MoneyUnit.thousand), '342'); // 반올림 경계
       expect(money(350000, MoneyUnit.thousand), '350');
@@ -99,7 +99,7 @@ void main() {
       for (final u in MoneyUnit.values) {
         expect(money(0, u), '0', reason: u.name);
       }
-      expect(remainingIn(-82000, MoneyUnit.man), '초과 8.2');
+      expect(remainingIn(-82000, MoneyUnit.man), '초과 8');
       expect(remainingIn(-82000, MoneyUnit.thousand), '초과 82');
       expect(remainingIn(-82000, MoneyUnit.won), '초과 82,000');
       expect(remainingIn(-1500, MoneyUnit.thousand), '초과 2'); // 1.5 → 2 (반올림)
@@ -125,7 +125,7 @@ void main() {
     testWidgets('드롭다운으로 바꾸면 표가 그 단위로, 기기에 저장, 다시 열어도 유지', (tester) async {
       final store = await pumpMonth(tester, total: 123.456, car: 40, usedCar: 342500, usedOps: 0);
       expect(find.text('단위: 만원 ▾'), findsOneWidget);
-      expect(find.text('34.25'), findsWidgets);
+      expect(find.text('34'), findsWidgets);
       await tester.tap(find.text('단위: 만원 ▾'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('원').last);
@@ -210,7 +210,7 @@ void main() {
       await tester.tap(find.text('점수 기록 지우기'));
       await tester.pumpAndSettle();
       expect(find.text('점수 기록을 지울까요?'), findsOneWidget);
-      for (final s in ['푼 문제 수', '챌린지 정답률·걸린 시간·최고 기록', '지난 문제 다시 보기 목록', '안전 OX Quiz 기록']) {
+      for (final s in ['푼 문제 수', '챌린지 정답률·걸린 시간·최고 기록', '지난 문제 다시 보기 목록', '안전 OX Quiz·다른 법령 Quiz 기록']) {
         expect(find.textContaining(keepWords(s)), findsOneWidget, reason: s);
       }
       await tester.tap(find.text('지우기'));

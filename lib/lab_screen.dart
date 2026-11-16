@@ -3,18 +3,21 @@ import 'package:flutter/material.dart';
 import 'flavor.dart';
 import 'layout.dart';
 import 'menu_screen.dart';
+import 'rural_quiz.dart';
 
-/// 메뉴 > 실험실 (REQ-47): 안전 OX Quiz, 농어촌정비법 퀴즈. 항목을 누르면 그 화면, 돌아오면 설명을 다시 읽는다.
-/// 농어촌정비법 퀴즈는 스토어판에서 숨긴다 (`kShowRuralQuiz`, REQ-49).
+/// 메뉴 > 실험실 (REQ-47·51): 안전 OX Quiz, 법령 Quiz 4종([kLawQuizzes] 순서). 항목을 누르면 그 화면, 돌아오면 설명을 다시 읽는다.
+/// 법령 Quiz 는 스토어판에서 모두 숨긴다 (`kShowRuralQuiz`, REQ-49·51).
 class LabScreen extends StatefulWidget {
-  final String Function() quizSummary, ruralSummary;
-  final Future<void> Function() onQuiz, onRural;
+  final String Function() quizSummary;
+  final String Function(LawQuiz) lawSummary;
+  final Future<void> Function() onQuiz;
+  final Future<void> Function(LawQuiz) onLaw;
   const LabScreen({
     super.key,
     required this.quizSummary,
-    required this.ruralSummary,
+    required this.lawSummary,
     required this.onQuiz,
-    required this.onRural,
+    required this.onLaw,
   });
 
   @override
@@ -47,16 +50,17 @@ class _LabScreenState extends State<LabScreen> {
           trailing: const Icon(Icons.chevron_right),
           onTap: _then(widget.onQuiz),
         ),
-        if (kShowRuralQuiz) ...[
-          const Divider(height: 1, thickness: 0.5),
-          ListTile(
-            leading: const Icon(Icons.agriculture_outlined),
-            title: const Text('농어촌정비법 퀴즈'),
-            subtitle: Text(widget.ruralSummary(), style: const TextStyle(fontSize: 12)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _then(widget.onRural),
-          ),
-        ],
+        if (kShowRuralQuiz)
+          for (final law in kLawQuizzes) ...[
+            const Divider(height: 1, thickness: 0.5),
+            ListTile(
+              leading: Icon(law.icon),
+              title: Text(law.title),
+              subtitle: Text(widget.lawSummary(law), style: const TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _then(() => widget.onLaw(law)),
+            ),
+          ],
       ],
     ),
   );

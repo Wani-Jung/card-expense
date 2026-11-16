@@ -1,18 +1,51 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/material.dart' show IconData, Icons;
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'quiz.dart';
 
-/// 실험실 > 농어촌정비법 퀴즈 (REQ-47). OX + 객관식(4지선다) 섞어서 출제.
-/// 문제 파일 quiz/rural_questions.json (앱에 내장, tools/rural_quiz_export.py 로 만듦).
-/// 기록은 안전 OX 와 따로 (rural_* 키) — 안전 OX 정답률·연속에 섞이지 않는다.
+/// 실험실 > 법령 Quiz (REQ-47 농어촌정비법, REQ-51 건설기술 진흥법·국가계약법·건축법). OX + 객관식(4지선다) 섞어서 출제.
+/// 문제 파일 quiz/rural_questions.json (네 법령이 한 파일, 앱에 내장, tools/rural_quiz_export.py 로 만듦).
+/// 기록은 안전 OX 와 따로, 법령마다 따로 (저장 키 접두어 [LawQuiz.keyPrefix]) — 서로 정답률·최고 기록이 섞이지 않는다.
 const kRuralAsset = 'quiz/rural_questions.json';
+
+/// 법령 Quiz 하나 (문제 파일의 그룹 하나 = 실험실 항목 하나)
+class LawQuiz {
+  /// 문제 파일 그룹 이름 (예 '농어촌정비법')
+  final String group;
+
+  /// 저장 키 접두어. 농어촌정비법은 예전 키(rural_*)를 그대로 쓴다
+  final String keyPrefix;
+
+  /// 등급 배지 앞말 (quizGrade topic)
+  final String short;
+  final IconData icon;
+  const LawQuiz(this.group, this.keyPrefix, this.short, this.icon);
+
+  /// 실험실·앱바·결과 카드 제목: '농어촌정비법 Quiz'
+  String get title => '$group Quiz';
+  String get challengeTitle => '$group 챌린지';
+  String get cardSubtitle => '$group OX·객관식';
+}
+
+const kRuralLaw = LawQuiz('농어촌정비법', 'rural', '정비법', Icons.agriculture_outlined);
+
+/// 실험실 순서 (REQ-51)
+const kLawQuizzes = [
+  kRuralLaw,
+  LawQuiz('건설기술 진흥법', 'law_ctech', '건진법', Icons.engineering_outlined),
+  LawQuiz('국가계약법', 'law_contract', '국계법', Icons.gavel_outlined),
+  LawQuiz('건축법', 'law_building', '건축법', Icons.apartment_outlined),
+];
 
 class RuralQuestion {
   final String id, group, category, question, explain, basis;
+
+  /// 개정 시점 (예 '2024.1.2 개정(해당 항)'). 없으면 ''
+  final String amended;
 
   /// 객관식이면 보기 4개, OX 면 빈 목록
   final List<String> choices;
@@ -29,8 +62,12 @@ class RuralQuestion {
     required this.answer,
     required this.explain,
     required this.basis,
+    this.amended = '',
     this.active = true,
   });
+
+  /// 문제 아래 한 줄: '근거 · 개정 시점'. 둘 다 비면 '' (줄 숨김)
+  String get basisLine => [basis, amended].where((s) => s.trim().isNotEmpty).join(' · ');
 
   bool get isChoice => choices.isNotEmpty;
   String get catKey => '$group|$category';
@@ -54,6 +91,7 @@ class RuralQuestion {
       answer: choice ? (a as num).toInt() : ((a as bool) ? 1 : 0),
       explain: j['explain'] as String? ?? '',
       basis: j['basis'] as String? ?? '',
+      amended: j['amended'] as String? ?? '',
       active: j['active'] as bool? ?? true,
     );
   }
@@ -111,6 +149,15 @@ class RuralBank {
   }
 
   static Future<RuralBank?> load() async => parse(await rootBundle.loadString(kRuralAsset));
+
+  /// 한 법령만 (문항·분야). 활성 문항이 없으면 null
+  RuralBank? only(String group) {
+    final b = RuralBank(version, [
+      for (final q in questions)
+        if (q.group == group) q,
+    ], groups.where((g) => g.name == group).toList());
+    return b.active.isEmpty ? null : b;
+  }
 }
 
 /// 푼 기록 한 건. [pick] = 고른 답 (OX 1/0, 객관식 1~4). [src] 'extra'(한 문제 더) / 'challenge', [run] 챌린지 회차 id.
@@ -144,17 +191,19 @@ class RuralRecord {
   );
 }
 
-/// 농어촌정비법 퀴즈 기록 (안전 OX 의 quiz_* 키와 따로)
+/// 법령 Quiz 기록 (안전 OX 의 quiz_* 키와 따로, 법령마다 따로). 키 = '{접두어}_log_v1' 등.
+/// 농어촌정비법은 접두어 'rural' 이라 예전 기록(rural_*)을 그대로 읽는다.
 class RuralStore {
-  static const kLog = 'rural_log_v1';
-  static const kBag = 'rural_bag_v1';
-  static const kCats = 'rural_cats_v1';
-  static const kRuns = 'rural_runs_v1';
-  static const kChallengeCats = 'rural_cats_challenge_v1';
-  static const kChallengeSize = 'rural_challenge_size_v1';
-
   final SharedPreferences _p;
-  RuralStore(this._p);
+  final LawQuiz quiz;
+  RuralStore(this._p, [this.quiz = kRuralLaw]);
+
+  String get kLog => '${quiz.keyPrefix}_log_v1';
+  String get kBag => '${quiz.keyPrefix}_bag_v1';
+  String get kCats => '${quiz.keyPrefix}_cats_v1';
+  String get kRuns => '${quiz.keyPrefix}_runs_v1';
+  String get kChallengeCats => '${quiz.keyPrefix}_cats_challenge_v1';
+  String get kChallengeSize => '${quiz.keyPrefix}_challenge_size_v1';
 
   /// 결과 카드 이름은 안전 OX 와 같이 쓴다 (사람 이름이라 하나로)
   QuizStore get nameStore => QuizStore(_p);

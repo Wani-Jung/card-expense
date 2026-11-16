@@ -35,7 +35,7 @@ void main() {
       expect(manwon(w(8.5)), '8.5');
       expect(manwon(w(33.95)), '33.95');
       expect(manwon(0), '0');
-      expect(remainingText(-w(8.2)), '초과 8.2');
+      expect(remainingIn(-w(8.2), MoneyUnit.thousand), '초과 82'); // 표 만원은 REQ-51 부터 정수
       expect(manwon(w(1.05)), '1.05');
       expect(manwon(w(100)), '100');
       expect(manwon(w(100.5)), '100.5');
@@ -56,11 +56,11 @@ void main() {
       Future<void> noop() async {}
       await tester.pumpWidget(
         MaterialApp(
-          home: LabScreen(quizSummary: () => '', ruralSummary: () => '', onQuiz: noop, onRural: noop),
+          home: LabScreen(quizSummary: () => '', lawSummary: (_) => '', onQuiz: noop, onLaw: (_) => noop()),
         ),
       );
       expect(find.text('안전 OX Quiz'), findsOneWidget);
-      expect(find.text('농어촌정비법 퀴즈'), isStoreChannel ? findsNothing : findsOneWidget);
+      expect(find.text('농어촌정비법 Quiz'), isStoreChannel ? findsNothing : findsOneWidget);
       expect(kShowRuralQuiz, !isStoreChannel || kRuralQuizInStore);
       expect(kRuralQuizInStore, isFalse); // 검토가 끝나면 true 로
     });
@@ -81,7 +81,7 @@ void main() {
       await tester.tap(find.byTooltip('메뉴'));
       await tester.pumpAndSettle();
       expect(find.text('실험실'), findsOneWidget);
-      expect(find.text(isStoreChannel ? '안전 OX Quiz' : '안전 OX Quiz · 농어촌정비법 퀴즈'), findsOneWidget);
+      expect(find.text(isStoreChannel ? '안전 OX Quiz' : '안전 OX Quiz · 법령 Quiz 4종'), findsOneWidget);
     });
   });
 }

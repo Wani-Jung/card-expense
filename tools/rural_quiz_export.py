@@ -1,18 +1,24 @@
-"""농어촌정비법 퀴즈: quiz/source_농어촌정비법_*.xlsx → quiz/rural_questions.json
+"""법령 Quiz (농어촌정비법·건설기술 진흥법·국가계약법·건축법): quiz/source_*_2027.xlsx → quiz/rural_questions.json
 
 사용법 (저장소 루트에서):
     python tools/rural_quiz_export.py
 
 - 안전 OX(quiz/questions.json)와 따로 관리한다. 지금 배포된 앱이 원격으로 받는 questions.json 은 건드리지 않는다.
-- 원본: quiz/source_농어촌정비법_1차.xlsx → 그룹 '농어촌정비법', id r001~
+- 원본 (REQ-51, 2027 기준):
+    quiz/source_농어촌정비법_3차_2027.xlsx → 그룹 '농어촌정비법', id r…
+    quiz/source_건설기술진흥법_2027.xlsx → 그룹 '건설기술 진흥법', id c…
+    quiz/source_국가계약법_2027.xlsx → 그룹 '국가계약법', id k…
+    quiz/source_건축법_2027.xlsx → 그룹 '건축법', id b…
 - '안내'·'제외 목록' 시트를 뺀 시트 하나 = 분야 하나 (시트 순서 = 화면 표시 순서)
-- 열: 번호, 유형(OX/객관식), 문제, 보기1~4, 정답(OX 는 O/X, 객관식은 1~4), 해설, 근거, 법령 원문(대조 구절), 채택(O/X), 수정 메모
+- 열: 번호, 유형(OX/객관식), 문제, 보기1~4, 정답(OX 는 O/X, 객관식은 1~4), 해설, 근거, 개정 시점, 조 개정 이력, 법령 원문(대조 구절), 채택(O/X), 수정 메모
+  ('개정 시점'은 문제 화면 한 줄에 쓰려고 amended 로 넣고, '조 개정 이력'·법령 원문은 앱에 넣지 않는다)
 - 채택=X 면 active=false (출제 제외), 그 밖은 출제
 - id 는 지금 rural_questions.json 의 id 를 문제 문장으로 찾아 그대로 쓴다 (풀이 기록이 id 로 남음). 새 문제만 다음 번호.
 - 문항이 바뀌었으면 version +1, updated 는 오늘. 안 바뀌었으면 파일을 그대로 둔다.
 - json 형식 (version 1):
     {version, updated, groups:[{name, categories}],
-     questions:[{id, group, category, type:'ox'|'choice', question, choices?:[4], answer, explain, basis, active}]}
+     questions:[{id, group, category, type:'ox'|'choice', question, choices?:[4], answer, explain, basis, amended?, active}]}
+    amended: '개정 시점' 열 문자열 (예 '2024.1.2 개정(해당 항)'). 비어 있으면 필드를 넣지 않는다
     answer: OX 는 true(O)/false(X), 객관식은 정답 보기 번호 1~4
 - 필요한 패키지: openpyxl
 """
@@ -29,7 +35,12 @@ from quiz_export import keep_ids, text  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / 'quiz' / 'rural_questions.json'
-SOURCES = [('source_농어촌정비법_1차.xlsx', '농어촌정비법', 'r')]
+SOURCES = [
+    ('source_농어촌정비법_3차_2027.xlsx', '농어촌정비법', 'r'),
+    ('source_건설기술진흥법_2027.xlsx', '건설기술 진흥법', 'c'),
+    ('source_국가계약법_2027.xlsx', '국가계약법', 'k'),
+    ('source_건축법_2027.xlsx', '건축법', 'b'),
+]
 SKIP_SHEETS = ('안내', '제외 목록')
 NEEDED = ['유형', '문제', '보기1', '보기2', '보기3', '보기4', '정답', '해설', '근거']
 
@@ -72,8 +83,11 @@ def read_group(path, group, prefix):
             q.update(
                 explain=text(row[col['해설']]),
                 basis=text(row[col['근거']]),
-                active=adopt != 'X',
             )
+            amended = text(row[col['개정 시점']]) if '개정 시점' in col else ''
+            if amended:
+                q['amended'] = amended
+            q['active'] = adopt != 'X'
             questions.append(q)
     return {'name': group, 'categories': categories}, questions
 
@@ -88,7 +102,13 @@ def main():
         groups.append(g)
         questions.extend(qs)
     old = json.loads(OUT.read_text(encoding='utf-8')) if OUT.exists() else {'version': 0}
+    old_ids = {q['id'] for q in old.get('questions') or []}
     questions = keep_ids(questions, old.get('questions') or [])
+    for g in groups:
+        qs = [q for q in questions if q['group'] == g['name']]
+        kept = sum(q['id'] in old_ids for q in qs)
+        amended = sum(bool(q.get('amended')) for q in qs)
+        print(f"{g['name']}: {len(qs)}문항 (출제 {sum(q['active'] for q in qs)}, 개정 시점 {amended}, 기존 id 유지 {kept})")
     if old.get('questions') == questions and old.get('groups') == groups:
         print(f"바뀐 문항이 없어요. version {old['version']} 그대로 둡니다.")
         return
