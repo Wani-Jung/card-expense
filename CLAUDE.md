@@ -3,6 +3,24 @@
 NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류하고 월별 수립/사용을 관리하는 안드로이드 전용 Flutter 앱. 서버 없음, 저장은 기기 로컬.
 사용자에게 보이는 이름은 '공감카드 관리' (`kAppName`, AndroidManifest label). applicationId(`com.wani.card_expense`)·패키지명·저장소 이름은 바꾸지 말 것 (덮어쓰기 설치·데이터 유지가 깨짐).
 
+## 작업 방식 (2026-11-19 인수인계)
+- 기획·REQ 작성·Play Console 작업·법령 Quiz 문제 관리까지 이제 Claude Code 가 맡는다 (예전 claude.ai 기획 세션은 끝). 사용자는 Claude Code 에 직접 요청하고, 요청이 쌓이면 묶어서 한 번에 처리하는 걸 좋아한다
+- 인수인계 문서·REQ 원문·결정 기록·콘솔 메모는 저장소 밖 `C:\Users\EKR\card_expense_private\`(HANDOVER.md, REQ-52.md, SMS-권한-신고-계획.md, 빌드노트.md)에 둔다. **저장소에 커밋하지 않는다**(공개 저장소). 여기 CLAUDE.md 에도 실명·직장·계정명·앱 ID·트랙 ID·외부 업체 정보는 적지 않는다
+- 말투는 격식 없이 편하게, 불릿 최소
+- 삭제 기능은 항상 확인 팝업 + 되돌리기
+- 회사 내부 규정(여비규정·공사감독업무지침 등)은 앱에 넣지 않는다. 공개 법령만
+- 저장소 card-expense 는 공개 유지(앱 업데이트 확인이 익명 조회 + 스토어 개인정보처리방침 링크가 PRIVACY.md). 사용자의 다른 새 저장소는 기본 비공개
+
+## Google Play 현황 (2026-11-19 기준, 바뀌면 여기 고칠 것)
+- 패키지 com.wani.card_expense. 콘솔 URL 은 /u/0/ 사용 (계정·앱 ID 는 private 폴더 HANDOVER.md)
+- Play 앱 서명: 기존 업로드 키 그대로 (SHA-256 0A:AB:3B…84:15)
+- 비공개 테스트 트랙 'Alpha': 631(스토어 일반 AAB) 게시. 테스터 12명 이상 11/3 참여 → 14일 조건 충족. 비공개 테스트 중에는 다른 트랙에 올리지 않는다
+- 2026-11-17 프로덕션 액세스 신청 제출(결과는 사용자 메일로, 보통 7일 이내 → 사용자가 알려 줌). 같은 날 데이터 보안을 '수집·공유 없음'으로 바꿔 검토 제출(ML Kit 제거 반영)
+- **승인 전에는 비공개 트랙을 건드리지 않는다.** 승인되면: 새 프로덕션 출시 → REQ-52 의 스토어 일반 AAB(versionCode 끝 1)를 사용자가 직접 업로드 → 국가/지역 대한민국 포함 → 출시 노트 → 검토 제출
+- 콘솔 작업 요령: Chrome 확장 file_upload 는 10MB 제한이라 AAB 업로드는 사용자가 직접 드래그. 출시 노트는 form_input 으로 넣고, 제출은 게시 개요 → '검토를 위해 변경사항 N개 제출'
+- 문자 권한(전용판) 스토어 반영은 프로덕션 출시 뒤: 스토어 전용 AAB(끝 2)를 **내부 테스트 트랙**에 → 앱 콘텐츠 > 권한 신고서('SMS-based money management') + 시연 영상(YouTube 일부공개, 예시 문자·카드번호 0000) → 승인 시 프로덕션 + 스토어 설명 맨 앞에 문자 자동 읽기 명시 + 데이터 보안·PRIVACY.md 재점검. 가장 큰 거절 위험은 "다른 방법이 없을 때만" 조건(알림 감지·붙여넣기가 있으므로) → 지난 내역·꺼진/묶음 알림을 못 잡고 정산은 한 건만 빠져도 틀린다는 점 강조. 답변 초안·영상 대본은 private 폴더 `SMS-권한-신고-계획.md`
+- 다음 할 일 순서는 private 폴더 HANDOVER.md 3장 (REQ-52 → 프로덕션 출시 → 문자판 → 일반/전용 합치기·법령 Quiz 스토어 노출 결정·매년 target SDK 갱신·'지난 결제 넣기' 개편)
+
 ## 두 판 (Android product flavor `edition`)
 | 판 | flavor | Release 파일 | 문자 권한 |
 |---|---|---|---|
@@ -152,7 +170,11 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 앱 빌드 때는 그 시점의 `quiz/questions.json` 이 assets 로 들어가 기본값(번들 사본)이 된다
 - 정식 출시 전 미리 써보기: v2.0.0 태그·릴리스·고정 링크는 그대로 두고 Actions 수동 실행(workflow_dispatch, main)으로 `dev` 프리릴리스만 갱신한다 (REQ-47)
 
-## 농어촌정비법 퀴즈 문제 관리 (실험실)
+## 법령 Quiz 문제 관리 (실험실)
+- 문제 원본·법령 원문·검증 도구는 `tools/law_quiz/` (README 참고): questions/(문제 원본) + laws/(조문 단위 법령 원문, 출처 legalize-kr) → `verify.py`(인용 구절이 근거 조문 원문에 그대로 있는지, bad 0 이어야 함) → `amend.py`(개정 시점) → `xl.py`(검토용 엑셀 4개) → 사용자 검토 → quiz/source_*.xlsx 교체 → `tools/rural_quiz_export.py`
+- 원칙: 틀린 정보 절대 금지(자동 대조 + 문맥 검토), OX 는 O·X 반반 가깝게, 객관식 정답 위치 1~4 고르게, 공개 법령만
+- 법령이 개정되면 새 원문으로 laws/ 갱신 → verify 로 깨진 문항 찾기 → 고치거나 빼기 → 엑셀 재생성 → 사용자 검토. 시행령 2027 개정본은 아직 미반영(나오면 시행령 근거 문항 재검토)
+- 안전 OX(quiz/questions.json)는 별도 풀, 사용자가 관리
 - 원본(공개 파일, 2027 기준, REQ-51): `quiz/source_농어촌정비법_3차_2027.xlsx`(그룹 '농어촌정비법', id r…, 200문항) / `quiz/source_건설기술진흥법_2027.xlsx`('건설기술 진흥법', c…, 92) / `quiz/source_국가계약법_2027.xlsx`('국가계약법', k…, 115) / `quiz/source_건축법_2027.xlsx`('건축법', b…, 127). 예전 `source_농어촌정비법_1차.xlsx` 는 지움. '안내'·'제외 목록'을 뺀 시트 하나 = 분야 하나(시트 순서 = 표시 순서)
   - 열: 번호, 유형(OX/객관식), 문제, 보기1~4, 정답(OX 는 O/X, 객관식은 1~4), 해설, 근거, 개정 시점, 조 개정 이력, 법령 원문(대조 구절), 채택(O/X), 수정 메모. 채택=X 면 출제 제외. '개정 시점' → json `amended`(비면 생략), '조 개정 이력'·법령 원문은 앱에 안 넣음
 - `python tools/rural_quiz_export.py` → `quiz/rural_questions.json` (형식 version 1: `{version, updated, groups, questions:[{id, group, category, type:'ox'|'choice', question, choices?, answer(bool 또는 1~4), explain, basis, amended?, active}]}`). 네 법령이 한 파일
