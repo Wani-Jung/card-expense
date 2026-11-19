@@ -118,12 +118,12 @@ void main() {
       expect(() => parseMoney('1.5', MoneyUnit.won), throwsFormatException);
       expect(moneyInputText(1234000, MoneyUnit.thousand), '1234');
       expect(moneyInputText(342500, MoneyUnit.man), '34.25');
-      expect(MoneyUnit.byName(null), MoneyUnit.man);
+      expect(MoneyUnit.byName(null), MoneyUnit.won); // REQ-52: 기본 원
       expect(MoneyUnit.byName('won'), MoneyUnit.won);
     });
 
     testWidgets('드롭다운으로 바꾸면 표가 그 단위로, 기기에 저장, 다시 열어도 유지', (tester) async {
-      final store = await pumpMonth(tester, total: 123.456, car: 40, usedCar: 342500, usedOps: 0);
+      final store = await pumpMonth(tester, total: 123.456, car: 40, usedCar: 342500, usedOps: 0, extra: {'money_unit_v1': 'man'});
       expect(find.text('단위: 만원 ▾'), findsOneWidget);
       expect(find.text('34'), findsWidgets);
       await tester.tap(find.text('단위: 만원 ▾'));

@@ -36,7 +36,7 @@ class OnboardingScreen extends StatefulWidget {
     super.key,
     required this.firstRun,
     required this.budget,
-    this.unit = MoneyUnit.man,
+    this.unit = MoneyUnit.won,
     required this.digits,
     required this.sender,
     required this.onBudget,

@@ -375,8 +375,9 @@ void main() {
       expect(find.text('카드번호 네자리와 발신번호는 꼭 넣어야 시작할 수 있어요'), findsOneWidget);
       await tester.tap(find.text('이전'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.widgetWithText(TextField, '전체 (합계)'), '30');
-      await tester.enterText(find.widgetWithText(TextField, '차량비'), '10');
+      // 첫 설치 단위는 원 (REQ-52)
+      await tester.enterText(find.widgetWithText(TextField, '전체 (합계)'), '300000');
+      await tester.enterText(find.widgetWithText(TextField, '차량비'), '100000');
       await tester.tap(find.text('다음'));
       await tester.pumpAndSettle();
       final month = store.loadBudgets().forMonth(DateTime.now());

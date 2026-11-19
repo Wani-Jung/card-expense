@@ -42,6 +42,9 @@ const kGoldText = Color(0xFF3E2700); // 골드 위 글자
 const kGoldLight = Color(0xFFFFF8E6); // 아주 옅은 골드 (권한 배너 등 표 밖)
 const kText = Color(0xFF1F1F1F);
 const kSubText = Color(0xFF5F6368);
+
+/// 차량비 잔여 경고 아이콘 (주황, REQ-52)
+const kCarWarn = Color(0xFFF57C00);
 const kLine = Color(0xFFE0E0E0);
 const kSubBg = Color(0xFFF5F5F5);
 
@@ -1272,11 +1275,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 usage: period.usage,
                 mode: _period,
                 modeLabel: periodModeShort(_period),
-                // 모드를 바꾸면 보고 있던 달의 월 화면부터
+                // 1개월은 보고 있던 달의 월 화면, 홀짝·짝홀은 그 달이 속한 묶음의 두 달 합산 화면부터 (REQ-52)
                 onMode: (m) => setState(() {
                   _slideDir = 0;
                   _period = m;
-                  _view = PeriodView(_view.month);
+                  _view = m == PeriodMode.single
+                      ? PeriodView(_view.month)
+                      : PeriodView(periodMonths(_view.month, m).first, combined: true);
                 }),
                 // 수립은 각 달 화면에서만 입력 (합산 화면은 연필도 숨김)
                 onEditTotal: combined
@@ -1916,11 +1921,12 @@ class _BudgetTable extends StatelessWidget {
   static const _red = Color(0xFFD93025);
 
   /// 표 칸. 높이를 고정해 둬야 행이 접히지 않는다. 수립 칸은 [onTap] 으로 터치 입력.
-  Widget _cell(String text, {Color? bg, Color? fg, bool bold = false, double size = 16, VoidCallback? onTap}) {
+  Widget _cell(String text,
+      {Color? bg, Color? fg, bool bold = false, double size = 16, VoidCallback? onTap, double hPad = 8}) {
     Widget child = Container(
       color: bg,
       constraints: const BoxConstraints(minHeight: 48),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: EdgeInsets.symmetric(vertical: 12, horizontal: hPad),
       alignment: Alignment.center,
       child: FittedBox(
         fit: BoxFit.scaleDown,
@@ -1940,10 +1946,10 @@ class _BudgetTable extends StatelessWidget {
 
   /// 합계·차량비 잔여 칸. 가장 눈에 띄게. 주의는 숫자만 빨강, 초과는 빨간 칸에 흰 글씨.
   /// 차량비는 언제나 자기 값 (REQ-48·49 의 합계 잔여 보정은 REQ-50 에서 철회).
-  Widget _remain(int? plan, int? rem) {
+  Widget _remain(int? plan, int? rem, {VoidCallback? onWarn}) {
     final level = remainLevel(plan, rem);
     final over = level == BudgetLevel.over;
-    return _cell(
+    final cell = _cell(
       remainingIn(rem, unit),
       bg: over ? _red : _remainBg,
       fg: switch (level) {
@@ -1953,8 +1959,42 @@ class _BudgetTable extends StatelessWidget {
       },
       bold: true,
       size: 18,
+      // 경고 아이콘이 있으면 좌우 여백을 넓혀 숫자가 아이콘과 겹치지 않게 (가운데는 그대로)
+      hPad: onWarn == null ? 8 : 24,
+    );
+    if (onWarn == null) return cell;
+    // 차량비 잔여 경고 (REQ-52): 칸 오른쪽 위 모서리에 주황 '!' 아이콘, 칸 어디를 눌러도 안내
+    return InkWell(
+      key: const ValueKey('car_remain_warn'),
+      onTap: onWarn,
+      child: Stack(children: [
+        cell,
+        const Positioned(
+          right: 0,
+          top: 0,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: EdgeInsets.only(top: 2, right: 2),
+                child: Icon(Icons.error, size: 19, color: kCarWarn),
+              ),
+            ),
+          ),
+        ),
+      ]),
     );
   }
+
+  void _showCarWarn(BuildContext context, int carRem, int totalRem) => showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          content: Text(keepWords(carRemainWarnMessage(carRem, totalRem, unit))),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
+        ),
+      );
 
   /// '단위: 만원 ▾' → 만원 / 천원 / 원
   Widget _unitButton() => PopupMenuButton<MoneyUnit>(
@@ -2025,6 +2065,9 @@ class _BudgetTable extends StatelessWidget {
   Widget build(BuildContext context) {
     // 사용 칸은 초과일 때만 빨간 글씨 (주의 단계 색 없음)
     Widget used(int won, int? plan) => _cell(money(won, unit), fg: isOverBudget(won, plan) ? _red : null);
+    final totalRem = remaining(budget.total, usage.total);
+    final carRem = remaining(budget.car, usage.car);
+    final carWarn = carRemainWarn(carRem, totalRem);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -2056,13 +2099,13 @@ class _BudgetTable extends StatelessWidget {
               _cell('합계', bg: kSubBg, bold: true),
               _cell(moneyOrDash(budget.total, unit), onTap: onEditTotal),
               used(usage.total, budget.total),
-              _remain(budget.total, remaining(budget.total, usage.total)),
+              _remain(budget.total, totalRem),
             ]),
             TableRow(children: [
               _cell('차량비', bg: kCarColor, fg: Colors.white, bold: true),
               _cell(moneyOrDash(budget.car, unit), onTap: onEditCar),
               used(usage.car, budget.car),
-              _remain(budget.car, remaining(budget.car, usage.car)),
+              _remain(budget.car, carRem, onWarn: carWarn ? () => _showCarWarn(context, carRem!, totalRem!) : null),
             ]),
             TableRow(children: [
               _cell('운영비', bg: kOpsColor, fg: _opsTitleText, bold: true),
