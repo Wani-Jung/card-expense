@@ -89,9 +89,8 @@ void main() {
     await shot('02_combined', '두 달 단위 합산');
 
     // ③ 분류 대기 카드 (추천 배지)
+    // 요약표는 틀고정이라 스크롤하지 않는다 (아래 목록만 밀리면 첫 카드 머리가 가려짐)
     await start(pending: true);
-    await tester.drag(find.byType(Scrollable).last, const Offset(0, -120));
-    await settle();
     await shot('03_pending', '승인 문자 자동 분류');
 
     // ④ 확인 필요 내역
