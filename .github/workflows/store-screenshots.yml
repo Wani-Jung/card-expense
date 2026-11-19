@@ -1,0 +1,66 @@
+name: Store screenshots
+
+# 플레이스토어 스크린샷 (REQ-53). Actions 탭에서 수동 실행만.
+# 스토어판(public flavor, CHANNEL=store) + 데모 데이터(DEMO=true)를 1080×1920 에뮬레이터(pixel_2)에서 찍어
+# 아티팩트 store-screenshots 로 올린다. 받은 PNG 는 store/screenshots/ko-KR/ 에 커밋한다.
+# 이 워크플로의 실행 번호는 release-apk 와 따로라 앱 versionCode 에 영향 없다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: NDK path
+        run: echo "NDK_DIR=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NDK_DIR }}
+          key: android-ndk-28.2.13676358-${{ runner.os }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.9
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Take screenshots on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: |
+            adb shell wm size 1080x1920
+            adb shell wm density 420
+            adb shell service call alarm 3 s16 Asia/Seoul
+            flutter drive --driver=test_driver/integration_test.dart --target=integration_test/store_screenshots_test.dart --flavor public --dart-define=CHANNEL=store --dart-define=DEMO=true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-screenshots
+          path: build/store_screenshots/
+          if-no-files-found: error

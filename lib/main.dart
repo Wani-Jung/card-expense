@@ -27,6 +27,7 @@ import 'quiz.dart';
 import 'quiz_screens.dart';
 import 'quiz_sheet.dart';
 import 'review_screens.dart';
+import 'demo.dart';
 import 'rural_quiz.dart';
 import 'rural_quiz_screens.dart';
 import 'sms_parser.dart';
@@ -115,6 +116,7 @@ void main() async {
     systemNavigationBarIconBrightness: Brightness.dark,
     systemNavigationBarContrastEnforced: false,
   ));
+  await seedDemoIfEmpty(); // --dart-define=DEMO=true 일 때만 (스토어 스크린샷용 가짜 데이터, REQ-53)
   final store = await Store.open();
   await store.migrate();
   runApp(CardExpenseApp(store: store));
