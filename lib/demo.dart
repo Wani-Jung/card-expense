@@ -11,6 +11,10 @@ import 'vendor.dart';
 /// 릴리스 빌드(define 없음)에서는 false 라 아래 코드는 쓰이지 않는다. 가맹점·카드번호는 모두 가짜.
 const kDemo = bool.fromEnvironment('DEMO');
 
+/// 데모 한 달 수립 (REQ-56): 총액 45만 · 차량비 30만 (운영비 15만)
+const kDemoTotalBudget = 450000;
+const kDemoCarBudget = 300000;
+
 /// 데모 화면 구성
 /// [pending] 분류 대기 카드(추천 배지)를 넣을지, [issues] 확인 필요 내역(중복 의심·분류 섞임)을 넣을지.
 Future<void> seedDemo(SharedPreferences p, {DateTime? now, bool pending = true, bool issues = true}) async {
@@ -38,43 +42,50 @@ Future<void> seedDemo(SharedPreferences p, {DateTime? now, bool pending = true, 
     if (cat == null) 'pendingSince': t.toIso8601String(),
   };
 
+  // REQ-56: 현실적인 규모 — 한 달 수립 총액 45만·차량비 30만(운영비 15만), 사용은 차량비 약 20만·운영비 약 10만.
+  // 어느 장면에서도 사용이 수립을 넘지 않고, 차량비 잔여 경고(차량비 잔여 > 전체 잔여)가 생기지 않게 맞춘다.
   final items = <Map<String, Object?>>[
-    // 지난달 (홀짝·짝홀 두 달 합산 화면용)
+    // 지난달 (홀짝·짝홀 두 달 합산 화면용): 차량비 187,500 · 운영비 92,700
     item(DateTime(prevMonth.year, prevMonth.month, 4, 9, 12), 'OO주유소', 71000, kCar),
-    item(DateTime(prevMonth.year, prevMonth.month, 9, 12, 30), 'BB식당', 48000, kOps),
-    item(DateTime(prevMonth.year, prevMonth.month, 13, 8, 40), 'EE자동차정비', 135000, kCar),
-    item(DateTime(prevMonth.year, prevMonth.month, 17, 12, 10), 'CC한식뷔페', 88000, kOps),
+    item(DateTime(prevMonth.year, prevMonth.month, 9, 12, 30), 'BB식당', 13000, kOps),
+    item(DateTime(prevMonth.year, prevMonth.month, 13, 8, 40), 'EE자동차정비', 52000, kCar),
+    item(DateTime(prevMonth.year, prevMonth.month, 15, 12, 10), 'CC한식뷔페', 16000, kOps),
+    item(DateTime(prevMonth.year, prevMonth.month, 18, 15, 20), 'DD문구', 11200, kOps),
+    item(DateTime(prevMonth.year, prevMonth.month, 20, 12, 5), 'FF김밥', 8500, kOps),
     item(DateTime(prevMonth.year, prevMonth.month, 22, 18, 5), 'OO셀프주유소', 64500, kCar),
-    item(DateTime(prevMonth.year, prevMonth.month, 25, 15, 20), 'DD문구', 31200, kOps),
-    item(DateTime(prevMonth.year, prevMonth.month, 27, 12, 0), 'II국밥', 54000, kOps),
-    // 이번 달
+    item(DateTime(prevMonth.year, prevMonth.month, 24, 14, 30), 'MM커피', 11000, kOps),
+    item(DateTime(prevMonth.year, prevMonth.month, 26, 12, 20), 'NN칼국수', 15000, kOps),
+    item(DateTime(prevMonth.year, prevMonth.month, 27, 12, 0), 'II국밥', 18000, kOps),
+    // 이번 달: 차량비 200,500 · 운영비 95,900
     item(at(17, 8, 55), 'OO주유소', 68000, kCar),
-    item(at(15, 12, 20), 'BB식당', 54000, kOps),
-    item(at(13, 10, 5), 'DD문구', 23400, kOps),
-    item(at(11, 9, 30), 'EE자동차정비', 120000, kCar),
-    item(at(9, 12, 15), 'CC한식뷔페', 96000, kOps),
+    item(at(15, 12, 20), 'BB식당', 14000, kOps),
+    item(at(13, 10, 5), 'DD문구', 8400, kOps),
+    item(at(11, 9, 30), 'EE자동차정비', 45000, kCar),
+    item(at(10, 14, 40), 'MM커피', 12000, kOps),
+    item(at(9, 12, 15), 'CC한식뷔페', 18000, kOps),
     item(at(7, 17, 40), 'OO셀프주유소', 72500, kCar),
-    item(at(5, 12, 5), 'FF김밥', 18500, kOps),
+    item(at(6, 12, 30), 'NN칼국수', 16000, kOps),
+    item(at(5, 12, 5), 'FF김밥', 9500, kOps),
     item(at(4, 14, 10), 'GG카센터', 15000, kCar),
-    item(at(2, 12, 25), 'II국밥', 45000, kOps),
+    item(at(2, 12, 25), 'II국밥', 18000, kOps),
     if (issues) ...[
       // c 같은 가맹점·금액 10분 이내 중복 의심
-      item(at(15, 12, 24), 'BB식당', 54000, kOps),
+      item(at(15, 12, 24), 'BB식당', 14000, kOps),
       // a 같은 업체인데 분류가 섞임 (소수 쪽이 확인 필요)
-      item(at(10, 11, 0), 'HH마트', 42300, kOps),
-      item(at(6, 16, 30), 'HH마트', 37800, kOps),
-      item(at(3, 10, 45), 'HH마트', 29900, kCar),
+      item(at(10, 11, 0), 'HH마트', 9800, kOps),
+      item(at(6, 16, 30), 'HH마트', 7600, kOps),
+      item(at(3, 10, 45), 'HH마트', 12900, kCar),
     ],
     if (pending) ...[
       item(at(1, 8, 20), 'KK주유소', 61000, null),
-      item(at(1, 12, 35), 'LL분식', 16000, null),
+      item(at(1, 12, 35), 'LL분식', 9000, null),
       item(at(0, 9, 10), 'OO주유소', 55000, null),
     ],
   ];
 
   final budgets = {
     for (final m in [prevMonth, thisMonth, DateTime(n.year, n.month + 1)])
-      Budgets.keyOf(m): {'total': 1000000, 'car': 400000},
+      Budgets.keyOf(m): {'total': kDemoTotalBudget, 'car': kDemoCarBudget},
   };
 
   final vendors = VendorBook.initial();
