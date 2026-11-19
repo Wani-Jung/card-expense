@@ -177,6 +177,18 @@ class _CardExpenseAppState extends State<CardExpenseApp> {
               sender: _sender,
               onBudget: _saveFirstBudget,
               onSettings: _saveSettings,
+              previewImport: (start, end) => previewImportRange(
+                start,
+                end,
+                digits: _digits ?? widget.store.cardDigits ?? '',
+                existing: {for (final e in widget.store.loadItems()) e.id: e},
+              ),
+              applyImport: (p) async {
+                final items = widget.store.loadItems();
+                final n = addParsedTo(items, p.report.fresh, fromStore: true);
+                if (n > 0) await widget.store.saveItems(items);
+                return n;
+              },
               onDone: (a) => setState(() {
                 _onboarding = false;
                 _firstAction = a;
@@ -306,8 +318,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final List<Expense> _items = widget.store.loadItems();
   late final Budgets _budgets = widget.store.loadBudgets();
   late final VendorBook _vendors = widget.store.loadVendors();
-  PeriodMode _period = PeriodMode.single; // 보기 기간. 앱을 켤 때마다 1개월
-  PeriodView _view = PeriodView(DateTime.now()); // 지금 보는 달 (홀짝·짝홀이면 두 달 합산 단계도)
+  /// 보기 기간 (기기에 저장, REQ-54). 홀짝·짝홀이면 이번 달이 속한 묶음의 두 달 합산 화면부터
+  late PeriodMode _period = widget.store.periodMode;
+  late PeriodView _view = _period == PeriodMode.single
+      ? PeriodView(DateTime.now())
+      : PeriodView(periodMonths(DateTime.now(), _period).first, combined: true);
   DateTime get _month => _view.month;
 
   /// 틀고정 영역(월 진행 표시줄·◀ ▶·요약표). 높이가 화면의 절반을 넘으면 고정을 푼다.
@@ -624,23 +639,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// [realtime]: 실시간 문자(알림·수신). [fromStore]: 문자 저장소에서 불러온 문자.
   /// 둘 다 날짜를 시스템이 주므로 날짜 이상(확인 필요 e)으로 보지 않는다.
   Future<int> _addParsed(List<ParsedSms> list, {bool realtime = false, bool fromStore = false}) async {
-    final now = DateTime.now();
-    final ids = _items.map((e) => e.id).toSet();
-    final fresh = <String>{};
-    var added = 0;
-    for (final p in list) {
-      if (ids.contains(p.id)) continue;
-      final e = Expense.fromParsed(p);
-      // 지난 문자를 한꺼번에 넣어도 오래된 승인 일시 때문에 바로 '7일 넘음'이 되지 않게 넣은 때부터 센다
-      if (!realtime) e.pendingSince = now;
-      if (!realtime && !fromStore) e.dateIssue = dateIssueAt(e.dateTime, now);
-      _items.add(e);
-      ids.add(e.id);
-      if (e.isCancel) fresh.add(e.id);
-      added++;
-    }
-    // 새 취소가 원승인과 묶이면 원승인 분류를 그대로 따라간다
-    if (fresh.isNotEmpty) followOrigins(_items, only: fresh);
+    final added = addParsedTo(_items, list, realtime: realtime, fromStore: fromStore);
     if (added > 0) {
       await widget.store.saveItems(_items);
       if (mounted) setState(() {});
@@ -852,13 +851,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// 기간 미리보기: 문자를 읽어 새·중복·무시했던 건수를 센다 (아직 넣지 않음)
-  Future<ImportPreview> _previewRange(DateTime from, DateTime to) async {
-    final scan = await Native.readSmsInbox(from, to);
-    final ids = {
-      for (final r in scan.items) parseSms(r.body, cardDigits: widget.digits, receivedAt: r.receivedAt)?.id,
-    }..remove(null);
-    return ImportPreview(scan, _classifyRaw(scan.items), unique: ids.length);
-  }
+  Future<ImportPreview> _previewRange(DateTime from, DateTime to) =>
+      previewImportRange(from, to, digits: widget.digits, existing: _byId);
 
   Future<void> _importRange(DateTime from, DateTime to) async {
     if (_importing) return;
@@ -989,6 +983,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           await widget.store.saveBudgets(_budgets);
         },
         onSettings: widget.onSaveSettings,
+        previewImport: _previewRange,
+        applyImport: (p) => _addParsed(p.report.fresh, fromStore: true),
         onDone: (a) {
           picked = a;
           Navigator.of(ctx).pop();
@@ -1281,6 +1277,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 onMode: (m) => setState(() {
                   _slideDir = 0;
                   _period = m;
+                  widget.store.setPeriodMode(m);
                   _view = m == PeriodMode.single
                       ? PeriodView(_view.month)
                       : PeriodView(periodMonths(_view.month, m).first, combined: true);

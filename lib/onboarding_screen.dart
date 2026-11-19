@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'budget.dart';
 import 'flavor.dart';
+import 'import_screen.dart';
 import 'layout.dart';
 import 'sms_parser.dart';
 
@@ -18,7 +19,8 @@ bool validCardSettings(String digits, String sender) =>
     RegExp(r'^\d{4}$').hasMatch(digits) && normalizeNumber(sender).length >= 7;
 
 /// 사전입력사항 3단계 (첫 실행, 메뉴 > 사전입력사항에서 다시 보기). 넘기기·건너뛰기.
-/// ① 이번 달 전체·차량비 수립 ② 발신번호·카드번호 네자리 ③ 과거 이력 불러오기(전용판) / 붙여넣기·공유하기 안내.
+/// ① 이번 달 전체·차량비 수립 ② 발신번호·카드번호 네자리 ③ 지난 결제: 전용판은 이 화면에서 바로 기간 지정 불러오기(REQ-54),
+/// 일반판·스토어 일반판은 붙여넣기·공유하기 안내.
 /// 첫 실행에서는 ②가 꼭 필요하다 (카드번호가 없으면 문자를 못 알아봄) — 건너뛰기를 눌러도 ②에서 멈춘다.
 class OnboardingScreen extends StatefulWidget {
   /// 메뉴에서 연 경우 false (닫기 버튼, 카드 설정은 이미 있음)
@@ -32,6 +34,17 @@ class OnboardingScreen extends StatefulWidget {
   final Future<void> Function(String digits, String sender) onSettings;
   final void Function(OnboardingAction action) onDone;
 
+  /// (전용판) 3단계 기간 지정 불러오기: 미리보기 / 분류 대기에 넣기(넣은 건수). 없으면 예전처럼 메인에서 불러오기
+  final Future<ImportPreview> Function(DateTime start, DateTime end)? previewImport;
+  final Future<int> Function(ImportPreview result)? applyImport;
+
+  /// 문자 권한 확인·요청 (테스트에서 바꿔 끼움). 없으면 [ensureSmsForImport]
+  final Future<bool> Function(BuildContext context)? ensureSms;
+  final DateTime Function()? clock;
+
+  /// 전용판 화면으로 그릴지 (테스트용, 없으면 빌드 판 [isFullEdition])
+  final bool? fullEdition;
+
   const OnboardingScreen({
     super.key,
     required this.firstRun,
@@ -42,6 +55,11 @@ class OnboardingScreen extends StatefulWidget {
     required this.onBudget,
     required this.onSettings,
     required this.onDone,
+    this.previewImport,
+    this.applyImport,
+    this.ensureSms,
+    this.clock,
+    this.fullEdition,
   });
 
   @override
@@ -61,6 +79,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   late final _sender = TextEditingController(text: widget.sender ?? kDefaultSender);
   late bool _settingsSaved = widget.digits != null && widget.sender != null;
   String? _budgetError;
+
+  /// (전용판 3단계) 문자 권한을 못 받았으면 붙여넣기·공유 안내를 대신 보여 준다
+  bool _smsDenied = false;
+
+  /// (전용판 3단계) 불러온 결과 한 줄. 있으면 [닫기]
+  String? _importDone;
+
+  bool get _full => widget.fullEdition ?? isFullEdition;
 
   bool get _cardValid => validCardSettings(_digits.text, _sender.text);
 
@@ -210,9 +236,84 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ],
   );
 
+  /// (전용판 3단계) 미리보기 전: 카드 설정 저장(문자를 알아보려면 필요) → 문자 권한. 못 받으면 대체 안내
+  Future<bool> _beforeImport() async {
+    if (!_settingsSaved && !await _saveSettings()) return false;
+    if (!mounted) return false;
+    final ok = await (widget.ensureSms ?? ensureSmsForImport)(context);
+    if (mounted) setState(() => _smsDenied = !ok);
+    return ok;
+  }
+
+  Future<void> _applyImport(ImportPreview p) async {
+    final n = await widget.applyImport!(p);
+    if (mounted) setState(() => _importDone = n > 0 ? '분류 대기에 $n건 넣었어요' : '새로 넣을 문자가 없어요');
+  }
+
+  /// 붙여넣기·공유하기 안내 (일반판 3단계, 전용판에서 문자 권한을 못 받았을 때)
+  List<Widget> _pasteGuide() => [
+    _howTo(Icons.content_paste, '붙여넣기', '메시지 앱에서 카드 문자를 길게 눌러 복사한 뒤 메뉴 > 결제내역 입력 > 문자 붙여넣기'),
+    _howTo(Icons.share, '공유하기', '메시지 앱에서 문자를 골라 공유 → $kAppName'),
+    const SizedBox(height: 8),
+    FilledButton.icon(
+      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+      icon: const Icon(Icons.content_paste),
+      label: const Text('지금 문자 붙여넣기'),
+      onPressed: _cardValid || _settingsSaved ? () => _finishWith(OnboardingAction.paste) : null,
+    ),
+  ];
+
+  /// 전용판 3단계: 이 화면에서 바로 기간 지정 불러오기 (기본 이번 달 1일 ~ 오늘, REQ-54)
+  List<Widget> _fullImport() => [
+    _title(3, '지난 결제 불러오기', '문자함에 남아 있는 카드 승인 문자를 기간을 골라 한 번에 가져올 수 있어요. 앞으로 오는 문자는 자동으로 들어와요.'),
+    if (_importDone != null) ...[
+      Row(
+        children: [
+          const Icon(Icons.check_circle, color: Color(0xFF2E7D32)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(_importDone!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+        ],
+      ),
+      const SizedBox(height: 16),
+      FilledButton(
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+        onPressed: () => _finishWith(OnboardingAction.none),
+        child: const Text('닫기'),
+      ),
+    ] else
+      ImportRangePanel(
+        preview: widget.previewImport!,
+        clock: widget.clock,
+        showIntro: false,
+        initialRange: (now) => QuickRange.thisMonth.range(now),
+        beforePreview: _beforeImport,
+        onConfirm: _applyImport,
+      ),
+    if (_smsDenied && _importDone == null) ...[
+      const SizedBox(height: 20),
+      Text(
+        keepWords('문자 권한 없이도 이렇게 넣을 수 있어요'),
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF5F6368)),
+      ),
+      const SizedBox(height: 10),
+      ..._pasteGuide(),
+    ] else ...[
+      const SizedBox(height: 20),
+      Center(
+        child: TextButton(
+          style: TextButton.styleFrom(foregroundColor: const Color(0xFF5F6368), textStyle: const TextStyle(fontSize: 13)),
+          onPressed: _cardValid || _settingsSaved ? () => _finishWith(OnboardingAction.paste) : null,
+          child: const Text('문자 붙여넣기·공유로도 넣을 수 있어요'),
+        ),
+      ),
+    ],
+  ];
+
   Widget _historyPage() => ListView(
-    padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-    children: isFullEdition
+    padding: EdgeInsets.fromLTRB(24, 24, 24, listBottomPad(context)),
+    children: _full && widget.previewImport != null && widget.applyImport != null
+        ? _fullImport()
+        : _full
         ? [
             _title(3, '지난 결제 불러오기', '문자함에 남아 있는 카드 승인 문자를 기간을 골라 한 번에 가져올 수 있어요. 앞으로 오는 문자는 자동으로 들어와요.'),
             FilledButton.icon(
@@ -224,15 +325,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ]
         : [
             _title(3, '지난 결제 넣기', '지난 승인 문자는 두 가지 방법으로 넣을 수 있어요. 앞으로 오는 문자는 알림 감지를 켜면 자동으로 들어와요.'),
-            _howTo(Icons.content_paste, '붙여넣기', '메시지 앱에서 카드 문자를 길게 눌러 복사한 뒤 메뉴 > 결제내역 입력 > 문자 붙여넣기'),
-            _howTo(Icons.share, '공유하기', '메시지 앱에서 문자를 골라 공유 → $kAppName'),
-            const SizedBox(height: 8),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-              icon: const Icon(Icons.content_paste),
-              label: const Text('지금 문자 붙여넣기'),
-              onPressed: _cardValid || _settingsSaved ? () => _finishWith(OnboardingAction.paste) : null,
-            ),
+            ..._pasteGuide(),
           ],
   );
 

@@ -1,3 +1,5 @@
+import 'cancel_link.dart';
+import 'check.dart';
 import 'expense.dart';
 import 'native.dart';
 import 'sms_parser.dart';
@@ -72,3 +74,26 @@ IngestReport classifyMessages(
 /// 붙여넣기·공유 텍스트를 한 건씩 나눈다.
 List<RawSms> splitToRaw(Iterable<String> texts, DateTime receivedAt) =>
     [for (final t in texts) for (final m in splitMessages(t)) RawSms(m, receivedAt)];
+
+/// 새 승인 건을 [items] 에 넣고 넣은 건수를 돌려준다 (저장은 부르는 쪽). 메인 화면·첫 실행 사전입력(REQ-54) 공용.
+/// [realtime] 실시간 문자: 미분류 기간을 승인 일시부터 센다. 아니면 넣은 때부터(지난 문자를 한꺼번에 넣어도 바로 '7일 넘음'이 되지 않게).
+/// [fromStore] 문자 저장소에서 불러온 건: 날짜가 시스템 값이라 날짜 이상(e)을 판정하지 않는다.
+int addParsedTo(List<Expense> items, List<ParsedSms> list, {bool realtime = false, bool fromStore = false, DateTime? now}) {
+  final at = now ?? DateTime.now();
+  final ids = items.map((e) => e.id).toSet();
+  final cancels = <String>{};
+  var added = 0;
+  for (final p in list) {
+    if (ids.contains(p.id)) continue;
+    final e = Expense.fromParsed(p);
+    if (!realtime) e.pendingSince = at;
+    if (!realtime && !fromStore) e.dateIssue = dateIssueAt(e.dateTime, at);
+    items.add(e);
+    ids.add(e.id);
+    if (e.isCancel) cancels.add(e.id);
+    added++;
+  }
+  // 새 취소가 원승인과 묶이면 원승인 분류를 그대로 따라간다
+  if (cancels.isNotEmpty) followOrigins(items, only: cancels);
+  return added;
+}

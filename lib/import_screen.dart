@@ -1,12 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'disclosure.dart';
+import 'expense.dart';
 import 'ingest.dart';
 import 'layout.dart';
 import 'native.dart';
+import 'sms_parser.dart';
 
 /// (전용판) 지난 문자 불러오기: 기간을 고르고 → 미리보기('이 기간 승인 문자 n건 (새 n · 중복 n)') → [불러오기].
 /// SMS·MMS·RCS 후보 저장소 공통. 기간은 시작일 0시 ~ 종료일 다음 날 0시(미포함).
+/// 메뉴의 [ImportRangeScreen] 과 사전입력사항 3단계(REQ-54)가 같은 [ImportRangePanel]·[previewImportRange] 를 쓴다.
 
 /// 미리보기 결과 (아직 넣지 않은 상태). [불러오기]를 누르면 이걸 돌려준다.
 class ImportPreview {
@@ -70,18 +76,103 @@ String? importRangeError(DateTime from, DateTime to, DateTime now) {
 ({DateTime start, DateTime end}) importQueryRange(DateTime from, DateTime to) =>
     (start: _day(from), end: DateTime(to.year, to.month, to.day + 1));
 
-class ImportRangeScreen extends StatefulWidget {
+/// 기간의 문자를 읽어 분류만 해 본다 (아직 넣지 않음). 메뉴·사전입력 공용.
+/// [existing] 지금 저장된 내역 (id → 내역).
+Future<ImportPreview> previewImportRange(
+  DateTime start,
+  DateTime end, {
+  required String digits,
+  required Map<String, Expense> existing,
+}) async {
+  final scan = await Native.readSmsInbox(start, end);
+  final ids = {
+    for (final r in scan.items) parseSms(r.body, cardDigits: digits, receivedAt: r.receivedAt)?.id,
+  }..remove(null);
+  return ImportPreview(scan, classifyMessages(scan.items, digits: digits, existing: existing), unique: ids.length);
+}
+
+/// 사전입력 3단계용: 문자 권한이 없으면 안내 화면(disclosure) → 시스템 권한 창 → 결과를 기다린다.
+/// 허용되면 true, [나중에]·거부·영구 거부면 false. (권한 창 결과는 앱이 다시 앞으로 올 때 확인한다)
+Future<bool> ensureSmsForImport(
+  BuildContext context, {
+  Future<PermStatus> Function()? status,
+  Future<bool> Function(BuildContext)? request,
+}) async {
+  final check = status ?? Native.permissionStatus;
+  if ((await check()).sms == true) return true;
+  if ((await check()).smsBlocked) return false;
+  if (!context.mounted) return false;
+  final resumed = Completer<void>();
+  final listener = AppLifecycleListener(onResume: () {
+    if (!resumed.isCompleted) resumed.complete();
+  });
+  try {
+    if (!await (request ?? requestSmsWithDisclosure)(context)) return false;
+    // 권한 창이 닫히면 앱이 다시 앞으로 온다. 혹시 신호를 놓쳐도 1분 뒤에는 상태만 보고 끝낸다
+    for (var i = 0; i < 120 && !resumed.isCompleted; i++) {
+      if ((await check()).sms == true) return true;
+      await Future.any([resumed.future, Future<void>.delayed(const Duration(milliseconds: 500))]);
+    }
+    return (await check()).sms == true;
+  } finally {
+    listener.dispose();
+  }
+}
+
+/// 메뉴 > 결제내역 입력 > 지난 문자 불러오기 (기본 기간 최근 1년). [불러오기]를 누르면 미리보기를 돌려준다.
+class ImportRangeScreen extends StatelessWidget {
   /// 기간의 문자를 읽어 분류만 해 본다 ([start, end) 밀리초 기준)
   final Future<ImportPreview> Function(DateTime start, DateTime end) preview;
+
   /// 테스트용 시계 (없으면 지금)
   final DateTime Function()? clock;
   const ImportRangeScreen({super.key, required this.preview, this.clock});
 
   @override
-  State<ImportRangeScreen> createState() => _ImportRangeScreenState();
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('지난 문자 불러오기')),
+    body: ListView(
+      padding: EdgeInsets.fromLTRB(16, 8, 16, listBottomPad(context)),
+      children: [
+        ImportRangePanel(preview: preview, clock: clock, onConfirm: (r) => Navigator.pop(context, r)),
+      ],
+    ),
+  );
 }
 
-class _ImportRangeScreenState extends State<ImportRangeScreen> {
+/// 기간 고르기(시작일·종료일 + 빠른 선택) → [이 기간 문자 확인] 미리보기 → [불러오기]/[확인].
+/// 메뉴 화면과 사전입력 3단계가 같이 쓴다.
+class ImportRangePanel extends StatefulWidget {
+  final Future<ImportPreview> Function(DateTime start, DateTime end) preview;
+
+  /// [불러오기](새 건이 없으면 [확인])를 눌렀을 때
+  final void Function(ImportPreview result) onConfirm;
+
+  /// 처음 기간 (없으면 최근 1년)
+  final ({DateTime from, DateTime to}) Function(DateTime now)? initialRange;
+
+  /// 미리보기 전에 할 일 (사전입력: 카드 설정 저장·문자 권한). false 면 미리보기를 하지 않는다
+  final Future<bool> Function()? beforePreview;
+
+  /// 위쪽 한 줄 설명을 보일지
+  final bool showIntro;
+  final DateTime Function()? clock;
+
+  const ImportRangePanel({
+    super.key,
+    required this.preview,
+    required this.onConfirm,
+    this.initialRange,
+    this.beforePreview,
+    this.showIntro = true,
+    this.clock,
+  });
+
+  @override
+  State<ImportRangePanel> createState() => _ImportRangePanelState();
+}
+
+class _ImportRangePanelState extends State<ImportRangePanel> {
   late DateTime _from, _to;
   DateTime _now() => (widget.clock ?? DateTime.now)();
   ImportPreview? _result;
@@ -91,7 +182,7 @@ class _ImportRangeScreenState extends State<ImportRangeScreen> {
   @override
   void initState() {
     super.initState();
-    final r = defaultImportRange(_now());
+    final r = (widget.initialRange ?? defaultImportRange)(_now());
     _from = r.from;
     _to = r.to;
   }
@@ -123,6 +214,7 @@ class _ImportRangeScreenState extends State<ImportRangeScreen> {
       _failure = null;
     });
     try {
+      if (widget.beforePreview != null && !await widget.beforePreview!()) return;
       final r = await widget.preview(q.start, q.end);
       if (mounted) setState(() => _result = r);
     } on PlatformException catch (e) {
@@ -155,80 +247,76 @@ class _ImportRangeScreenState extends State<ImportRangeScreen> {
         ),
       ),
     );
-    return Scaffold(
-      appBar: AppBar(title: const Text('지난 문자 불러오기')),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(16, 8, 16, listBottomPad(context)),
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (widget.showIntro) ...[
           const Text(
             '고른 기간의 문자함(SMS·MMS·RCS)에서 카드 승인 문자만 찾아요.',
             style: TextStyle(fontSize: 13, color: Color(0xFF5F6368)),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              dateBox('시작일', _from, true),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('~')),
-              dateBox('종료일', _to, false),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              for (final q in QuickRange.values)
-                ActionChip(
-                  label: Text(q.label),
-                  onPressed: () {
-                    final x = q.range(now);
-                    _set(x.from, x.to);
-                  },
-                ),
-            ],
-          ),
-          if (error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(error, style: const TextStyle(color: Color(0xFFD93025), fontSize: 13)),
-            ),
-          const SizedBox(height: 16),
-          if (r == null)
-            FilledButton(
-              onPressed: error != null || _loading ? null : _runPreview,
-              child: _loading
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('이 기간 문자 확인'),
-            )
-          else ...[
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: const Color(0xFFF1F4F9), borderRadius: BorderRadius.circular(10)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '이 기간 승인 문자 ${r.approvals}건',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 2),
-                  Text('(${r.summary})', style: const TextStyle(fontSize: 14, color: Color(0xFF3C4043))),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, r),
-              child: Text(r.report.fresh.isEmpty && r.report.ignoredHits.isEmpty ? '확인' : '불러오기'),
-            ),
-          ],
-          if (_failure != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(_failure!, style: const TextStyle(color: Color(0xFFD93025), fontSize: 13)),
-            ),
         ],
-      ),
+        Row(
+          children: [
+            dateBox('시작일', _from, true),
+            const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('~')),
+            dateBox('종료일', _to, false),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final q in QuickRange.values)
+              ActionChip(
+                label: Text(q.label),
+                onPressed: () {
+                  final x = q.range(now);
+                  _set(x.from, x.to);
+                },
+              ),
+          ],
+        ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(error, style: const TextStyle(color: Color(0xFFD93025), fontSize: 13)),
+          ),
+        const SizedBox(height: 16),
+        if (r == null)
+          FilledButton(
+            onPressed: error != null || _loading ? null : _runPreview,
+            child: _loading
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('이 기간 문자 확인'),
+          )
+        else ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: const Color(0xFFF1F4F9), borderRadius: BorderRadius.circular(10)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('이 기간 승인 문자 ${r.approvals}건', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text('(${r.summary})', style: const TextStyle(fontSize: 14, color: Color(0xFF3C4043))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: () => widget.onConfirm(r),
+            child: Text(r.report.fresh.isEmpty && r.report.ignoredHits.isEmpty ? '확인' : '불러오기'),
+          ),
+        ],
+        if (_failure != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(_failure!, style: const TextStyle(color: Color(0xFFD93025), fontSize: 13)),
+          ),
+      ],
     );
   }
 }
