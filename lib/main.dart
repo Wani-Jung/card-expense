@@ -20,6 +20,7 @@ import 'lab_screen.dart';
 import 'layout.dart';
 import 'menu_screen.dart';
 import 'native.dart';
+import 'notice_dialog.dart';
 import 'onboarding_screen.dart';
 import 'paste_screen.dart';
 import 'permission_screen.dart';
@@ -38,14 +39,10 @@ import 'vendor_screen.dart';
 
 const kOverBg = Color(0xFFFFEBEE);
 const kOverText = Color(0xFFC62828);
-const kGold = Color(0xFFF0A500); // 앱 아이콘 골드 (포인트 컬러)
-const kGoldText = Color(0xFF3E2700); // 골드 위 글자
 const kGoldLight = Color(0xFFFFF8E6); // 아주 옅은 골드 (권한 배너 등 표 밖)
 const kText = Color(0xFF1F1F1F);
 const kSubText = Color(0xFF5F6368);
 
-/// 차량비 잔여 경고 아이콘 (주황, REQ-52)
-const kCarWarn = Color(0xFFF57C00);
 const kLine = Color(0xFFE0E0E0);
 const kSubBg = Color(0xFFF5F5F5);
 
@@ -1978,7 +1975,7 @@ class _BudgetTable extends StatelessWidget {
               alignment: Alignment.topRight,
               child: Padding(
                 padding: EdgeInsets.only(top: 2, right: 2),
-                child: Icon(Icons.error, size: 19, color: kCarWarn),
+                child: WarnBadge(size: 19),
               ),
             ),
           ),
@@ -1987,12 +1984,16 @@ class _BudgetTable extends StatelessWidget {
     );
   }
 
-  void _showCarWarn(BuildContext context, int carRem, int totalRem) => showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          content: Text(keepWords(carRemainWarnMessage(carRem, totalRem, unit))),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
-        ),
+  /// 차량비 잔여 경고 팝업 (REQ-55: 공용 안내 팝업, 숫자 칸 두 개 + 줄 나눈 본문)
+  void _showCarWarn(BuildContext context, int carRem, int totalRem) => showNoticeDialog(
+        context,
+        icon: const WarnBadge(size: 26),
+        title: kCarRemainWarnTitle,
+        stats: [
+          NoticeStat('차량비 잔여', moneyWithUnit(carRem, unit)),
+          NoticeStat('전체 잔여', totalRemainWithUnit(totalRem, unit), highlight: true),
+        ],
+        body: carRemainWarnMessage(carRem, totalRem, unit),
       );
 
   /// '단위: 만원 ▾' → 만원 / 천원 / 원

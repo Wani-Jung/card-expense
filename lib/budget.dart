@@ -114,14 +114,25 @@ bool carRemainWarn(int? carRem, int? totalRem) =>
     carRem != null && totalRem != null && carRem > 0 && carRem > totalRem;
 
 /// 차량비 잔여 경고 안내 문구. 금액은 지금 단위·규칙 + 단위 글자 (원·천원·만원 모두 받침 있음 → '이에요')
+/// 줄은 직접 나눈다(REQ-55: 문장 중간에서 어색하게 끊기지 않게, 빈 줄로 두 문단).
 String carRemainWarnMessage(int carRem, int totalRem, MoneyUnit u) {
-  String amt(int w) => '${money(w, u)}${u.label}';
+  String amt(int w) => moneyWithUnit(w, u);
   return totalRem >= 0
-      ? '차량비는 ${amt(carRem)} 남았지만, 운영비가 초과돼서 전체 남은 돈은 ${amt(totalRem)}이에요.\n'
-            '차량비를 다 쓰면 총액을 넘으니 유의하세요.'
-      : '차량비는 ${amt(carRem)} 남았지만, 운영비 초과로 전체는 이미 ${amt(-totalRem)} 초과예요.\n'
-            '차량비를 더 쓰면 초과 금액이 커지니 유의하세요.';
+      ? '차량비는 ${amt(carRem)} 남았지만,\n운영비가 초과돼서\n전체 남은 돈은 ${amt(totalRem)}이에요.\n\n'
+            '차량비를 다 쓰면 총액을 넘으니\n유의하세요.'
+      : '차량비는 ${amt(carRem)} 남았지만,\n운영비 초과로\n전체는 이미 ${amt(-totalRem)} 초과예요.\n\n'
+            '차량비를 더 쓰면 초과 금액이 커지니\n유의하세요.';
 }
+
+/// 경고 팝업 제목
+const kCarRemainWarnTitle = '차량비 잔여 주의';
+
+/// 금액 + 단위 글자 ('101,000원', '10천원', '35만원')
+String moneyWithUnit(int won, MoneyUnit u) => '${money(won, u)}${u.label}';
+
+/// 경고 팝업 숫자 칸 값: 전체 잔여 (마이너스면 '초과 X')
+String totalRemainWithUnit(int totalRem, MoneyUnit u) =>
+    totalRem < 0 ? '초과 ${moneyWithUnit(-totalRem, u)}' : moneyWithUnit(totalRem, u);
 
 /// 단위 옆 '(반올림)' 을 보일지 (만원·천원만, REQ-51)
 bool showsRounding(MoneyUnit u) => u != MoneyUnit.won;

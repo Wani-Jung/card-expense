@@ -4,6 +4,7 @@ import 'package:card_expense/budget.dart';
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/layout.dart';
 import 'package:card_expense/main.dart';
+import 'package:card_expense/notice_dialog.dart';
 import 'package:card_expense/quiz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -65,7 +66,8 @@ void main() {
   }
 
   final warn = find.byKey(const ValueKey('car_remain_warn'));
-  final warnIcon = find.byIcon(Icons.error);
+  // REQ-55: 경고 표시는 공용 WarnBadge (진한 주황 원 + 흰 '!')
+  final warnIcon = find.descendant(of: find.byKey(const ValueKey('car_remain_warn')), matching: find.byType(WarnBadge));
 
   group('A 단위 기본값 원', () {
     test('저장값 없음 → 원, 저장값 있으면 그대로', () async {
@@ -107,11 +109,11 @@ void main() {
     test('문구: 합계 양수/음수, 단위별 금액', () {
       expect(
         carRemainWarnMessage(101000, 64000, MoneyUnit.won),
-        '차량비는 101,000원 남았지만, 운영비가 초과돼서 전체 남은 돈은 64,000원이에요.\n차량비를 다 쓰면 총액을 넘으니 유의하세요.',
+        '차량비는 101,000원 남았지만,\n운영비가 초과돼서\n전체 남은 돈은 64,000원이에요.\n\n차량비를 다 쓰면 총액을 넘으니\n유의하세요.',
       );
       expect(
         carRemainWarnMessage(101000, -50000, MoneyUnit.won),
-        '차량비는 101,000원 남았지만, 운영비 초과로 전체는 이미 50,000원 초과예요.\n차량비를 더 쓰면 초과 금액이 커지니 유의하세요.',
+        '차량비는 101,000원 남았지만,\n운영비 초과로\n전체는 이미 50,000원 초과예요.\n\n차량비를 더 쓰면 초과 금액이 커지니\n유의하세요.',
       );
       expect(carRemainWarnMessage(101000, 64000, MoneyUnit.thousand), startsWith('차량비는 101천원 남았지만'));
       expect(carRemainWarnMessage(101000, 64000, MoneyUnit.thousand), contains('전체 남은 돈은 64천원이에요'));
@@ -125,8 +127,7 @@ void main() {
       await pumpMonth(tester, total: 1000000, car: 400000, usedCar: 300000, usedOps: 640000);
       expect(warn, findsOneWidget);
       expect(warnIcon, findsOneWidget);
-      final icon = tester.widget<Icon>(warnIcon);
-      expect(icon.color, kCarWarn);
+      final icon = tester.widget<WarnBadge>(warnIcon);
       expect(icon.size, inInclusiveRange(18, 20));
       expect(find.text('100,000'), findsOneWidget); // 차량비 잔여 숫자 그대로
       // 칸 왼쪽 아래(아이콘과 먼 곳)를 눌러도 안내
@@ -134,17 +135,17 @@ void main() {
       await tester.tapAt(cell.bottomLeft + const Offset(6, -6));
       await tester.pumpAndSettle();
       expect(
-        find.text(keepWords('차량비는 100,000원 남았지만, 운영비가 초과돼서 전체 남은 돈은 60,000원이에요.\n차량비를 다 쓰면 총액을 넘으니 유의하세요.')),
+        find.text(keepWords(carRemainWarnMessage(100000, 60000, MoneyUnit.won))),
         findsOneWidget,
       );
-      expect(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextButton)), findsOneWidget);
+      expect(find.descendant(of: find.byType(NoticeDialog), matching: find.byType(FilledButton)), findsOneWidget); // [확인] 하나 (골드 채움, REQ-55)
       await tester.tap(find.text('확인'));
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(NoticeDialog), findsNothing);
       // 아이콘 자체를 눌러도
       await tester.tap(warnIcon);
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byType(NoticeDialog), findsOneWidget);
     });
 
     testWidgets('아이콘은 오른쪽 위, 누르는 범위 40×40 이상, 7자리 숫자와 안 겹침', (tester) async {
@@ -167,6 +168,7 @@ void main() {
       await tester.tap(warn);
       await tester.pumpAndSettle();
       expect(find.textContaining(keepWords('전체는 이미 50,000원 초과예요')), findsOneWidget);
+      expect(find.text('초과 50,000원'), findsOneWidget); // 전체 잔여 칸
     });
 
     testWidgets('표시 안 함: 같을 때·차량비 잔여 0·차량비 초과·운영비 여유', (tester) async {
@@ -241,7 +243,7 @@ void main() {
       await tester.tap(warn);
       await tester.pumpAndSettle();
       expect(
-        find.text(keepWords('차량비는 500,000원 남았지만, 운영비가 초과돼서 전체 남은 돈은 400,000원이에요.\n차량비를 다 쓰면 총액을 넘으니 유의하세요.')),
+        find.text(keepWords(carRemainWarnMessage(500000, 400000, MoneyUnit.won))),
         findsOneWidget,
       );
     });
