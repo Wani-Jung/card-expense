@@ -15,9 +15,9 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 패키지 com.wani.card_expense. 콘솔 URL 은 /u/0/ 사용 (계정·앱 ID 는 private 폴더 HANDOVER.md)
 - Play 앱 서명: 기존 업로드 키 그대로 (SHA-256 0A:AB:3B…84:15)
 - 비공개 테스트 트랙 'Alpha': 631(스토어 일반 AAB) 게시. 테스터 12명 이상 11/3 참여 → 14일 조건 충족. 비공개 테스트 중에는 다른 트랙에 올리지 않는다
-- 2026-11-17 프로덕션 액세스 신청 → 11-19 오전 승인. 11-17 데이터 보안 '수집·공유 없음'(ML Kit 제거 반영)
+- 2026-11-17 프로덕션 액세스 신청 → 11-19 오전 승인. 데이터 보안은 11-19 '앱 정보 및 성능 > 진단' 수집으로 바꿔 통과(ML Kit 통계 때문, 문자는 기기 안에서만 처리라 SMS 항목 불필요 — REQ-60 에서 그대로 둠)
 - **2026-11-19 첫 프로덕션 출시 → 검토 통과·출시됨**: 651 (2.0.0, 스토어 일반 AAB) 전체 출시, 국가/지역 대한민국만, 출시 노트 ko-KR(REQ-52 초안), 같은 묶음으로 등록정보 전체 설명·휴대전화 스크린샷 6장(REQ-53) 변경
-- 다음 스토어 버전은 2.0.1 — 사용자가 dev 를 써 보고 따로 요청할 때만 올린다 (REQ-54 는 dev 까지만)
+- **2.0.1 (REQ-60, 2026-11-20): 스토어판 = 전용판(스토어 전용 AAB, 끝 2).** 702 를 내부 테스트로 먼저 출시 → 사용자 폰 확인 → 같은 702 를 프로덕션으로 승급(대한민국·전체 출시), 같은 묶음으로 등록정보 짧은·자세한 설명(문자 자동 읽기 맨 앞)·휴대전화 스크린샷 7장(07 을 2번째) 변경. 스토어 일반 AAB(끝 1)는 이제 스토어에 내지 않는다(빌드·릴리스 첨부는 계속). 깃허브 일반판 APK(고정 링크)는 당분간 유지
 - **문자판(전용판) 준비 (REQ-57, 2026-11-19)**: 내부 테스트 트랙에 682 (2.0.1, 스토어 전용 AAB) 출시, 테스터는 이메일 목록 '내부 테스트 (개발자)'(사용자 계정 1명. 외부 테스터 목록은 내부 테스트에 쓰지 않음). 앱 콘텐츠 > SMS 및 통화 기록 권한 신고서: 핵심 기능 'SMS 기반 자금 관리', 검토 안내 500자(영어, 실제 동작 기준: 발신번호가 맞거나 카드번호가 적힌 승인·취소 문자를 읽고 카드번호 끝 4자리가 맞는 것만 날짜·가맹점·금액·원문으로 저장), 선언 4개 체크, 시연 영상(REQ-58, 에뮬레이터·예시 데이터·영어 자막, YouTube 일부 공개, 사용자 채널) 링크 포함 → **2026-11-20 검토 제출**(결과는 사용자가 알려 줌). 영상은 승인 뒤에도 앱이 스토어에 있는 동안 지우지 않는다(재검토·재신고 때 같은 링크). 영상 원본·녹화 스크립트는 private 폴더 req58_video. 전용판 프로덕션 때 고칠 곳: 스토어 설명(문자 자동 읽기 맨 앞, req53 금지어 풀기), 데이터 보안 SMS 항목 재확인, PRIVACY.md 문자 범위·원문 저장, 문자 불러오기 스크린샷
 - AI 애셋 선언(등록정보 검토 단계에 있음): 앱 아이콘·대표 이미지(1024×500)는 AI(Claude)가 코드로 그린 것이라 'AI를 사용하여 생성 또는 수정'으로 라벨, 스크린샷(실제 앱 캡처)은 라벨 안 함. 새 애셋을 올릴 때 같은 기준으로 고른다
 - 프로덕션 업데이트도 같은 순서: 프로덕션 > 새 버전 만들기 → AAB 는 사용자가 직접 드래그 → 출시 이름 'versionCode (versionName)' → 출시 노트 → 저장 → 등록정보 변경이 있으면 등록정보 화면 '다음' → '저장'으로 게시 개요에 같이 올림(임시보관함 저장만으로는 개요에 안 잡힘) → 게시 개요에서 사용자 확인 뒤 '검토를 위해 변경사항 N개 제출'
@@ -28,8 +28,8 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 ## 스토어 등록정보·스크린샷 (REQ-53)
 - 소개글 원본은 `store/listing/ko-KR/`(title.txt 30자·short_description.txt 80자·full_description.txt 4000자 이내). 소개글은 이 파일을 고친 뒤 콘솔에 반영한다(콘솔에서 먼저 고치지 않는다)
 - **스토어판에 실제로 있는 기능만 쓴다.** 2.0.1(REQ-60)부터 스토어판 = 전용판(full flavor, CHANNEL=store: 문자 자동 읽기·지난 문자 불러오기 있음). 소개글 맨 앞 핵심 기능은 '카드 승인 문자를 자동으로 읽어 기록', 알림 감지·붙여넣기·공유는 보조. 캡처(OCR)·법령 Quiz 는 스토어판에 없으니 쓰지 않는다. `test/req53_test.dart` 가 금지어를 검사
-- 스크린샷 07_import(REQ-60): 지난 문자 불러오기 미리보기(데모 기준 이번 달 기록된 11건 + 새 3건), 띠 '지난 승인 문자도 기간 골라 한 번에'
-- 스크린샷은 `store/screenshots/ko-KR/NN_name.png`(위쪽 네이비 #1F3A68 문구 띠 버전, 콘솔에 올리는 기본) + `plain/`(띠 없음). 1080×1920 PNG 6장: 01 메인 요약표 / 02 두 달 합산 / 03 분류 대기 추천 / 04 확인 필요 / 05 업체·키워드 / 06 안전 OX. 대표 이미지 `store/feature_1024x500.png`·아이콘 `store/playstore_icon_512.png` 는 그대로
+- 스크린샷 07_import(REQ-60, 콘솔에선 01 다음 2번째): 지난 문자 불러오기 미리보기(데모 기준 이번 달 기록된 11건 + 새 3건), 띠 '지난 승인 문자도 기간 골라 한 번에'
+- 스크린샷은 `store/screenshots/ko-KR/NN_name.png`(위쪽 네이비 #1F3A68 문구 띠 버전, 콘솔에 올리는 기본) + `plain/`(띠 없음). 1080×1920 PNG 7장: 01 메인 요약표 / 02 두 달 합산 / 03 분류 대기 추천 / 04 확인 필요 / 05 업체·키워드 / 06 안전 OX / 07 지난 문자 불러오기. 콘솔 순서는 01, 07, 02~06. 대표 이미지 `store/feature_1024x500.png`·아이콘 `store/playstore_icon_512.png` 는 그대로
 - 만드는 법: 데모 데이터 모드 `lib/demo.dart`(`--dart-define=DEMO=true` 일 때만, 가짜 가맹점 'OO주유소' 등·카드 0000, 이미 데이터가 있으면 안 덮음. 릴리스 빌드엔 define 이 없어 꺼짐. 규모(REQ-56): 한 달 수립 총액 45만·차량비 30만(`kDemoTotalBudget`·`kDemoCarBudget`, 두 달 합산은 90만·60만), 사용 차량비 약 20만·운영비 약 10만, 주유 5~8만·식사 1~2만 원대. 어느 장면도 수립 초과·차량비 잔여 경고 없게 — `test/req56_test.dart` 가 검사) + `integration_test/store_screenshots_test.dart`(장면마다 데모 데이터로 새로 띄워 찍고, 같은 화면을 문구 띠 아래 줄여 한 번 더 찍음) + `test_driver/integration_test.dart`(build/store_screenshots/ 에 저장)
   - CI: Actions > 'Store screenshots' 수동 실행(`.github/workflows/store-screenshots.yml`, pixel_2 1080×1920·Asia/Seoul) → 아티팩트 store-screenshots. 실행 번호가 release-apk 와 따로라 versionCode 에 영향 없음
   - 로컬: 에뮬레이터를 켜고 `adb shell wm size 1080x1920`, `adb shell wm density 420`, `adb shell service call alarm 3 s16 Asia/Seoul` → `flutter drive --driver=test_driver/integration_test.dart --target=integration_test/store_screenshots_test.dart --flavor public --dart-define=CHANNEL=store --dart-define=DEMO=true` → 끝나면 `wm size reset`·`wm density reset`. PC 가 무거워지니 끝나면 에뮬레이터·Gradle 데몬(`cd android && ./gradlew --stop`)을 끈다
@@ -52,8 +52,8 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 | 채널 | 빌드 | 파일 | versionCode | 자체 업데이트 |
 |---|---|---|---|---|
 | 깃허브 | `flutter build apk --flavor public/full` | `app-release.apk` / `app-full-release.apk` (고정 링크) | run_number×10 **+0** | 있음 |
-| 스토어 일반 | `flutter build appbundle --flavor public --dart-define=CHANNEL=store` | `app-store-public-release.aab` (비공개 테스트 트랙) | run_number×10 **+1** | 없음 |
-| 스토어 전용 | `flutter build appbundle --flavor full --dart-define=CHANNEL=store` | `app-store-full-release.aab` (내부 테스트·문자 권한 심사) | run_number×10 **+2** | 없음 |
+| 스토어 일반 | `flutter build appbundle --flavor public --dart-define=CHANNEL=store` | `app-store-public-release.aab` (2.0.1~ 스토어에 안 냄) | run_number×10 **+1** | 없음 |
+| 스토어 전용 | `flutter build appbundle --flavor full --dart-define=CHANNEL=store` | `app-store-full-release.aab` (2.0.1~ 스토어판: 내부 테스트 → 프로덕션) | run_number×10 **+2** | 없음 |
 
 - 채널은 flavor 차원이 아니라 `--dart-define=CHANNEL=store` 로 나눈다 (`lib/flavor.dart` `isStoreChannel`, 컴파일 시점 상수). 이유: 두 채널은 매니페스트·네이티브 차이가 없고(설치 권한은 원래 없음), Dart 상수라 스토어 빌드에서 업데이트 코드(`update_check.dart`, `_checkUpdate`)가 트리셰이킹으로 통째로 빠진다. flavor 를 늘리면 변형 4개·APK 파일명·`appFlavor` 값이 모두 바뀐다. define 이 없으면 깃허브판.
 - 스토어판: 시작 때 자동 업데이트 확인 안 함, 메뉴 '업데이트 확인' 대신 누를 수 없는 '버전 정보'(`MenuScreen.onUpdate == null`). CI 가 스토어 AAB 의 libapp.so 에 GitHub releases API 주소가 있으면 실패시킨다.
