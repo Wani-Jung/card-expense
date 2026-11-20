@@ -247,7 +247,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _applyImport(ImportPreview p) async {
     final n = await widget.applyImport!(p);
-    if (mounted) setState(() => _importDone = n > 0 ? '분류 대기에 $n건 넣었어요' : '새로 넣을 문자가 없어요');
+    if (!mounted) return;
+    // 결과 문구는 메뉴 불러오기와 같게 (REQ-61)
+    setState(() => _importDone = n > 0
+        ? importAddedMessage(n, p.duplicates)
+        : p.approvals == 0
+            ? '$kNoApprovalTitle\n$kNoApprovalBody'
+            : '$kNoNewImportTitle\n${noNewImportBody(p.approvals)}');
   }
 
   /// 붙여넣기·공유하기 안내 (일반판 3단계, 전용판에서 문자 권한을 못 받았을 때)

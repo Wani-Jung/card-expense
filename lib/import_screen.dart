@@ -8,6 +8,7 @@ import 'expense.dart';
 import 'ingest.dart';
 import 'layout.dart';
 import 'native.dart';
+import 'notice_dialog.dart';
 import 'sms_parser.dart';
 
 /// (전용판) 지난 문자 불러오기: 기간을 고르고 → 미리보기('이 기간 승인 문자 n건 (새 n · 중복 n)') → [불러오기].
@@ -331,3 +332,61 @@ class _ImportRangePanelState extends State<ImportRangePanel> {
     );
   }
 }
+
+// ------------------------------------------------------------------
+// 불러오기 결과 (REQ-61): 검사 건수 같은 진단 숫자는 빼고 경우별로 한두 줄. 진단은 제목 길게 누르기로만
+// ------------------------------------------------------------------
+
+/// 새로 넣었을 때 (메인 스낵바·사전입력 3단계 공용). 중복이 있으면 한 줄 더
+String importAddedMessage(int added, int skipped) =>
+    ['분류 대기에 $added건 넣었어요', if (skipped > 0) '이미 있던 $skipped건은 건너뛰었어요'].join('\n');
+
+const kNoNewImportTitle = '새로 불러온 문자가 없어요';
+const kNoApprovalTitle = '이 기간엔 카드 승인 문자가 없어요';
+const kNoApprovalBody = '카드 문자 설정의 카드번호 끝 4자리가\n맞는지 확인해 보세요.';
+String noNewImportBody(int n) => '이 기간 카드 승인 문자 $n건은\n모두 이미 들어와 있어요.';
+
+/// 새로 넣은 게 없을 때의 팝업. 승인 문자가 아예 없으면 카드번호 확인 안내 + [카드 문자 설정] 작은 링크.
+/// 제목을 길게 누르면 [importDiagDialog] (검사 건수·주소 형식).
+Widget importResultDialog(BuildContext context, ImportPreview p, {VoidCallback? onCardSettings}) {
+  final none = p.approvals == 0;
+  return NoticeDialog(
+    icon: const NoticeInfoIcon(),
+    title: none ? kNoApprovalTitle : kNoNewImportTitle,
+    body: none ? kNoApprovalBody : noNewImportBody(p.approvals),
+    onTitleLongPress: () => showDialog<void>(context: context, builder: (_) => importDiagDialog(p.scan)),
+    child: none && onCardSettings != null
+        ? Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+              onPressed: () {
+                Navigator.pop(context);
+                onCardSettings();
+              },
+              child: const Text('카드 문자 설정'),
+            ),
+          )
+        : null,
+  );
+}
+
+/// 숨은 진단 (결과 팝업 제목 길게 누르기): 검사한 문자·발신번호 일치·찾은 문자, 카드 승인 문자의 저장소별 주소 형식
+Widget importDiagDialog(InboxScan scan) => NoticeDialog(
+  title: '불러오기 진단',
+  stats: [
+    NoticeStat('검사한 문자', '${scan.scanned}건'),
+    NoticeStat('발신번호 일치', '${scan.senderMatched}건'),
+    NoticeStat('찾은 문자', '${scan.items.length}건'),
+  ],
+  body: 'SMS ${scan.smsScanned} · MMS ${scan.mmsScanned} · 기타 저장소 ${scan.otherScanned} (카드번호로 찾음 ${scan.otherMatched})',
+  child: scan.addrSamples.isEmpty
+      ? null
+      : Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: SelectableText(
+            '카드 승인 문자의 주소 형식\n${scan.addrSamples.join('\n')}',
+            style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+          ),
+        ),
+);

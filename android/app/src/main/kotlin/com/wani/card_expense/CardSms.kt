@@ -61,21 +61,8 @@ object CardSms {
         return c.contains("${digits}승인") || c.contains("${digits}취소")
     }
 
-    /** 숫자만 남기고 국가번호 82, 앞자리 0 을 뗀다. (Dart normalizeNumber 와 같게) */
-    private fun normalizeNumber(s: String): String {
-        var d = s.filter { it.isDigit() }
-        if (d.startsWith("82") && d.length >= 10) d = d.substring(2)
-        return d.trimStart('0')
-    }
-
-    /** 발신번호 끝자리 일치 비교. (Dart senderMatches 와 같게) */
-    fun senderMatches(address: String?, configured: String?): Boolean {
-        if (address == null || configured == null) return false
-        val a = normalizeNumber(address)
-        val b = normalizeNumber(configured)
-        if (a.length < 7 || b.length < 7) return false
-        return a.endsWith(b) || b.endsWith(a)
-    }
+    /** 발신번호 끝자리 일치 비교 → SenderMatch (Dart senderMatches 와 같게). 실시간 수신·지난 문자 불러오기 공용 */
+    fun senderMatches(address: String?, configured: String?): Boolean = SenderMatch.matches(address, configured)
 
     /** 같은 승인 건을 문자/알림 양쪽에서 잡아도 한 번만 처리하기 위한 키. 금액·일시를 못 읽으면 null. */
     private fun dedupeKey(text: String): String? {

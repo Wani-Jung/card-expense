@@ -286,21 +286,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 // ------------------------------------------------------------------
 // 메인 화면
 // ------------------------------------------------------------------
-/// 지난 문자 불러오기 결과 0건 (REQ-59 공용 안내 팝업). 검사 건수는 숫자 칸, 설명은 줄을 직접 나눔
-NoticeDialog scanResultDialog(InboxScan scan, int cardMatched) => NoticeDialog(
-      icon: const NoticeInfoIcon(),
-      title: '새로 불러온 문자가 없어요',
-      stats: [
-        NoticeStat('검사한 문자', '${scan.smsScanned + scan.mmsScanned + scan.otherScanned}건'),
-        NoticeStat('발신번호 일치', '${scan.senderMatched}건'),
-        NoticeStat('카드번호 일치', '$cardMatched건'),
-      ],
-      body: cardMatched > 0
-          ? '이 기간의 카드 승인 문자는\n모두 이미 들어와 있어요.'
-          : '카드 문자가 RCS 기업메시지로 왔다면\n문자 저장소에 없을 수 있어요.\n\n'
-              '메시지 앱에서 문자를 길게 눌러 복사한 뒤\n붙여넣기하거나 공유하기로 넣어주세요.',
-    );
-
 /// 붙여넣기·공유·불러오기 결과에서 되살릴 게 없고 '승인 문자 아님'만 있을 때 (REQ-59, [닫기] 하나)
 NoticeDialog ingestResultDialog(String source, IngestReport r, int added, {bool revived = false}) => NoticeDialog(
       icon: const NoticeInfoIcon(),
@@ -863,7 +848,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
     final r = defaultImportRange(DateTime.now());
-    await _importRange(r.from, r.to);
+    // 종료일 당일 문자까지 (REQ-61: 예전엔 [1년 전, 오늘 0시) 라 오늘 온 문자가 빠졌다)
+    final q = importQueryRange(r.from, r.to);
+    await _importRange(q.start, q.end);
     await widget.store.setAutoImported();
   }
 
@@ -901,21 +888,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// 불러오기 결과 (REQ-61): 무시했던 문자가 있으면 되살리기 창, 새로 넣었으면 스낵바, 없으면 경우별 안내 팝업.
+  /// 문자함에서 읽은 '승인 문자 아님'(같은 발신번호의 광고 등)은 사용자가 넣은 게 아니라 보여주지 않는다.
   Future<void> _applyImport(ImportPreview p) async {
     final r = p.report;
     final added = await _addParsed(r.fresh, fromStore: true);
-    if (r.fresh.isEmpty && r.ignoredHits.isEmpty) {
-      await _showScanResult(p.scan, r.fresh.length + r.dup + r.ignoredHits.length);
-    } else {
-      await _showResult('지난 문자 불러오기', r, added);
-    }
-  }
-
-  /// 0건일 때 어디서 걸렸는지 보여준다.
-  Future<void> _showScanResult(InboxScan scan, int cardMatched) async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    await showDialog<void>(context: context, builder: (_) => scanResultDialog(scan, cardMatched));
+    if (r.ignoredHits.isNotEmpty) {
+      await _showResult('지난 문자 불러오기', IngestReport(fresh: r.fresh, dup: r.dup, ignoredHits: r.ignoredHits, rejected: const []), added);
+    } else if (r.fresh.isNotEmpty) {
+      _toast(importAddedMessage(added, p.duplicates));
+    } else {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => importResultDialog(ctx, p, onCardSettings: _openSettings),
+      );
+    }
   }
 
 

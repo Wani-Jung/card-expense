@@ -62,6 +62,9 @@ class NoticeDialog extends StatelessWidget {
 
   /// 본문 아래 덧붙일 내용 (예: 접었다 펴는 원문 목록). 길면 이 부분만 스크롤
   final Widget? child;
+
+  /// 제목 줄을 길게 누르면 (숨은 진단 정보용, 기본 화면엔 표시 없음)
+  final VoidCallback? onTitleLongPress;
   const NoticeDialog({
     super.key,
     this.icon,
@@ -70,6 +73,7 @@ class NoticeDialog extends StatelessWidget {
     this.stats = const [],
     this.okLabel = '확인',
     this.child,
+    this.onTitleLongPress,
   });
 
   @override
@@ -125,16 +129,20 @@ class NoticeDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                if (icon != null) ...[icon!, const SizedBox(width: 10)],
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: onSurface),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onLongPress: onTitleLongPress,
+              child: Row(
+                children: [
+                  if (icon != null) ...[icon!, const SizedBox(width: 10)],
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: onSurface),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             if (stats.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -145,7 +153,7 @@ class NoticeDialog extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
-            Text(
+            if (body.isNotEmpty) Text(
               keepWords(body),
               style: TextStyle(fontSize: 15, height: 1.6, color: onSurface.withValues(alpha: 0.78)),
             ),

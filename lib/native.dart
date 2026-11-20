@@ -8,16 +8,33 @@ class RawSms {
 
 /// (전용판) 문자함 불러오기 결과. 0건일 때 원인을 보여주려고 검사 건수도 같이 받는다.
 class InboxScan {
-  /// SMS/MMS 는 발신번호가 일치한 문자, 그 밖의 저장소(RCS 등)는 카드번호+승인이 들어간 문자.
+  /// SMS/MMS 는 발신번호가 일치하거나 카드번호+승인이 들어간 문자(REQ-61), 그 밖의 저장소(RCS 등)는 카드번호+승인.
   final List<RawSms> items;
   final int smsScanned;
   final int mmsScanned;
   final int otherScanned;
   final int otherMatched;
-  const InboxScan(this.items, this.smsScanned, this.mmsScanned, [this.otherScanned = 0, this.otherMatched = 0]);
+
+  /// 진단용 (기본 화면엔 안 보임, 결과 팝업 제목 길게 누르기): SMS/MMS 에서 발신번호가 일치한 건수.
+  /// 예전 네이티브(값 없음)면 null → [senderMatched] 가 예전 방식으로 센다.
+  final int? senderMatchedRaw;
+
+  /// 진단용: 카드 승인 문자의 저장소별 주소 형식 몇 개 ('sms: 15881600' 처럼)
+  final List<String> addrSamples;
+  const InboxScan(
+    this.items,
+    this.smsScanned,
+    this.mmsScanned, [
+    this.otherScanned = 0,
+    this.otherMatched = 0,
+    this.senderMatchedRaw,
+    this.addrSamples = const [],
+  ]);
+
+  int get scanned => smsScanned + mmsScanned + otherScanned;
 
   /// SMS/MMS 에서 발신번호가 일치한 건수.
-  int get senderMatched => items.length - otherMatched;
+  int get senderMatched => senderMatchedRaw ?? items.length - otherMatched;
 }
 
 class PermStatus {
@@ -71,6 +88,8 @@ class Native {
       (m['mmsScanned'] as num?)?.toInt() ?? 0,
       (m['otherScanned'] as num?)?.toInt() ?? 0,
       (m['otherMatched'] as num?)?.toInt() ?? 0,
+      (m['senderMatched'] as num?)?.toInt(),
+      ((m['addrSamples'] as List?) ?? const []).map((e) => '$e').toList(),
     );
   }
 

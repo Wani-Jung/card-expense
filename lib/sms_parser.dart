@@ -167,9 +167,15 @@ List<String> splitMessages(String text) {
   return out;
 }
 
-/// 전화번호를 비교용으로 정리한다. 숫자만 남기고 국가번호 82, 앞자리 0 을 뗀다.
+/// 전화번호를 비교용으로 정리한다. (Kotlin SenderMatch.normalize 와 같은 규칙, REQ-61)
+/// '@'·';' 뒤(RCS sip 주소의 도메인·옵션)는 숫자가 섞여 있어 먼저 잘라내고, 숫자만 남긴 뒤
+/// 국제전화 00·국가번호 82, 앞자리 0 을 뗀다.
 String normalizeNumber(String s) {
-  var d = s.replaceAll(_nonDigits, '');
+  var t = s.trim();
+  final cut = t.indexOf(RegExp('[@;]'));
+  if (cut >= 0) t = t.substring(0, cut);
+  var d = t.replaceAll(_nonDigits, '');
+  if (d.startsWith('0082')) d = d.substring(2);
   if (d.startsWith('82') && d.length >= 10) d = d.substring(2);
   return d.replaceFirst(RegExp(r'^0+'), '');
 }

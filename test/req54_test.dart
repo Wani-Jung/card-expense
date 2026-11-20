@@ -190,7 +190,7 @@ void main() {
       expect(find.text('(새 2 · 중복 1)'), findsOneWidget);
       await tester.tap(find.text('불러오기'));
       await tester.pumpAndSettle();
-      expect(find.text('분류 대기에 2건 넣었어요'), findsOneWidget);
+      expect(find.text('분류 대기에 2건 넣었어요\n이미 있던 1건은 건너뛰었어요'), findsOneWidget); // REQ-61 중복 한 줄
       // 결과 아래 [닫기] (메뉴에서 연 경우 아래 바에도 '닫기'가 있어 둘 다 메인으로)
       await tester.tap(find.widgetWithText(FilledButton, '닫기').first);
       await tester.pumpAndSettle();
@@ -218,7 +218,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, '확인'));
       await tester.pumpAndSettle();
-      expect(find.text('새로 넣을 문자가 없어요'), findsOneWidget);
+      expect(find.textContaining('새로 불러온 문자가 없어요'), findsOneWidget); // REQ-61 문구
     });
 
     test('기간 규칙: 시작>종료 막기, 미래 날짜 불가', () {

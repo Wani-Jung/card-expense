@@ -97,24 +97,7 @@ void main() {
 
     Finder okButton(String label) => find.widgetWithText(FilledButton, label);
 
-    testWidgets('불러오기 0건: 정보 아이콘·제목·검사 숫자 칸·줄 나눈 설명·[확인] 하나', (tester) async {
-      await pump(tester, scanResultDialog(const InboxScan([], 30, 2, 5, 0), 0));
-      expect(find.byType(NoticeInfoIcon), findsOneWidget);
-      expect(find.byType(WarnBadge), findsNothing); // 경고가 아니므로 '!' 아님
-      expect(find.text('새로 불러온 문자가 없어요'), findsOneWidget);
-      expect(find.text('검사한 문자'), findsOneWidget);
-      expect(find.text('37건'), findsOneWidget);
-      expect(find.text('카드번호 일치'), findsOneWidget);
-      expect(find.text('0건'), findsNWidgets(2)); // 발신번호 일치 0 · 카드번호 일치 0
-      expect(find.textContaining(keepWords('문자 저장소에 없을 수 있어요.')), findsOneWidget);
-      expect(okButton('확인'), findsOneWidget);
-      expect(find.byType(TextButton), findsNothing);
-    });
-
-    testWidgets('불러오기 0건이지만 카드 문자는 있음 → 모두 이미 들어와 있어요', (tester) async {
-      await pump(tester, scanResultDialog(const InboxScan([], 6, 0), 6));
-      expect(find.text(keepWords('이 기간의 카드 승인 문자는\n모두 이미 들어와 있어요.')), findsOneWidget);
-    });
+    // 불러오기 0건 팝업은 REQ-61 에서 숫자 칸을 뺐다 → test/req61_test.dart
 
     testWidgets('승인 문자 아님만 있는 결과: 숫자 칸 3개·원문 목록 펼침·[닫기] 하나', (tester) async {
       const report = IngestReport(fresh: [], dup: 1, ignoredHits: [], rejected: ['안녕하세요 회의 10시']);
