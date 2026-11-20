@@ -7,6 +7,7 @@ import 'package:card_expense/flavor.dart';
 import 'package:card_expense/lab_screen.dart';
 import 'package:card_expense/layout.dart';
 import 'package:card_expense/main.dart';
+import 'package:card_expense/notice_dialog.dart';
 import 'package:card_expense/quiz.dart';
 import 'package:card_expense/rural_quiz.dart';
 import 'package:card_expense/rural_quiz_screens.dart';
@@ -100,7 +101,7 @@ void main() {
       await tester.tap(find.text('(반올림)'));
       await tester.pumpAndSettle();
       expect(find.text(keepWords(kRoundingNote)), findsOneWidget);
-      expect(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextButton)), findsOneWidget);
+      expect(find.descendant(of: find.byType(NoticeDialog), matching: find.byType(FilledButton)), findsOneWidget);
       await tester.tap(find.text('확인'));
       await tester.pumpAndSettle();
       expect(find.text(keepWords(kRoundingNote)), findsNothing);

@@ -138,7 +138,10 @@ String totalRemainWithUnit(int totalRem, MoneyUnit u) =>
 bool showsRounding(MoneyUnit u) => u != MoneyUnit.won;
 
 /// '(반올림)' 을 누르면 보이는 안내
-const kRoundingNote = "칸마다 반올림해서 합계와 1 정도 다를 수 있어요. 정확한 금액은 '원' 단위로 보세요.";
+const kRoundingNote = "칸마다 반올림해서\n합계와 1 정도 다를 수 있어요.\n\n정확한 금액은 '원' 단위로 보세요.";
+
+/// '(반올림)' 안내 팝업 제목 (REQ-59)
+const kRoundingTitle = '반올림해서 보여 줘요';
 
 /// 천 단위 쉼표. 1234560 → "1,234,560"
 String groupDigits(int n) {

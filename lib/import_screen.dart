@@ -85,10 +85,21 @@ Future<ImportPreview> previewImportRange(
   required Map<String, Expense> existing,
 }) async {
   final scan = await Native.readSmsInbox(start, end);
-  final ids = {
-    for (final r in scan.items) parseSms(r.body, cardDigits: digits, receivedAt: r.receivedAt)?.id,
-  }..remove(null);
-  return ImportPreview(scan, classifyMessages(scan.items, digits: digits, existing: existing), unique: ids.length);
+  return importPreviewOf(scan, digits: digits, existing: existing);
+}
+
+/// 읽어 온 문자를 분류한다 (REQ-59). 같은 문자가 SMS 와 RCS 후보 저장소 등에서 두 번 읽히면 **한 번만** 센다 —
+/// 그래야 미리보기('새 n · 중복 n')와 불러온 뒤 결과 알림의 숫자가 같다. 중복은 이미 저장된 내역과 겹친 것만.
+/// 승인 문자로 읽히는 건 승인 id 로, 아닌 건 본문으로 같은지 본다.
+ImportPreview importPreviewOf(InboxScan scan, {required String digits, required Map<String, Expense> existing}) {
+  final seen = <String>{};
+  final unique = <RawSms>[];
+  for (final r in scan.items) {
+    final id = parseSms(r.body, cardDigits: digits, receivedAt: r.receivedAt)?.id;
+    if (seen.add(id ?? 'raw:${r.body.trim()}')) unique.add(r);
+  }
+  final report = classifyMessages(unique, digits: digits, existing: existing);
+  return ImportPreview(scan, report, unique: report.fresh.length + report.dup + report.ignoredHits.length);
 }
 
 /// 사전입력 3단계용: 문자 권한이 없으면 안내 화면(disclosure) → 시스템 권한 창 → 결과를 기다린다.

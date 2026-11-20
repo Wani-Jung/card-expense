@@ -30,6 +30,19 @@ class WarnBadge extends StatelessWidget {
   );
 }
 
+/// 경고가 아닌 안내 팝업의 아이콘 (REQ-59): 남색 원 안 'i' (다크 테마에선 밝은 파랑)
+class NoticeInfoIcon extends StatelessWidget {
+  final double size;
+  const NoticeInfoIcon({super.key, this.size = 26});
+
+  @override
+  Widget build(BuildContext context) => Icon(
+    Icons.info_rounded,
+    size: size,
+    color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8AB4F8) : const Color(0xFF1F3A68),
+  );
+}
+
 /// 안내 팝업 위쪽의 작은 숫자 칸 하나 (라벨 작게, 숫자 크게)
 class NoticeStat {
   final String label, value;
@@ -46,6 +59,9 @@ class NoticeDialog extends StatelessWidget {
   final String title, body;
   final List<NoticeStat> stats;
   final String okLabel;
+
+  /// 본문 아래 덧붙일 내용 (예: 접었다 펴는 원문 목록). 길면 이 부분만 스크롤
+  final Widget? child;
   const NoticeDialog({
     super.key,
     this.icon,
@@ -53,6 +69,7 @@ class NoticeDialog extends StatelessWidget {
     required this.body,
     this.stats = const [],
     this.okLabel = '확인',
+    this.child,
   });
 
   @override
@@ -72,7 +89,16 @@ class NoticeDialog extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(s.label, style: TextStyle(fontSize: 12, color: onSurface.withValues(alpha: 0.65))),
+            // 칸이 좁아도 라벨이 단어 중간에서 줄바꿈되지 않게 한 줄로 줄여서 (REQ-59: 칸 3개)
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                s.label,
+                maxLines: 1,
+                style: TextStyle(fontSize: 12, color: onSurface.withValues(alpha: 0.65)),
+              ),
+            ),
             const SizedBox(height: 4),
             FittedBox(
               fit: BoxFit.scaleDown,
@@ -123,6 +149,7 @@ class NoticeDialog extends StatelessWidget {
               keepWords(body),
               style: TextStyle(fontSize: 15, height: 1.6, color: onSurface.withValues(alpha: 0.78)),
             ),
+            if (child != null) Flexible(child: SingleChildScrollView(child: child)),
             const SizedBox(height: 14),
             Align(
               alignment: Alignment.centerRight,
@@ -155,7 +182,9 @@ Future<void> showNoticeDialog(
   required String title,
   required String body,
   List<NoticeStat> stats = const [],
+  String okLabel = '확인',
+  Widget? child,
 }) => showDialog<void>(
   context: context,
-  builder: (_) => NoticeDialog(icon: icon, title: title, body: body, stats: stats),
+  builder: (_) => NoticeDialog(icon: icon, title: title, body: body, stats: stats, okLabel: okLabel, child: child),
 );

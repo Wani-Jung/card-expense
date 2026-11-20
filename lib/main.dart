@@ -286,6 +286,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
 // ------------------------------------------------------------------
 // 메인 화면
 // ------------------------------------------------------------------
+/// 지난 문자 불러오기 결과 0건 (REQ-59 공용 안내 팝업). 검사 건수는 숫자 칸, 설명은 줄을 직접 나눔
+NoticeDialog scanResultDialog(InboxScan scan, int cardMatched) => NoticeDialog(
+      icon: const NoticeInfoIcon(),
+      title: '새로 불러온 문자가 없어요',
+      stats: [
+        NoticeStat('검사한 문자', '${scan.smsScanned + scan.mmsScanned + scan.otherScanned}건'),
+        NoticeStat('발신번호 일치', '${scan.senderMatched}건'),
+        NoticeStat('카드번호 일치', '$cardMatched건'),
+      ],
+      body: cardMatched > 0
+          ? '이 기간의 카드 승인 문자는\n모두 이미 들어와 있어요.'
+          : '카드 문자가 RCS 기업메시지로 왔다면\n문자 저장소에 없을 수 있어요.\n\n'
+              '메시지 앱에서 문자를 길게 눌러 복사한 뒤\n붙여넣기하거나 공유하기로 넣어주세요.',
+    );
+
+/// 붙여넣기·공유·불러오기 결과에서 되살릴 게 없고 '승인 문자 아님'만 있을 때 (REQ-59, [닫기] 하나)
+NoticeDialog ingestResultDialog(String source, IngestReport r, int added, {bool revived = false}) => NoticeDialog(
+      icon: const NoticeInfoIcon(),
+      title: '$source 결과',
+      stats: [
+        NoticeStat('추가', '$added건'),
+        NoticeStat('중복', '${r.dup}건'),
+        NoticeStat('승인 문자 아님', '${r.rejected.length}건'),
+      ],
+      body: revived && r.ignoredHits.isNotEmpty
+          ? '무시했던 문자 ${r.ignoredHits.length}건은\n분류 대기로 되살렸어요.\n\n승인 문자가 아닌 문자는\n넣지 않았어요.'
+          : '승인 문자가 아닌 문자는\n넣지 않았어요.',
+      okLabel: '닫기',
+      child: rejectedList(r.rejected),
+    );
+
+/// '승인 문자 아님 n건 내용 보기' (접었다 펴는 원문 목록, 최대 50건)
+Widget rejectedList(List<String> rejected) => ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: Text('승인 문자 아님 ${rejected.length}건 내용 보기', style: const TextStyle(fontSize: 14)),
+      children: [
+        for (final t in rejected.take(50))
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.all(8),
+            color: kSubBg,
+            child: SelectableText(t, style: const TextStyle(fontSize: 12)),
+          ),
+        if (rejected.length > 50) Text('외 ${rejected.length - 50}건'),
+      ],
+    );
+
 class HomeScreen extends StatefulWidget {
   final Store store;
   final String digits;
@@ -590,6 +638,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    if (!canRevive) {
+      // 확인 하나짜리 → 공용 안내 팝업 (REQ-59)
+      await showDialog<void>(context: context, builder: (_) => ingestResultDialog(source, r, added, revived: revived));
+      return;
+    }
     final revive = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -598,22 +651,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           width: double.maxFinite,
           child: ListView(shrinkWrap: true, children: [
             Text(summary),
-            if (r.rejected.isNotEmpty)
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: Text('승인 문자 아님 ${r.rejected.length}건 내용 보기', style: const TextStyle(fontSize: 14)),
-                children: [
-                  for (final t in r.rejected.take(50))
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.all(8),
-                      color: kSubBg,
-                      child: SelectableText(t, style: const TextStyle(fontSize: 12)),
-                    ),
-                  if (r.rejected.length > 50) Text('외 ${r.rejected.length - 50}건'),
-                ],
-              ),
+            if (r.rejected.isNotEmpty) rejectedList(r.rejected),
           ]),
         ),
         actions: [
@@ -877,21 +915,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _showScanResult(InboxScan scan, int cardMatched) async {
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('새로 불러온 문자가 없어요'),
-        content: Text(keepWords(
-          'SMS ${scan.smsScanned}건, MMS ${scan.mmsScanned}건'
-          '${scan.otherScanned > 0 ? ', 기타 저장소 ${scan.otherScanned}건' : ''} 검사\n'
-          '발신번호 일치 ${scan.senderMatched}건\n'
-          '카드번호 일치 $cardMatched건\n\n'
-          '${cardMatched > 0 ? '모두 이미 들어와 있는 내역이에요.' : '카드 문자가 RCS 기업메시지로 왔다면 문자 저장소에 없을 수 있어요. 메시지 앱에서 문자를 길게 눌러 복사한 뒤 붙여넣기하거나 공유하기로 넣어주세요.'}'),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
-      ),
-    );
+    await showDialog<void>(context: context, builder: (_) => scanResultDialog(scan, cardMatched));
   }
+
 
   // ---------------- 업데이트 확인 ----------------
 
@@ -2022,12 +2048,11 @@ class _BudgetTable extends StatelessWidget {
   /// 단위 옆 작은 회색 '(반올림)' (만원·천원일 때만). 누르면 안내 (REQ-51)
   Widget _roundingButton(BuildContext context) => InkWell(
         borderRadius: BorderRadius.circular(4),
-        onTap: () => showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            content: Text(keepWords(kRoundingNote)),
-            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('확인'))],
-          ),
+        onTap: () => showNoticeDialog(
+          context,
+          icon: const NoticeInfoIcon(),
+          title: kRoundingTitle,
+          body: kRoundingNote,
         ),
         child: const Padding(
           padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
