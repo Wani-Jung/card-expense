@@ -84,7 +84,8 @@ void main() {
     expect(read('short_description.txt').length, lessThanOrEqualTo(80));
     final full = read('full_description.txt');
     expect(full.length, lessThanOrEqualTo(4000));
-    for (final no in ['지난 문자', '문자 읽기', '문자 권한', '캡처', '법령 Quiz', '농어촌정비법', '건축법', '국가계약법']) {
+    // 스토어 = 전용판(2.0.1~, REQ-60): 문자 읽기·지난 문자 불러오기는 써도 됨. 캡처(OCR)·법령 Quiz 는 스토어판에 없음
+    for (final no in ['캡처', '법령 Quiz', '농어촌정비법', '건축법', '국가계약법']) {
       expect(full.contains(no), isFalse, reason: no);
       expect(read('short_description.txt').contains(no), isFalse, reason: no);
     }

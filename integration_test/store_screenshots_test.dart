@@ -12,7 +12,11 @@ import 'package:card_expense/budget.dart';
 import 'package:card_expense/demo.dart';
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/flavor.dart';
+import 'package:card_expense/import_screen.dart';
+import 'package:card_expense/ingest.dart';
 import 'package:card_expense/main.dart';
+import 'package:card_expense/native.dart';
+import 'package:card_expense/sms_parser.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -119,6 +123,33 @@ void main() {
     final q = (bank['questions'] as List).cast<Map<String, dynamic>>().firstWhere((q) => shown.contains(q['question']));
     await tap(find.text(q['answer'] == true ? 'O' : 'X'));
     await shot('06_quiz', '현장 안전 OX Quiz');
+
+    // ⑦ 지난 문자 불러오기 (기간 지정, 전용판 기능, REQ-60). 문자함 대신 데모 데이터에 맞춘 미리보기:
+    // 이번 달 이미 기록된 11건 + 새 3건(③ 분류 대기의 KK주유소·LL분식·OO주유소)
+    await start();
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    ParsedSms demoSms(int won, String shop, DateTime t) => parseSms(
+      '[Web발신] NH기업0000승인 공용카드 ${groupDigits(won)}원 체크 ${two(t.month)}/${two(t.day)} ${two(t.hour)}:${two(t.minute)} $shop',
+      cardDigits: '0000',
+      receivedAt: t,
+    )!;
+    final fresh = [
+      demoSms(61000, 'KK주유소', now.subtract(const Duration(days: 1))),
+      demoSms(9000, 'LL분식', now.subtract(const Duration(days: 1, hours: 1))),
+      demoSms(55000, 'OO주유소', now.subtract(const Duration(hours: 2))),
+    ];
+    final preview = ImportPreview(
+      const InboxScan([], 0, 0),
+      IngestReport(fresh: fresh, dup: 11, ignoredHits: const [], rejected: const []),
+    );
+    Navigator.of(
+      tester.element(find.byType(Scaffold).first),
+    ).push(MaterialPageRoute<void>(builder: (_) => ImportRangeScreen(preview: (_, _) async => preview)));
+    await settle();
+    await tap(find.text('이번 달'));
+    await tap(find.text('이 기간 문자 확인'));
+    await shot('07_import', '지난 승인 문자도 기간 골라 한 번에');
   });
 }
 

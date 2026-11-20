@@ -27,7 +27,8 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 
 ## 스토어 등록정보·스크린샷 (REQ-53)
 - 소개글 원본은 `store/listing/ko-KR/`(title.txt 30자·short_description.txt 80자·full_description.txt 4000자 이내). 소개글은 이 파일을 고친 뒤 콘솔에 반영한다(콘솔에서 먼저 고치지 않는다)
-- **스토어판(CHANNEL=store, public flavor)에 실제로 있는 기능만 쓴다.** 문자 읽기·지난 문자 불러오기·법령 Quiz 는 스토어판에 없으니 쓰지 않는다(문자판 승인 뒤 갱신). `test/req53_test.dart` 가 금지어를 검사
+- **스토어판에 실제로 있는 기능만 쓴다.** 2.0.1(REQ-60)부터 스토어판 = 전용판(full flavor, CHANNEL=store: 문자 자동 읽기·지난 문자 불러오기 있음). 소개글 맨 앞 핵심 기능은 '카드 승인 문자를 자동으로 읽어 기록', 알림 감지·붙여넣기·공유는 보조. 캡처(OCR)·법령 Quiz 는 스토어판에 없으니 쓰지 않는다. `test/req53_test.dart` 가 금지어를 검사
+- 스크린샷 07_import(REQ-60): 지난 문자 불러오기 미리보기(데모 기준 이번 달 기록된 11건 + 새 3건), 띠 '지난 승인 문자도 기간 골라 한 번에'
 - 스크린샷은 `store/screenshots/ko-KR/NN_name.png`(위쪽 네이비 #1F3A68 문구 띠 버전, 콘솔에 올리는 기본) + `plain/`(띠 없음). 1080×1920 PNG 6장: 01 메인 요약표 / 02 두 달 합산 / 03 분류 대기 추천 / 04 확인 필요 / 05 업체·키워드 / 06 안전 OX. 대표 이미지 `store/feature_1024x500.png`·아이콘 `store/playstore_icon_512.png` 는 그대로
 - 만드는 법: 데모 데이터 모드 `lib/demo.dart`(`--dart-define=DEMO=true` 일 때만, 가짜 가맹점 'OO주유소' 등·카드 0000, 이미 데이터가 있으면 안 덮음. 릴리스 빌드엔 define 이 없어 꺼짐. 규모(REQ-56): 한 달 수립 총액 45만·차량비 30만(`kDemoTotalBudget`·`kDemoCarBudget`, 두 달 합산은 90만·60만), 사용 차량비 약 20만·운영비 약 10만, 주유 5~8만·식사 1~2만 원대. 어느 장면도 수립 초과·차량비 잔여 경고 없게 — `test/req56_test.dart` 가 검사) + `integration_test/store_screenshots_test.dart`(장면마다 데모 데이터로 새로 띄워 찍고, 같은 화면을 문구 띠 아래 줄여 한 번 더 찍음) + `test_driver/integration_test.dart`(build/store_screenshots/ 에 저장)
   - CI: Actions > 'Store screenshots' 수동 실행(`.github/workflows/store-screenshots.yml`, pixel_2 1080×1920·Asia/Seoul) → 아티팩트 store-screenshots. 실행 번호가 release-apk 와 따로라 versionCode 에 영향 없음
