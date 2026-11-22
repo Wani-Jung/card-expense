@@ -96,8 +96,8 @@ void main() {
 
     testWidgets("'(반올림)' 은 만원·천원에서만, 누르면 안내 (확인 버튼 하나)", (tester) async {
       await pumpMonth(tester);
-      expect(find.text('(반올림)'), findsOneWidget);
-      await tester.tap(find.text('(반올림)'));
+      expect(find.byTooltip(kRoundingTooltip), findsOneWidget);
+      await tester.tap(find.byTooltip(kRoundingTooltip));
       await tester.pumpAndSettle();
       expect(find.text(keepWords(kRoundingNote)), findsOneWidget);
       expect(find.descendant(of: find.byType(NoticeDialog), matching: find.byType(FilledButton)), findsOneWidget);
@@ -110,7 +110,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text(label).last);
         await tester.pumpAndSettle();
-        expect(find.text('(반올림)'), shown ? findsOneWidget : findsNothing, reason: label);
+        expect(find.byTooltip(kRoundingTooltip), shown ? findsOneWidget : findsNothing, reason: label);
       }
     });
   });

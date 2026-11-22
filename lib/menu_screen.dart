@@ -5,11 +5,15 @@ import 'package:url_launcher/url_launcher.dart';
 import 'flavor.dart';
 import 'layout.dart';
 import 'native.dart';
+import 'notice_dialog.dart';
 
 /// 우측 상단 톱니 → 메뉴 화면. 섹션 제목 없이 한 목록, 항목 사이엔 얇은 구분선만.
 /// '결제내역 입력'·'내역 관리'는 그 자리에서 펼친다 (펼침 항목은 한 번에 하나만). 접힌 상태는 스크롤 없이 한 화면에.
 /// 모든 항목은 메뉴를 닫지 않고 메뉴 위에 화면을 띄운다 → 뒤로가기 하면 메뉴로. 돌아오면 건수·설명을 다시 읽고
 /// 펼침 상태는 그대로. 업데이트 확인은 메뉴에 머문 채 진행 표시와 결과 창을 띄운다.
+/// 개인정보처리방침 열기 확인 (REQ-67 15)
+const kPrivacyOpenMessage = '개인정보처리방침을\n브라우저로 열어요.';
+
 class MenuScreen extends StatefulWidget {
   final Future<void> Function() onImport, onPaste, onVendors;
 
@@ -80,19 +84,21 @@ class _MenuScreenState extends State<MenuScreen> {
 
   static const _subBg = Color(0xFFF8F9FA);
 
-  /// 개인정보처리방침: 바로 브라우저로 가지 않고 확인 먼저. [열기]만 링크 이동 (모든 판)
+  /// 개인정보처리방침: 바로 브라우저로 가지 않고 확인 먼저. [열기]만 링크 이동 (모든 판, REQ-67 15 공용 팝업)
   Future<void> _openPrivacy() async {
-    final go = await showDialog<bool>(
+    var go = false;
+    await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        content: Text(keepWords('개인정보처리방침 페이지(GitHub)를 인터넷 브라우저로 엽니다.')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('열기')),
-        ],
+      builder: (_) => NoticeDialog(
+        icon: const NoticeInfoIcon(),
+        title: '개인정보처리방침',
+        body: kPrivacyOpenMessage,
+        okLabel: '열기',
+        onOk: () => go = true,
+        cancelLabel: '취소',
       ),
     );
-    if (go == true) await launchUrl(Uri.parse(kPrivacyUrl), mode: LaunchMode.externalApplication);
+    if (go) await launchUrl(Uri.parse(kPrivacyUrl), mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -119,10 +125,11 @@ class _MenuScreenState extends State<MenuScreen> {
         : null;
 
     // 건수 배지: 0건이면 회색. [alert](미분류·확인 필요, 내역 관리 합계)는 1건 이상이면 빨강, 나머지는 검정
+    // 할 일(미분류·확인 필요)이 있으면 빨강, 그 밖의 숫자(무시한·분류한 내역)와 0건은 연회색 (REQ-67 17)
     Widget badge(int n, {bool alert = false}) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
       decoration: BoxDecoration(
-        color: n == 0 ? const Color(0xFFF1F3F4) : (alert ? const Color(0xFFD93025) : const Color(0xFF1F1F1F)),
+        color: n > 0 && alert ? const Color(0xFFD93025) : const Color(0xFFF1F3F4),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -130,7 +137,7 @@ class _MenuScreenState extends State<MenuScreen> {
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.bold,
-          color: n == 0 ? const Color(0xFF9AA0A6) : Colors.white,
+          color: n > 0 && alert ? Colors.white : const Color(0xFF80868B),
         ),
       ),
     );
@@ -199,7 +206,7 @@ class _MenuScreenState extends State<MenuScreen> {
             sub(Icons.inbox_outlined, '미분류 내역', openThen(w.onUnclassified), trailing: badge(c.pending, alert: true)),
             sub(Icons.rule, '확인 필요 내역', openThen(w.onCheck), trailing: badge(c.check, alert: true)),
             sub(Icons.visibility_off_outlined, '무시한 내역', openThen(w.onIgnored), trailing: badge(c.ignored)),
-            sub(Icons.task_alt, '확인한 내역', openThen(w.onConfirmed), trailing: badge(c.confirmed)),
+            sub(Icons.task_alt, '분류한 내역', openThen(w.onConfirmed), trailing: badge(c.confirmed)),
             sub(
               Icons.notifications_none,
               '미분류 알림 받기',
@@ -246,7 +253,7 @@ class _MenuScreenState extends State<MenuScreen> {
           line,
           item(Icons.shield_outlined, '권한 설정', w.permSummary(), openThen(w.onPermissions)),
           line,
-          item(Icons.menu_book_outlined, '사전입력사항', '수립 금액 · 카드 문자 설정 · 지난 결제 넣기', openThen(w.onGuide)),
+          item(Icons.menu_book_outlined, '사전입력사항', isFullEdition ? '수립 금액 · 카드 문자 설정 · 지난 결제 불러오기' : '수립 금액 · 카드 문자 설정 · 지난 결제 넣기', openThen(w.onGuide)),
           line,
           item(
             Icons.science_outlined,

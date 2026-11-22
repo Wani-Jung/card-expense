@@ -23,7 +23,10 @@ class ImportPreview {
   /// 서로 다른 승인 건 수. 같은 문자가 SMS 와 RCS 후보 저장소에서 겹쳐 읽혀도 한 건으로 센다.
   /// 없으면 분류 결과 합계.
   final int? unique;
-  const ImportPreview(this.scan, this.report, {this.unique});
+
+  /// 진단용: 그중 발신번호가 맞아서 찾은 승인 건 수
+  final int bySender;
+  const ImportPreview(this.scan, this.report, {this.unique, this.bySender = 0});
 
   /// 기간 안의 승인 문자 (새 + 중복 + 무시했던)
   int get approvals => unique ?? report.fresh.length + report.dup + report.ignoredHits.length;
@@ -95,12 +98,19 @@ Future<ImportPreview> previewImportRange(
 ImportPreview importPreviewOf(InboxScan scan, {required String digits, required Map<String, Expense> existing}) {
   final seen = <String>{};
   final unique = <RawSms>[];
+  final senderIds = <String>{}; // 발신번호로 찾은 승인 건 (어느 저장소에서든 한 번이라도)
   for (final r in scan.items) {
     final id = parseSms(r.body, cardDigits: digits, receivedAt: r.receivedAt)?.id;
+    if (id != null && r.bySender) senderIds.add(id);
     if (seen.add(id ?? 'raw:${r.body.trim()}')) unique.add(r);
   }
   final report = classifyMessages(unique, digits: digits, existing: existing);
-  return ImportPreview(scan, report, unique: report.fresh.length + report.dup + report.ignoredHits.length);
+  return ImportPreview(
+    scan,
+    report,
+    unique: report.fresh.length + report.dup + report.ignoredHits.length,
+    bySender: senderIds.length,
+  );
 }
 
 /// 사전입력 3단계용: 문자 권한이 없으면 안내 화면(disclosure) → 시스템 권한 창 → 결과를 기다린다.
@@ -146,7 +156,13 @@ class ImportRangeScreen extends StatelessWidget {
     body: ListView(
       padding: EdgeInsets.fromLTRB(16, 8, 16, listBottomPad(context)),
       children: [
-        ImportRangePanel(preview: preview, clock: clock, onConfirm: (r) => Navigator.pop(context, r)),
+        ImportRangePanel(
+          preview: preview,
+          clock: clock,
+          onConfirm: (r) => Navigator.pop(context, r),
+          // 미리보기에 이미 '이미 있는 문자 n건'이 보이므로 넣을 게 없으면 결과 팝업 없이 닫는다 (REQ-66 C)
+          onNothing: () => Navigator.pop(context),
+        ),
       ],
     ),
   );
@@ -157,8 +173,11 @@ class ImportRangeScreen extends StatelessWidget {
 class ImportRangePanel extends StatefulWidget {
   final Future<ImportPreview> Function(DateTime start, DateTime end) preview;
 
-  /// [불러오기](새 건이 없으면 [확인])를 눌렀을 때
+  /// [불러오기]를 눌렀을 때 (새로 넣을·되살릴 게 없을 때 [onNothing] 이 없으면 [닫기]도 이걸 부른다)
   final void Function(ImportPreview result) onConfirm;
+
+  /// 넣을 게 없을 때 [닫기] (메뉴 화면: 결과 팝업 없이 그냥 닫기). 없으면 [onConfirm]
+  final VoidCallback? onNothing;
 
   /// 처음 기간 (없으면 최근 1년)
   final ({DateTime from, DateTime to}) Function(DateTime now)? initialRange;
@@ -174,6 +193,7 @@ class ImportRangePanel extends StatefulWidget {
     super.key,
     required this.preview,
     required this.onConfirm,
+    this.onNothing,
     this.initialRange,
     this.beforePreview,
     this.showIntro = true,
@@ -263,9 +283,9 @@ class _ImportRangePanelState extends State<ImportRangePanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (widget.showIntro) ...[
-          const Text(
-            '고른 기간의 문자함(SMS·MMS·RCS)에서 카드 승인 문자만 찾아요.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF5F6368)),
+          Text(
+            keepWords('고른 기간의 문자함(SMS·MMS·RCS)에서 카드 승인 문자만 찾아요.'),
+            style: const TextStyle(fontSize: 13, color: Color(0xFF5F6368)),
           ),
           const SizedBox(height: 12),
         ],
@@ -311,17 +331,33 @@ class _ImportRangePanelState extends State<ImportRangePanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('이 기간 승인 문자 ${r.approvals}건', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 2),
-                Text('(${r.summary})', style: const TextStyle(fontSize: 14, color: Color(0xFF3C4043))),
+                // 제목을 길게 누르면 숨은 진단 (찾은 문자·발신번호 일치·주소 형식만)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onLongPress: () => showDialog<void>(context: context, builder: (_) => importDiagDialog(r)),
+                  child: Text(
+                    r.approvals == 0 ? kNoApprovalTitle : '이 기간 승인 문자 ${r.approvals}건',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (r.approvals == 0)
+                  Text(keepWords(kNoApprovalBody), style: const TextStyle(fontSize: 14, height: 1.5, color: Color(0xFF3C4043)))
+                else
+                  for (final l in resultLines(
+                    fresh: r.report.fresh.length,
+                    dup: r.duplicates,
+                    ignored: r.report.ignoredHits.length,
+                  ))
+                    Text(l, style: const TextStyle(fontSize: 14, height: 1.5, color: Color(0xFF3C4043))),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          FilledButton(
-            onPressed: () => widget.onConfirm(r),
-            child: Text(r.report.fresh.isEmpty && r.report.ignoredHits.isEmpty ? '확인' : '불러오기'),
-          ),
+          if (r.report.fresh.isEmpty && r.report.ignoredHits.isEmpty)
+            OutlinedButton(onPressed: widget.onNothing ?? () => widget.onConfirm(r), child: const Text('닫기'))
+          else
+            FilledButton(onPressed: () => widget.onConfirm(r), child: const Text('불러오기')),
         ],
         if (_failure != null)
           Padding(
@@ -354,7 +390,7 @@ Widget importResultDialog(BuildContext context, ImportPreview p, {VoidCallback? 
     icon: const NoticeInfoIcon(),
     title: none ? kNoApprovalTitle : kNoNewImportTitle,
     body: none ? kNoApprovalBody : noNewImportBody(p.approvals),
-    onTitleLongPress: () => showDialog<void>(context: context, builder: (_) => importDiagDialog(p.scan)),
+    onTitleLongPress: () => showDialog<void>(context: context, builder: (_) => importDiagDialog(p)),
     child: none && onCardSettings != null
         ? Align(
             alignment: Alignment.centerLeft,
@@ -371,21 +407,21 @@ Widget importResultDialog(BuildContext context, ImportPreview p, {VoidCallback? 
   );
 }
 
-/// 숨은 진단 (결과 팝업 제목 길게 누르기): 검사한 문자·발신번호 일치·찾은 문자, 카드 승인 문자의 저장소별 주소 형식
-Widget importDiagDialog(InboxScan scan) => NoticeDialog(
+/// 숨은 진단 (결과 팝업·미리보기 제목 길게 누르기): 찾은 카드 승인 문자, 그중 발신번호 일치, 주소 형식만.
+/// 문자함 전체를 몇 건 봤는지는 보여 주지 않는다 (REQ-66 B: 다른 문자도 앱에 들어간다고 오해하지 않게)
+Widget importDiagDialog(ImportPreview p) => NoticeDialog(
   title: '불러오기 진단',
   stats: [
-    NoticeStat('검사한 문자', '${scan.scanned}건'),
-    NoticeStat('발신번호 일치', '${scan.senderMatched}건'),
-    NoticeStat('찾은 문자', '${scan.items.length}건'),
+    NoticeStat('찾은 카드 승인 문자', '${p.approvals}건'),
+    NoticeStat('그중 발신번호 일치', '${p.bySender}건'),
   ],
-  body: 'SMS ${scan.smsScanned} · MMS ${scan.mmsScanned} · 기타 저장소 ${scan.otherScanned} (카드번호로 찾음 ${scan.otherMatched})',
-  child: scan.addrSamples.isEmpty
+  body: '',
+  child: p.scan.addrSamples.isEmpty
       ? null
       : Padding(
           padding: const EdgeInsets.only(top: 8),
           child: SelectableText(
-            '카드 승인 문자의 주소 형식\n${scan.addrSamples.join('\n')}',
+            '카드 승인 문자의 주소 형식\n${p.scan.addrSamples.join('\n')}',
             style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
           ),
         ),

@@ -56,7 +56,7 @@ Widget quizResultBox(QuizQuestion q, bool choice) {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          ok ? '정답이에요! 정답은 $mark' : '아쉬워요. 정답은 $mark',
+          ok ? '정답이에요 · $mark' : '아쉬워요 · 정답은 $mark',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: ok ? kQuizOk : kQuizMiss),
         ),
         if (q.explain.isNotEmpty) ...[

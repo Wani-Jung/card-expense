@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:card_expense/layout.dart';
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/main.dart';
 import 'package:card_expense/quiz.dart';
@@ -95,7 +96,7 @@ void main() {
     await tester.tap(find.text('내역 관리'));
     await tester.pumpAndSettle();
     expect(find.text('미분류 내역'), findsOneWidget);
-    expect(find.text('확인한 내역'), findsOneWidget);
+    expect(find.text('분류한 내역'), findsOneWidget);
     // 결제내역 입력을 펼치면 내역 관리는 접힘
     await tester.tap(find.text('결제내역 입력'));
     await tester.pumpAndSettle();
@@ -104,16 +105,16 @@ void main() {
     await tester.tap(find.text('내역 관리'));
     await tester.pumpAndSettle();
     expect(find.text('문자 붙여넣기'), findsNothing);
-
-    // 배지 색: 미분류 1 → 빨강, 확인 필요 0 → 회색, 무시 1·확인한 1 → 검정, 내역 관리 합계 1 → 빨강
-    const red = Color(0xFFD93025), black = Color(0xFF1F1F1F), grey = Color(0xFFF1F3F4);
+    // 배지 색: 미분류 1 → 빨강, 확인 필요 0 → 회색, 무시 1·분류한 1 → 연회색(할 일 아님, REQ-67 17), 내역 관리 합계 1 → 빨강
+    const red = Color(0xFFD93025), grey = Color(0xFFF1F3F4);
     ListTile tile(String t) => tester.widget<ListTile>(find.ancestor(of: find.text(t), matching: find.byType(ListTile)));
     Finder row(String t) => find.ancestor(of: find.text(t), matching: find.byType(ListTile));
     expect(tile('미분류 내역').trailing, isNotNull);
     expect(badgeColor(tester, row('미분류 내역'), '1건'), red);
     expect(badgeColor(tester, row('확인 필요 내역'), '0건'), grey);
-    expect(badgeColor(tester, row('무시한 내역'), '1건'), black);
-    expect(badgeColor(tester, row('확인한 내역'), '1건'), black);
+    // 할 일이 아닌 숫자는 연회색 (REQ-67 17)
+    expect(badgeColor(tester, row('무시한 내역'), '1건'), grey);
+    expect(badgeColor(tester, row('분류한 내역'), '1건'), grey);
     expect(badgeColor(tester, row('내역 관리'), '1건'), red);
 
     // 미분류 내역에서 분류 → 뒤로가기 → 메뉴, 펼침 유지, 배지 갱신
@@ -126,7 +127,7 @@ void main() {
     expect(find.text('메뉴'), findsOneWidget);
     expect(find.text('미분류 내역'), findsOneWidget); // 펼침 그대로
     expect(badgeColor(tester, row('미분류 내역'), '0건'), grey);
-    expect(badgeColor(tester, row('확인한 내역'), '2건'), black);
+    expect(badgeColor(tester, row('분류한 내역'), '2건'), grey);
 
     // 문자 붙여넣기도 메뉴 위에 → 뒤로가기 하면 메뉴
     await tester.tap(find.text('결제내역 입력'));
@@ -142,7 +143,7 @@ void main() {
     // 등록 업체·추천 키워드도
     await tester.tap(find.text('등록 업체·추천 키워드'));
     await tester.pumpAndSettle();
-    expect(find.text('업체 관리'), findsOneWidget);
+    expect(find.text('등록 업체·추천 키워드'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('메뉴'), findsOneWidget);
@@ -159,9 +160,9 @@ void main() {
     ]);
     await openMenu(tester);
     await openManage(tester);
-    await tester.tap(find.text('확인한 내역'));
+    await tester.tap(find.text('분류한 내역'));
     await tester.pumpAndSettle();
-    expect(find.text('확인한 내역 (4건)'), findsOneWidget);
+    expect(find.text('분류한 내역 (4건)'), findsOneWidget);
     expect(find.text('대기가게'), findsNothing);
     expect(find.text('무시가게'), findsNothing);
     final m0 = '${at(0, 1).year}년 ${at(0, 1).month}월';
@@ -178,11 +179,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '김밥');
     await tester.pumpAndSettle();
-    expect(find.text('김밥나라'), findsOneWidget);
-    expect(find.text('홍성주유소'), findsNothing);
+    expect(find.text(keepWords('김밥나라')), findsOneWidget); // 가맹점은 띄어쓰기 기준 줄바꿈 (REQ-67 1)
+    expect(find.text(keepWords('홍성주유소')), findsNothing);
 
     // 편집 시트로 차량비로 변경 → 스낵바 [되돌리기]
-    await tester.tap(find.text('김밥나라'));
+    await tester.tap(find.text(keepWords('김밥나라')));
     await tester.pumpAndSettle();
     expect(find.text('미분류로 되돌리기'), findsOneWidget);
     expect(find.text('무시'), findsOneWidget);
@@ -198,9 +199,9 @@ void main() {
     await pumpHome(tester, [item('p', '대기가게', null, at(0, 6))]);
     await openMenu(tester);
     await openManage(tester);
-    await tester.tap(find.text('확인한 내역'));
+    await tester.tap(find.text('분류한 내역'));
     await tester.pumpAndSettle();
-    expect(find.text('확인한 내역이 없어요'), findsOneWidget);
+    expect(find.text('분류한 내역이 없어요'), findsOneWidget);
   });
 
   testWidgets('무시한 내역 되살리기 3종 → 미분류, 사유 필드 삭제, [되돌리기] 복구, 재표시 방지 기억', (tester) async {

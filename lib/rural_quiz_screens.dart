@@ -19,11 +19,10 @@ String _today() => quizDay(DateTime.now());
 /// 법령 Quiz 점수 기록 지우기 확인 문구 (지워지는 것 / 남는 것. RuralStore.clearScores 동작 그대로)
 const kRuralClearScoresMessage =
     '지워지는 것\n'
-    "· 정답률 (지운 뒤 다음에 푸는 문제부터 새로 계산, 그 전까지 '-')\n"
+    "· 푼 문제 수·정답률 (지운 뒤 다음에 푸는 문제부터 새로 계산, 그 전까지 0·'-')\n"
     '· 문제마다 내 답·맞음/틀림\n'
     '· 챌린지 정답률·걸린 시간·최고 기록\n\n'
     '남는 것\n'
-    '· 푼 문제 수\n'
     '· 지난 문제 다시 보기 목록 (문제·정답·해설, 챌린지 회차)\n'
     '· 안전 OX Quiz·다른 법령 Quiz 기록 (따로 지워요)\n\n'
     '지운 직후 [되돌리기]로 되살릴 수 있어요.';
@@ -116,7 +115,7 @@ class _RuralQuizHomeScreenState extends State<RuralQuizHomeScreen> {
             margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(color: const Color(0xFFF1F4F9), borderRadius: BorderRadius.circular(12)),
-            child: Row(children: [stat('${s.solvedCount}', '푼 문제'), stat(p == null ? '-' : '$p%', '정답률')]),
+            child: Row(children: [stat('${s.scoredCount}', '푼 문제'), stat(p == null ? '-' : '$p%', '정답률')]),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -371,7 +370,7 @@ class _RuralQuestionCardState extends State<RuralQuestionCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    q.isCorrect(pick) ? '정답이에요! 정답은 ${q.label(q.answer)}' : '아쉬워요. 정답은 ${q.label(q.answer)}',
+                    q.isCorrect(pick) ? '정답이에요 · ${q.label(q.answer)}' : '아쉬워요 · 정답은 ${q.label(q.answer)}',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -903,11 +902,11 @@ class _RuralChallengeStartScreenState extends State<RuralChallengeStartScreen> {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Text('결과 카드 이름', style: TextStyle(color: _grey)),
+                    const Text('결과 카드에 넣을 이름:', style: TextStyle(color: _grey)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        (widget.store.nameStore.name ?? '').isEmpty ? '(없음 · 날짜만)' : widget.store.nameStore.name!,
+                        (widget.store.nameStore.name ?? '').isEmpty ? '없음 (날짜만 표시)' : widget.store.nameStore.name!,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -1240,23 +1239,7 @@ class _RuralChallengeResultScreenState extends State<RuralChallengeResultScreen>
           const SizedBox(height: 16),
           const Text('분야별 정답률', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          for (final c in byCat.values)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  Expanded(child: Text(c.label, style: const TextStyle(fontSize: 13))),
-                  Text(
-                    '${c.correct}/${c.n}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: c.correct == c.n ? kQuizOk : kQuizNavy,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          ...categoryScoreRows(byCat.values.toList()),
           const SizedBox(height: 16),
           OutlinedButton(
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),

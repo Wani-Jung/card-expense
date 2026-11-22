@@ -98,7 +98,7 @@ void main() {
                   preview: (s, e) async {
                     start = s;
                     end = e;
-                    return ImportPreview(const InboxScan([], 5, 1), IngestReport(fresh: [fresh, fresh2], dup: 1));
+                    return ImportPreview(const InboxScan([]), IngestReport(fresh: [fresh, fresh2], dup: 1));
                   },
                 ),
               )),
@@ -120,7 +120,8 @@ void main() {
       expect(start, DateTime(2026, 10, 1));
       expect(end, DateTime(2026, 11, 1));
       expect(find.text('이 기간 승인 문자 3건'), findsOneWidget);
-      expect(find.text('(새 2 · 중복 1)'), findsOneWidget);
+      expect(find.text('새로 넣을 문자 2건'), findsOneWidget); // REQ-66 C: 항목별 한 줄
+      expect(find.text('이미 있는 문자 1건'), findsOneWidget);
       await tester.tap(find.text('불러오기'));
       await tester.pumpAndSettle();
       expect(popped!.report.fresh, hasLength(2));
@@ -343,10 +344,10 @@ void main() {
     });
 
     test('C3 카드번호 설명: 괄호부터 다음 줄, 단어 안에서 안 끊김', () {
-      expect(kDigitsHelp, '승인 문자에 적힌 카드번호 네자리\n(예: "NH기업0000승인" 이면 0000)');
-      final k = keepWords('카드번호 네자리');
-      expect(k.replaceAll('⁠', ''), '카드번호 네자리');
-      expect(k, '카⁠드⁠번⁠호 네⁠자⁠리');
+      expect(kDigitsHelp, '승인 문자에 적힌 카드번호 끝 4자리\n(예: "NH기업0000승인" 이면 0000)');
+      final k = keepWords('카드번호 끝 4자리');
+      expect(k.replaceAll('⁠', ''), '카드번호 끝 4자리');
+      expect(k, '카⁠드⁠번⁠호 끝 4⁠자⁠리');
       expect(keepWords(k), k); // 두 번 해도 같음
     });
 
@@ -372,7 +373,7 @@ void main() {
       await tester.tap(find.text('건너뛰기'));
       await tester.pumpAndSettle();
       expect(find.text('2 / 3'), findsOneWidget);
-      expect(find.text('카드번호 네자리와 발신번호는 꼭 넣어야 시작할 수 있어요'), findsOneWidget);
+      expect(find.text('카드번호 끝 4자리와 발신번호는 꼭 넣어야 시작할 수 있어요'), findsOneWidget);
       await tester.tap(find.text('이전'));
       await tester.pumpAndSettle();
       // 첫 설치 단위는 원 (REQ-52)
@@ -468,7 +469,7 @@ void main() {
       expect(find.text('객관식'), findsOneWidget);
       await tester.tap(find.text(keepWords('보기나')));
       await tester.pumpAndSettle();
-      expect(find.text('아쉬워요. 정답은 3번'), findsOneWidget);
+      expect(find.text('아쉬워요 · 정답은 3번'), findsOneWidget);
       expect(find.text(keepWords('해설A')), findsOneWidget);
       expect(store.records.single.pick, 2);
       expect(store.records.single.correct, isFalse);

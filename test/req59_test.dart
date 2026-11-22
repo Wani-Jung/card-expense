@@ -31,10 +31,6 @@ void main() {
           raw('[Web발신] NH농협카드 연말 이벤트 안내'),
           raw('[Web발신] NH농협카드 연말 이벤트 안내'),
         ],
-        4,
-        0,
-        4,
-        3,
       );
       final p = importPreviewOf(scan, digits: '0000', existing: const {});
       expect(p.approvals, 3);
@@ -56,10 +52,6 @@ void main() {
           raw(sms(68000, '11/03 08:55', 'OO주유소')),
           raw(sms(9000, '11/05 12:20', 'LL분식')),
         ],
-        2,
-        0,
-        2,
-        2,
       );
       final p = importPreviewOf(scan, digits: '0000', existing: existing);
       expect(p.summary, '새 1 · 중복 1');
@@ -72,10 +64,6 @@ void main() {
       final existing = {old.id: Expense.fromParsed(old)..category = kIgnored};
       final scan = InboxScan(
         [raw(sms(14000, '11/10 12:15', 'BB식당')), raw(sms(14000, '11/10 12:15', 'BB식당'))],
-        1,
-        0,
-        1,
-        1,
       );
       final p = importPreviewOf(scan, digits: '0000', existing: existing);
       expect(p.report.ignoredHits, hasLength(1));
@@ -103,11 +91,10 @@ void main() {
       const report = IngestReport(fresh: [], dup: 1, ignoredHits: [], rejected: ['안녕하세요 회의 10시']);
       await pump(tester, ingestResultDialog('붙여넣은 문자', report, 0));
       expect(find.byType(NoticeInfoIcon), findsOneWidget);
-      expect(find.text('붙여넣은 문자 결과'), findsOneWidget);
-      for (final l in ['추가', '중복', '승인 문자 아님']) {
-        expect(find.text(l), findsOneWidget, reason: l);
-      }
-      expect(find.text(keepWords('승인 문자가 아닌 문자는\n넣지 않았어요.')), findsOneWidget);
+      // REQ-67 14: 결과를 말하는 제목 + 항목별 한 줄 (0건 줄은 뺌)
+      expect(find.text('넣을 승인 문자가 없어요'), findsOneWidget);
+      expect(find.text(keepWords('이미 있는 문자 1건\n승인 문자 아님 1건')), findsOneWidget);
+      expect(find.text('추가'), findsNothing);
       await tester.tap(find.text('승인 문자 아님 1건 내용 보기'));
       await tester.pumpAndSettle();
       expect(find.text('안녕하세요 회의 10시'), findsOneWidget);
@@ -116,7 +103,7 @@ void main() {
     });
 
     test('(반올림) 안내 문구는 줄을 직접 나눔', () {
-      expect(kRoundingNote.split('\n'), ['칸마다 반올림해서', '합계와 1 정도 다를 수 있어요.', '', "정확한 금액은 '원' 단위로 보세요."]);
+      expect(kRoundingNote.split('\n'), ['칸마다 따로 반올림해서', '더한 값과 합계가 1 정도 다를 수 있어요.', '', "정확한 금액은 '원' 단위로 보세요."]);
       expect(kRoundingTitle, isNotEmpty);
     });
   });

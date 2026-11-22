@@ -210,13 +210,13 @@ void main() {
       await tester.tap(find.text('점수 기록 지우기'));
       await tester.pumpAndSettle();
       expect(find.text('점수 기록을 지울까요?'), findsOneWidget);
-      for (final s in ['푼 문제 수', '챌린지 정답률·걸린 시간·최고 기록', '지난 문제 다시 보기 목록', '안전 OX Quiz·다른 법령 Quiz 기록']) {
+      for (final s in ['푼 문제 수·정답률', '챌린지 정답률·걸린 시간·최고 기록', '지난 문제 다시 보기 목록', '안전 OX Quiz·다른 법령 Quiz 기록']) {
         expect(find.textContaining(keepWords(s)), findsOneWidget, reason: s);
       }
       await tester.tap(find.text('지우기'));
       await tester.pumpAndSettle();
       expect(find.text('-'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget); // 푼 문제 수
+      expect(find.text('0'), findsOneWidget); // 화면 '푼 문제' 는 정답률과 같은 기준 (REQ-67 29)
       expect(store.percent, isNull);
       expect(store.solvedCount, 2);
       expect(store.best(10), isNull);

@@ -21,11 +21,10 @@ String _today() => quizDay(DateTime.now());
 /// 점수 기록 지우기 확인 문구 (지워지는 것 / 남는 것. QuizStore.clearScores 동작 그대로)
 const kClearScoresMessage =
     '지워지는 것\n'
-    "· 정답률 (지운 뒤 다음에 푸는 문제부터 새로 계산, 그 전까지 '-')\n"
+    "· 푼 문제 수·정답률 (지운 뒤 다음에 푸는 문제부터 새로 계산, 그 전까지 0·'-')\n"
     '· 문제마다 내 답·맞음/틀림\n'
     '· 챌린지 정답률·걸린 시간·최고 기록\n\n'
     '남는 것\n'
-    '· 푼 문제 수\n'
     '· 연속 일수\n'
     '· 지난 문제 다시 보기 목록 (문제·정답·해설, 챌린지 회차)\n\n'
     '지운 직후 [되돌리기]로 되살릴 수 있어요.';
@@ -119,7 +118,7 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
             decoration: BoxDecoration(color: const Color(0xFFF1F4F9), borderRadius: BorderRadius.circular(12)),
             child: Row(
               children: [
-                stat('${s.solvedCount}', '푼 문제'),
+                stat('${s.scoredCount}', '푼 문제'),
                 stat(p == null ? '-' : '$p%', '정답률'),
                 stat('${s.streak(_today())}일', '연속'),
               ],
@@ -128,7 +127,7 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
           // REQ-47: 매일 OX 퀴즈 → 챌린지 → 한 문제 더 → 지난 문제 순
           SwitchListTile(
             title: const Text('매일 OX 퀴즈'),
-            subtitle: const Text('켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나옵니다.', style: TextStyle(fontSize: 12)),
+            subtitle: Text(keepWords('켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나와요.'), style: TextStyle(fontSize: 12)),
             value: s.dailyOn,
             onChanged: (v) async {
               await s.setDailyOn(v);
@@ -742,7 +741,7 @@ class _ChallengeStartScreenState extends State<ChallengeStartScreen> {
                 const SizedBox(height: 12),
                 const Text('몇 문제에 도전할까요?', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text('선택된 문제 $count개 · 해설은 끝나고 볼 수 있어요', style: const TextStyle(fontSize: 12, color: _grey)),
+                Text(keepWords('선택된 문제 $count개 · 해설은 끝나고 볼 수 있어요'), style: const TextStyle(fontSize: 12, color: _grey)),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -795,11 +794,11 @@ class _ChallengeStartScreenState extends State<ChallengeStartScreen> {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Text('결과 카드 이름', style: TextStyle(color: _grey)),
+                    const Text('결과 카드에 넣을 이름:', style: TextStyle(color: _grey)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        (widget.store.name ?? '').isEmpty ? '(없음 · 날짜만)' : widget.store.name!,
+                        (widget.store.name ?? '').isEmpty ? '없음 (날짜만 표시)' : widget.store.name!,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -1051,6 +1050,44 @@ List<({String label, int correct, int n})> challengeByCategory(List<QuizQuestion
   return m.values.toList();
 }
 
+/// 분야별 정답률 줄 (REQ-67 25): 큰 분야('서류·절차')는 소제목으로 한 번만, 아래에 세부 분야. 안전 OX·법령 Quiz 공용.
+/// [rows] 의 label 은 '큰 분야 · 세부 분야' (catLabel). 큰 분야끼리 모아 처음 나온 순서대로.
+List<Widget> categoryScoreRows(List<({String label, int correct, int n})> rows) {
+  final groups = <String, List<({String sub, int correct, int n})>>{};
+  for (final r in rows) {
+    final i = r.label.indexOf(' · ');
+    final g = i < 0 ? '' : r.label.substring(0, i);
+    final sub = i < 0 ? r.label : r.label.substring(i + 3);
+    (groups[g] ??= []).add((sub: sub, correct: r.correct, n: r.n));
+  }
+  return [
+    for (final e in groups.entries) ...[
+      if (e.key.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 2),
+          child: Text(e.key, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _grey)),
+        ),
+      for (final c in e.value)
+        Padding(
+          padding: EdgeInsets.fromLTRB(e.key.isEmpty ? 0 : 10, 2, 0, 2),
+          child: Row(
+            children: [
+              Expanded(child: Text(c.sub, style: const TextStyle(fontSize: 13))),
+              Text(
+                '${c.correct}/${c.n}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: c.correct == c.n ? kQuizOk : kQuizNavy,
+                ),
+              ),
+            ],
+          ),
+        ),
+    ],
+  ];
+}
+
 /// 결과 이미지와 함께 보내는 짧은 문구
 String challengeShareText(ChallengeRun r) => '안전 OX 챌린지 ${r.percent}%! 공감카드 관리에서 도전해보세요';
 
@@ -1160,23 +1197,7 @@ class _ChallengeResultScreenState extends State<ChallengeResultScreen> {
           // 분야별 정답률 (공유 카드에는 넣지 않음)
           const Text('분야별 정답률', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          for (final c in challengeByCategory(w.questions, w.answers))
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  Expanded(child: Text(c.label, style: const TextStyle(fontSize: 13))),
-                  Text(
-                    '${c.correct}/${c.n}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: c.correct == c.n ? kQuizOk : kQuizNavy,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          ...categoryScoreRows(challengeByCategory(w.questions, w.answers)),
           const SizedBox(height: 16),
           OutlinedButton(
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),

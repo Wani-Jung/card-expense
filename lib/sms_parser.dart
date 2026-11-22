@@ -171,7 +171,8 @@ List<String> splitMessages(String text) {
 /// '@'·';' 뒤(RCS sip 주소의 도메인·옵션)는 숫자가 섞여 있어 먼저 잘라내고, 숫자만 남긴 뒤
 /// 국제전화 00·국가번호 82, 앞자리 0 을 뗀다.
 String normalizeNumber(String s) {
-  var t = s.trim();
+  // 'im/chat: 15881600' 처럼 저장소 이름 접두어는 떼어 둔다 (REQ-66, Kotlin 과 같게)
+  var t = s.trim().replaceFirst(RegExp(r'^[A-Za-z/._-]+:\s*'), '');
   final cut = t.indexOf(RegExp('[@;]'));
   if (cut >= 0) t = t.substring(0, cut);
   var d = t.replaceAll(_nonDigits, '');

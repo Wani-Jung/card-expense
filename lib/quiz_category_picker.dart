@@ -73,7 +73,7 @@ class QuizCategoryPicker extends StatelessWidget {
                   ),
                   const Spacer(),
                   small(
-                    allOn ? '그룹 해제' : '그룹 전체',
+                    allOn ? '이 묶음 모두 빼기' : '이 묶음 모두 넣기',
                     () => onChanged(allOn ? ({...selected}..removeAll(keys)) : {...selected, ...keys}),
                   ),
                 ],

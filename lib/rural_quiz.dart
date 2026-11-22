@@ -256,6 +256,9 @@ class RuralStore {
 
   int get solvedCount => records.length;
 
+  /// 점수가 남은 기록 수 (화면 '푼 문제'. 정답률과 같은 기준이 되게, REQ-67 29: 점수 기록을 지우면 둘 다 새로)
+  int get scoredCount => records.where((r) => r.correct != null).length;
+
   /// 정답률 (푼 게 없으면 null)
   /// 정답률: 점수가 남아 있는 기록만 (지운 뒤 새로 푼 문제부터 다시 집계). 없으면 null
   int? get percent {
@@ -315,4 +318,12 @@ class RuralStore {
     await _p.setStringList(kBag, bag);
     return active[id];
   }
+}
+
+/// 실험실 법령 Quiz 부제 (REQ-67 28): 'n문제 · 분야 n개', 건축법은 '· 2027 개정 반영'. 파일을 못 읽었으면 예전 문구
+String lawQuizSummary(RuralBank? bank, LawQuiz l) {
+  final b = bank?.only(l.group);
+  if (b == null) return 'OX·객관식 문제를 분야별로 풀어요';
+  final cats = b.groups.isEmpty ? b.active.map((q) => q.category).toSet().length : b.groups.first.categories.length;
+  return '${b.active.length}문제 · 분야 $cats개${l.group == '건축법' ? ' · 2027 개정 반영' : ''}';
 }

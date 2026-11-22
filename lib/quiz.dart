@@ -418,6 +418,9 @@ class QuizStore {
 
   int get solvedCount => records.length;
 
+  /// 점수가 남은 기록 수 (화면 '푼 문제'. 정답률과 같은 기준, REQ-67 29)
+  int get scoredCount => records.where((r) => r.correct != null).length;
+
   /// 정답률: 점수가 남아 있는 기록만 (지운 뒤 새로 푼 문제부터 다시 집계). 없으면 null
   int? get percent {
     final rs = records.where((r) => r.correct != null).toList();

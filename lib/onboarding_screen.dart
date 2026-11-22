@@ -13,7 +13,10 @@ enum OnboardingAction { none, importInbox, paste }
 const kDefaultSender = '1588-1600';
 
 /// 카드번호 네자리 설명 (괄호부터 다음 줄, C3)
-const kDigitsHelp = '승인 문자에 적힌 카드번호 네자리\n(예: "NH기업0000승인" 이면 0000)';
+const kDigitsHelp = '승인 문자에 적힌 카드번호 끝 4자리\n(예: "NH기업0000승인" 이면 0000)';
+
+/// 발신번호 설명 (REQ-67 12)
+const kSenderHelp = '카드 승인 문자를 보내는 번호 (기본값 $kDefaultSender)\n모르면 기본값 그대로 둬도 돼요 (카드번호로도 찾아요)';
 
 bool validCardSettings(String digits, String sender) =>
     RegExp(r'^\d{4}$').hasMatch(digits) && normalizeNumber(sender).length >= 7;
@@ -141,7 +144,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('카드번호 네자리와 발신번호는 꼭 넣어야 시작할 수 있어요')));
+          ..showSnackBar(const SnackBar(content: Text('카드번호 끝 4자리와 발신번호는 꼭 넣어야 시작할 수 있어요')));
       }
       return;
     }
@@ -176,8 +179,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       keyboardType: TextInputType.numberWithOptions(decimal: widget.unit == MoneyUnit.man),
       inputFormatters: [FilteringTextInputFormatter.allow(moneyInputChars(widget.unit))],
       decoration: InputDecoration(labelText: label, suffixText: widget.unit.label, border: const OutlineInputBorder()),
+      onChanged: (_) => setState(() {}), // 아래 운영비 안내 다시 계산
     ),
   );
+
+  /// ① 아래 '운영비는 전체에서 차량비를 뺀 금액이에요 (n원)' (REQ-67 11). 둘 다 읽히고 전체 ≥ 차량비일 때만 금액
+  String get opsHint {
+    int? read(TextEditingController c) {
+      try {
+        return parseMoney(c.text, widget.unit);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final total = read(_total), car = read(_car);
+    final ops = total != null && car != null && total >= car ? total - car : null;
+    return '운영비는 전체에서 차량비를 뺀 금액이에요${ops == null ? '' : ' (${moneyWithUnit(ops, widget.unit)})'}';
+  }
 
   Widget _budgetPage() => ListView(
     padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
@@ -185,6 +204,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _title(1, '이번 달 수립 금액'),
       _money('전체 (합계)', _total),
       _money('차량비', _car),
+      Text(keepWords(opsHint), style: const TextStyle(fontSize: 13, color: Color(0xFF5F6368))),
       if (_budgetError != null)
         Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -197,7 +217,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
     children: [
       _title(2, '카드 문자 설정'),
-      const Text('카드번호 네자리', style: _label),
+      const Text('카드번호 끝 4자리', style: _label),
       const SizedBox(height: 4),
       Text(keepWords(kDigitsHelp), style: const TextStyle(color: Colors.black54)),
       const SizedBox(height: 8),
@@ -222,7 +242,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
         ],
       ),
-      Text(keepWords('카드 승인 문자를 보내는 번호 (기본값 $kDefaultSender)'), style: const TextStyle(color: Colors.black54)),
+      Text(keepWords(kSenderHelp), style: const TextStyle(color: Colors.black54)),
       const SizedBox(height: 8),
       TextField(
         controller: _sender,
@@ -284,7 +304,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       FilledButton(
         style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         onPressed: () => _finishWith(OnboardingAction.none),
-        child: const Text('닫기'),
+        child: const Text('완료'),
       ),
     ] else
       ImportRangePanel(
@@ -307,9 +327,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       const SizedBox(height: 20),
       Center(
         child: TextButton(
-          style: TextButton.styleFrom(foregroundColor: const Color(0xFF5F6368), textStyle: const TextStyle(fontSize: 13)),
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF1F3A68),
+            textStyle: const TextStyle(fontSize: 13, decoration: TextDecoration.underline),
+          ),
           onPressed: _cardValid || _settingsSaved ? () => _finishWith(OnboardingAction.paste) : null,
-          child: const Text('문자 붙여넣기·공유로도 넣을 수 있어요'),
+          child: const Text('문자 붙여넣기·공유로도 넣을 수 있어요 ›'),
         ),
       ),
     ],
@@ -330,7 +353,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ]
         : [
-            _title(3, '지난 결제 넣기', '지난 승인 문자는 두 가지 방법으로 넣을 수 있어요. 앞으로 오는 문자는 알림 감지를 켜면 자동으로 들어와요.'),
+            _title(3, isFullEdition ? '지난 결제 불러오기' : '지난 결제 넣기', '지난 승인 문자는 두 가지 방법으로 넣을 수 있어요. 앞으로 오는 문자는 알림 감지를 켜면 자동으로 들어와요.'),
             ..._pasteGuide(),
           ],
   );
@@ -399,7 +422,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 const SizedBox(width: 8),
                 FilledButton(
                   onPressed: canNext ? _next : null,
-                  child: Text(last ? (widget.firstRun ? '시작하기' : '닫기') : '다음'),
+                  child: Text(last ? (widget.firstRun ? '시작하기' : '완료') : '다음'),
                 ),
               ],
             ),

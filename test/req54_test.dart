@@ -117,7 +117,7 @@ void main() {
       receivedAt: clock,
     )!;
     ImportPreview preview(int fresh) => ImportPreview(
-      const InboxScan([], 3, 0),
+      const InboxScan([]),
       IngestReport(fresh: [for (var i = 0; i < fresh; i++) parsed], dup: 1, ignoredHits: const [], rejected: const []),
       unique: fresh + 1,
     );
@@ -175,7 +175,7 @@ void main() {
       expect(find.text('2026.11.01'), findsOneWidget);
       expect(find.text('2026.11.19'), findsOneWidget);
       expect(find.text('지금 문자 붙여넣기'), findsNothing); // 붙여넣기 안내 대신
-      expect(find.text('문자 붙여넣기·공유로도 넣을 수 있어요'), findsOneWidget);
+      expect(find.text('문자 붙여넣기·공유로도 넣을 수 있어요 ›'), findsOneWidget);
       // 빠른 선택
       await tester.tap(find.text('지난달'));
       await tester.pumpAndSettle();
@@ -187,12 +187,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(asked.single, (DateTime(2026, 11, 1), DateTime(2026, 11, 20)));
       expect(find.text('이 기간 승인 문자 3건'), findsOneWidget);
-      expect(find.text('(새 2 · 중복 1)'), findsOneWidget);
+      expect(find.text('새로 넣을 문자 2건'), findsOneWidget); // REQ-66 C: 항목별 한 줄
+      expect(find.text('이미 있는 문자 1건'), findsOneWidget);
       await tester.tap(find.text('불러오기'));
       await tester.pumpAndSettle();
       expect(find.text('분류 대기에 2건 넣었어요\n이미 있던 1건은 건너뛰었어요'), findsOneWidget); // REQ-61 중복 한 줄
-      // 결과 아래 [닫기] (메뉴에서 연 경우 아래 바에도 '닫기'가 있어 둘 다 메인으로)
-      await tester.tap(find.widgetWithText(FilledButton, '닫기').first);
+      // 결과 아래 [완료] (REQ-67 10, 메뉴에서 연 경우 아래 바도 '완료')
+      await tester.tap(find.widgetWithText(FilledButton, '완료').first);
       await tester.pumpAndSettle();
       expect(done, [OnboardingAction.none]);
     });
@@ -216,7 +217,7 @@ void main() {
       await pumpGuide(tester, full: true, fresh: 0);
       await tester.tap(find.text('이 기간 문자 확인'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, '확인'));
+      await tester.tap(find.widgetWithText(OutlinedButton, '닫기'));
       await tester.pumpAndSettle();
       expect(find.textContaining('새로 불러온 문자가 없어요'), findsOneWidget); // REQ-61 문구
     });

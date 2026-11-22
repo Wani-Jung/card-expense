@@ -121,7 +121,7 @@ void main() {
       expect(remindSwitch(tester).value, isTrue);
       expect(find.text('휴대폰 설정에서 알림을 허용해야 받을 수 있어요'), findsNothing);
       final y = tester.getTopLeft(find.text('미분류 알림 받기')).dy;
-      for (final t in ['미분류 내역', '확인 필요 내역', '무시한 내역', '확인한 내역']) {
+      for (final t in ['미분류 내역', '확인 필요 내역', '무시한 내역', '분류한 내역']) {
         expect(tester.getTopLeft(find.text(t)).dy, lessThan(y), reason: t);
       }
     });

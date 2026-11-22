@@ -14,6 +14,7 @@ class SenderMatchTest {
             "1588-1600", "15881600", " 1588-1600 ", "+8215881600", "+82 1588-1600", "82-1588-1600",
             "0015881600", "008215881600", "015881600", "#15881600", "tel:+82-1588-1600",
             "sip:+8215881600@ims.mnc008.mcc450.3gppnetwork.org;user=phone", "15881600;phone-context=x1",
+            "im/chat: 15881600", "im/chat:15881600", "rcs:+82-1588-1600", // REQ-66 RCS 저장소 표기
         )) {
             assertTrue(a, SenderMatch.matches(a, conf))
             assertTrue(a, SenderMatch.matches(conf, a))

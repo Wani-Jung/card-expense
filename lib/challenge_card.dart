@@ -85,8 +85,9 @@ class ChallengeResultCard extends StatelessWidget {
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.topCenter,
                         child: SizedBox(
+                          // 흰 칸 비율(약 0.62)에 맞춰 날짜 아래 빈 공간이 크게 남지 않게 (REQ-67 24, 예전 280×400)
                           width: 280,
-                          height: 400,
+                          height: 450,
                           child: Column(
                             children: [
                               Row(
@@ -121,7 +122,7 @@ class ChallengeResultCard extends StatelessWidget {
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,
                                   color: kQuizNavy,
-                                  letterSpacing: 4,
+                                  letterSpacing: 0.5, // 보통 간격 (REQ-67 24)
                                 ),
                               ),
                               const SizedBox(height: 2),

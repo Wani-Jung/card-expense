@@ -11,3 +11,12 @@ double listBottomPad(BuildContext context, {double extra = 24}) =>
 /// 한글 설명이 단어 중간에서 줄바뀜되지 않게 (공백에서만 줄바꿈). 글자 사이에 WORD JOINER(U+2060)를 넣는다.
 /// 화면에는 보이지 않는다. 긴 설명 문장에 쓴다 (REQ-47).
 String keepWords(String s) => s.replaceAllMapped(RegExp(r'(?<=[^\s⁠])(?=[^\s⁠])'), (_) => '⁠');
+
+/// 가맹점 이름 (REQ-67 1): 띄어쓰기에서만 줄바꿈('좋은아침페스츄리 / 홍성내포점'), 최대 [maxLines]줄,
+/// 한 단어가 한 줄보다 길면 말줄임(…). 목록·미분류·상세 시트 공통
+Widget merchantText(String name, {TextStyle? style, int maxLines = 2}) => Text(
+  keepWords(name.isEmpty ? '(가맹점 미상)' : name),
+  maxLines: maxLines,
+  overflow: TextOverflow.ellipsis,
+  style: style,
+);

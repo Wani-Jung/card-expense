@@ -215,7 +215,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('50%'), findsNothing);
     expect(find.text('-'), findsOneWidget);
-    expect(find.text('2'), findsOneWidget); // 푼 문제 수는 남음
+    expect(find.text('0'), findsOneWidget); // 화면 '푼 문제' 도 새로 (REQ-67 29)
 
     await tester.tap(find.text('지난 문제 다시 보기'));
     await tester.pumpAndSettle();

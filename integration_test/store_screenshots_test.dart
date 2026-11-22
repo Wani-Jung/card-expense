@@ -142,7 +142,7 @@ void main() {
       demoSms(55000, 'OO주유소', now.subtract(const Duration(hours: 2))),
     ];
     final preview = ImportPreview(
-      const InboxScan([], 0, 0),
+      const InboxScan([]),
       IngestReport(fresh: fresh, dup: 11, ignoredHits: const [], rejected: const []),
     );
     Navigator.of(

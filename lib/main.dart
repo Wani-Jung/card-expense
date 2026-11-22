@@ -205,7 +205,7 @@ class _CardExpenseAppState extends State<CardExpenseApp> {
 }
 
 // ------------------------------------------------------------------
-// 설정: 카드번호 네자리 + 발신번호
+// 설정: 카드번호 끝 4자리 + 발신번호
 // ------------------------------------------------------------------
 class SettingsScreen extends StatefulWidget {
   final Future<void> Function(String digits, String sender) onSaved;
@@ -231,7 +231,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: EdgeInsets.fromLTRB(24, 24, 24, listBottomPad(context)),
         children: [
-          const Text('카드번호 네자리', style: label),
+          const Text('카드번호 끝 4자리', style: label),
           const SizedBox(height: 4),
           Text(keepWords(kDigitsHelp), style: const TextStyle(color: Colors.black54)),
           const SizedBox(height: 12),
@@ -255,7 +255,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: const Text('기본값으로'),
             ),
           ]),
-          Text(keepWords('카드 승인 문자를 보내는 번호 (기본값 $kDefaultSender)'), style: const TextStyle(color: Colors.black54)),
+          Text(keepWords(kSenderHelp), style: const TextStyle(color: Colors.black54)),
           const SizedBox(height: 12),
           TextField(
             controller: _sender,
@@ -290,15 +290,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 /// 붙여넣기·공유·불러오기 결과에서 되살릴 게 없고 '승인 문자 아님'만 있을 때 (REQ-59, [닫기] 하나)
 NoticeDialog ingestResultDialog(String source, IngestReport r, int added, {bool revived = false}) => NoticeDialog(
       icon: const NoticeInfoIcon(),
-      title: '$source 결과',
-      stats: [
-        NoticeStat('추가', '$added건'),
-        NoticeStat('중복', '${r.dup}건'),
-        NoticeStat('승인 문자 아님', '${r.rejected.length}건'),
-      ],
-      body: revived && r.ignoredHits.isNotEmpty
-          ? '무시했던 문자 ${r.ignoredHits.length}건은\n분류 대기로 되살렸어요.\n\n승인 문자가 아닌 문자는\n넣지 않았어요.'
-          : '승인 문자가 아닌 문자는\n넣지 않았어요.',
+      // 결과를 말하는 제목 + 항목별 한 줄 (REQ-67 14, 0건 줄은 뺌)
+      title: added > 0 ? '분류 대기에 $added건 넣었어요' : '넣을 승인 문자가 없어요',
+      body: [
+        ...resultLines(fresh: added, dup: r.dup, rejected: r.rejected.length, done: true),
+        if (revived && r.ignoredHits.isNotEmpty) '무시했던 문자 ${r.ignoredHits.length}건은 분류 대기로 되살렸어요',
+      ].join('\n'),
       okLabel: '닫기',
       child: rejectedList(r.rejected),
     );
@@ -413,6 +410,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 스토어판은 자체 업데이트를 쓰지 않는다 (컴파일 시점 상수라 스토어 빌드에는 업데이트 코드가 안 들어감)
     if (!isStoreChannel) _checkUpdate(manual: false);
     _scheduleDailyQuiz();
+    // 실험실 법령 Quiz 부제('n문제 · 분야 n개')용 문제 파일 (내장, 화면에 안 보이게 미리)
+    unawaited(RuralBank.load().then((b) => _ruralBank ??= b));
     _syncReminder();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _askNotificationOnce();
@@ -614,13 +613,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (mounted) setState(() {});
   }
 
-  /// 결과 알림. 되살릴 문자나 '승인 문자 아님' 조각이 있으면 창으로, 아니면 스낵바로.
-  Future<void> _showResult(String source, IngestReport r, int added, {bool revived = false}) async {
+  /// 결과 알림. 되살릴 문자나 '승인 문자 아님' 조각이 있으면 공용 팝업으로, 아니면 스낵바로.
+  /// 숫자는 항목별 한 줄씩 (REQ-66 C). [preview]: 지난 문자 불러오기면 중복 수(겹쳐 읽힌 것 뺌)·제목 길게 눌러 진단.
+  Future<void> _showResult(String source, IngestReport r, int added, {bool revived = false, ImportPreview? preview}) async {
     if (!mounted) return;
-    final summary = r.summary(added: added, revived: revived);
+    final dup = preview?.duplicates ?? r.dup;
     final canRevive = r.ignoredHits.isNotEmpty && !revived;
     if (!canRevive && r.rejected.isEmpty) {
-      _toast('$source · $summary');
+      final lines = resultLines(fresh: added, dup: dup, done: true);
+      _toast(lines.isEmpty ? '$source · 넣을 승인 문자가 없어요' : [source, ...lines].join('\n'));
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -629,28 +630,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await showDialog<void>(context: context, builder: (_) => ingestResultDialog(source, r, added, revived: revived));
       return;
     }
-    final revive = await showDialog<bool>(
+    var revive = false;
+    await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('$source 결과'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(shrinkWrap: true, children: [
-            Text(summary),
-            if (r.rejected.isNotEmpty) rejectedList(r.rejected),
-          ]),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('닫기')),
-          if (canRevive)
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text('무시했던 ${r.ignoredHits.length}건 다시 분류 대기로'),
-            ),
-        ],
+      builder: (ctx) => NoticeDialog(
+        icon: const NoticeInfoIcon(),
+        title: '무시했던 문자가 ${r.ignoredHits.length}건 있어요',
+        body: [
+          ...resultLines(fresh: added, dup: dup, ignored: r.ignoredHits.length, rejected: r.rejected.length, done: true),
+          '',
+          '무시했던 문자를 다시 분류 대기로 옮길까요?',
+        ].join('\n'),
+        okLabel: '다시 분류 대기로',
+        onOk: () => revive = true,
+        cancelLabel: '닫기',
+        onTitleLongPress: preview == null
+            ? null
+            : () => showDialog<void>(context: ctx, builder: (_) => importDiagDialog(preview)),
+        child: r.rejected.isEmpty ? null : rejectedList(r.rejected),
       ),
     );
-    if (revive == true) {
+    if (revive) {
       await _revive(r.ignoredHits.map((p) => p.id));
       _toast('${r.ignoredHits.length}건을 분류 대기로 되돌렸어요');
     }
@@ -896,7 +896,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final added = await _addParsed(r.fresh, fromStore: true);
     if (!mounted) return;
     if (r.ignoredHits.isNotEmpty) {
-      await _showResult('지난 문자 불러오기', IngestReport(fresh: r.fresh, dup: r.dup, ignoredHits: r.ignoredHits, rejected: const []), added);
+      await _showResult(
+        '지난 문자 불러오기',
+        IngestReport(fresh: r.fresh, dup: r.dup, ignoredHits: r.ignoredHits, rejected: const []),
+        added,
+        preview: p,
+      );
     } else if (r.fresh.isNotEmpty) {
       _toast(importAddedMessage(added, p.duplicates));
     } else {
@@ -948,7 +953,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('새 버전 $latest가 있어요'),
-        content: Text('지금 버전 v$current · $editionLabel\n[업데이트]를 누르면 브라우저에서 APK를 받아요.'),
+        content: Text(keepWords('지금 버전 v$current · $editionLabel\n[업데이트]를 누르면 브라우저에서 APK를 받아요.')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('나중에')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('업데이트')),
@@ -1041,14 +1046,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   RuralBank? _ruralBank;
   Future<RuralBank?> _loadLaw(LawQuiz l) async => (_ruralBank ??= await RuralBank.load())?.only(l.group);
 
-  /// 메뉴 > 실험실 (안전 OX Quiz · 법령 Quiz 4종)
-  Future<void> _openLab() => Navigator.of(context).push(MaterialPageRoute(
+  /// 메뉴 > 실험실 (안전 OX Quiz · 법령 Quiz 4종). 부제에 쓸 문항·분야 수를 먼저 읽어 둔다 (내장 파일, 금방)
+  Future<void> _openLab() async {
+    // 부제의 문항·분야 수: 미리 읽어 둔 게 없으면 읽기 시작만 하고 바로 연다 (못 읽었으면 예전 문구)
+    if (_ruralBank == null) unawaited(RuralBank.load().then((b) => _ruralBank ??= b));
+    await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => LabScreen(
           quizSummary: () => _quiz.menuText(quizDay(DateTime.now())),
           lawSummary: (l) {
             final s = _laws[l.group]!;
             final p = s.percent;
-            return p == null ? 'OX·객관식 문제를 분야별로 풀어요' : '푼 문제 ${s.solvedCount} · 정답률 $p%';
+            // 안 풀었으면 법령마다 다른 'n문제 · 분야 n개' (REQ-67 28), 풀었으면 점수 남은 기록 기준 (29)
+            return p == null ? lawQuizSummary(_ruralBank, l) : '푼 문제 ${s.scoredCount} · 정답률 $p%';
           },
           onQuiz: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => QuizHomeScreen(store: _quiz, bank: _bank),
@@ -1058,6 +1067,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               )),
         ),
       ));
+  }
 
   void _openMenu() {
     Navigator.of(context).push(MaterialPageRoute(
@@ -1217,10 +1227,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           inputFormatters: [FilteringTextInputFormatter.allow(moneyInputChars(unit))],
           decoration: InputDecoration(
             suffixText: unit.label,
+            // 두 줄로, 말줄임 없이 (REQ-67 2)
+            helperMaxLines: 2,
             helperText: switch (unit) {
-              MoneyUnit.man => '예) 34.25 → 342,500원 · 비우면 지워져요',
-              MoneyUnit.thousand => '예) 343 → 343,000원 · 비우면 지워져요',
-              MoneyUnit.won => '예) 342500 → 342,500원 · 비우면 지워져요',
+              MoneyUnit.man => '예) 34.25 → 342,500원\n비우면 지워져요',
+              MoneyUnit.thousand => '예) 343 → 343,000원\n비우면 지워져요',
+              MoneyUnit.won => '예) 342500 → 342,500원\n비우면 지워져요',
             },
             border: const OutlineInputBorder(),
           ),
@@ -1414,8 +1426,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('${e.merchant} ${won(e.signedAmount)}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: merchantText(e.merchant, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+                const SizedBox(width: 8),
+                Text(won(e.signedAmount), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ]),
               Text(fmtDateTime(e.dateTime), style: const TextStyle(color: Colors.black54)),
               const SizedBox(height: 8),
               _RawBox(e.raw),
@@ -1449,8 +1464,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Row(children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    icon: const Icon(Icons.undo),
-                    label: const Text('미분류로 되돌리기'),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48), padding: const EdgeInsets.symmetric(horizontal: 10)),
+                    icon: const Icon(Icons.undo, size: 18),
+                    // 좁은 화면에서도 한 줄 (REQ-67 3: '되돌리 / 기'로 끊기지 않게)
+                    label: const FittedBox(fit: BoxFit.scaleDown, child: Text('미분류로 되돌리기', maxLines: 1)),
                     onPressed: () {
                       Navigator.pop(ctx);
                       _classify(e, null);
@@ -1460,8 +1477,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    icon: const Icon(Icons.visibility_off_outlined),
-                    label: const Text('무시'),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48), padding: const EdgeInsets.symmetric(horizontal: 10)),
+                    icon: const Icon(Icons.visibility_off_outlined, size: 18),
+                    label: const Text('무시', maxLines: 1),
                     onPressed: () {
                       Navigator.pop(ctx);
                       _classify(e, kIgnored);
@@ -1504,9 +1522,9 @@ class _PermissionBanner extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('승인 문자 자동 감지를 위해 아래를 켜주세요',
+            Text(keepWords('승인 문자 자동 감지를 위해 아래를 켜주세요'),
                 style: TextStyle(fontWeight: FontWeight.bold)),
-            const Text('지난 문자는 메시지 앱에서 문자 선택 → 공유 → $kAppName',
+            Text(keepWords('지난 문자는 메시지 앱에서 문자 선택 → 공유 → $kAppName'),
                 style: TextStyle(fontSize: 12, color: Colors.black54)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 4, children: [
@@ -1651,8 +1669,7 @@ class _PendingCard extends StatelessWidget {
           children: [
             Row(children: [
               Expanded(
-                child: Text(e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant,
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                child: merchantText(e.merchant, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ),
               Text(
                 e.isCancel ? '승인취소 ${won(e.signedAmount)}' : won(e.amount),
@@ -2062,18 +2079,21 @@ class _BudgetTable extends StatelessWidget {
         ),
       );
 
-  /// 단위 옆 작은 회색 '(반올림)' (만원·천원일 때만). 누르면 안내 (REQ-51)
-  Widget _roundingButton(BuildContext context) => InkWell(
-        borderRadius: BorderRadius.circular(4),
-        onTap: () => showNoticeDialog(
-          context,
-          icon: const NoticeInfoIcon(),
-          title: kRoundingTitle,
-          body: kRoundingNote,
-        ),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-          child: Text('(반올림)', style: TextStyle(fontSize: 11, color: Color(0xFF9AA0A6))),
+  /// 단위 옆 작은 ⓘ (만원·천원일 때만). 누르면 반올림 안내 (REQ-51, REQ-67 6: 글자 '(반올림)' 대신 아이콘)
+  Widget _roundingButton(BuildContext context) => Tooltip(
+        message: kRoundingTooltip,
+        child: InkResponse(
+          radius: 16,
+          onTap: () => showNoticeDialog(
+            context,
+            icon: const NoticeInfoIcon(),
+            title: kRoundingTitle,
+            body: kRoundingNote,
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            child: Icon(Icons.info_outline, size: 15, color: Color(0xFF9AA0A6), semanticLabel: kRoundingTooltip),
+          ),
         ),
       );
 
@@ -2184,10 +2204,7 @@ class _ExpenseTile extends StatelessWidget {
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       leading: CategoryBadge(e.category),
-      title: Text(
-        e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant,
-        style: TextStyle(color: ignored ? Colors.black38 : null),
-      ),
+      title: merchantText(e.merchant, style: TextStyle(color: ignored ? Colors.black38 : null)),
       subtitle: Text('${two(d.month)}/${two(d.day)} ${two(d.hour)}:${two(d.minute)}'
           '${e.isCancel ? ' · 승인취소' : ''}'),
       trailing: Text(

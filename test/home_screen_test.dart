@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:card_expense/layout.dart';
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/flavor.dart';
 import 'package:card_expense/main.dart';
@@ -380,7 +381,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 안전 OX Quiz 화면 '점수 기록 지우기' 위 스위치로 켜기
-      expect(find.text('켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나옵니다.'), findsOneWidget);
+      expect(find.text(keepWords('켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나와요.')), findsOneWidget);
       expect(tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value, isFalse);
       await tester.tap(find.text('매일 OX 퀴즈'));
       await tester.pumpAndSettle();

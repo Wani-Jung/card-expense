@@ -52,7 +52,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('2 / 3'), findsOneWidget);
       expect(find.textContaining(keepWords('이 번호로 온 문자 중')), findsNothing);
-      expect(find.text(keepWords('승인 문자에 적힌 카드번호 네자리\n(예: "NH기업0000승인" 이면 0000)')), findsOneWidget);
+      expect(find.text(keepWords('승인 문자에 적힌 카드번호 끝 4자리\n(예: "NH기업0000승인" 이면 0000)')), findsOneWidget);
       expect(store.loadBudgets().forMonth(DateTime.now()).total, isNull);
     });
   });

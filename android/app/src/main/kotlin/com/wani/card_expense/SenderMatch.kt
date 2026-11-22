@@ -9,7 +9,9 @@ package com.wani.card_expense
  */
 object SenderMatch {
     fun normalize(s: String): String {
-        var t = s.trim()
+        // 저장소·진단 표시 접두어('im/chat:', 'rcs:', 'tel:', 'sip:' …)는 숫자가 없어 아래에서 자연히 빠지지만,
+        // 'im/chat: 15881600' 처럼 콜론 앞에 붙은 이름은 명시적으로 떼어 둔다 (REQ-66)
+        var t = s.trim().replace(Regex("^[A-Za-z/._-]+:\\s*"), "")
         val cut = t.indexOfAny(charArrayOf('@', ';'))
         if (cut >= 0) t = t.substring(0, cut)
         var d = t.filter { it in '0'..'9' }

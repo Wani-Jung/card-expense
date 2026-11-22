@@ -3,38 +3,21 @@ import 'package:flutter/services.dart';
 class RawSms {
   final String body;
   final DateTime receivedAt;
-  RawSms(this.body, this.receivedAt);
+
+  /// (지난 문자 불러오기) 발신번호가 맞아서 찾은 문자인지. 진단에만 쓴다
+  final bool bySender;
+  RawSms(this.body, this.receivedAt, {this.bySender = false});
 }
 
-/// (전용판) 문자함 불러오기 결과. 0건일 때 원인을 보여주려고 검사 건수도 같이 받는다.
+/// (전용판) 문자함 불러오기 결과: 카드 승인·취소 후보 문자와 진단용 주소 형식.
+/// 문자함 전체를 몇 건 봤는지는 받지도, 어디에 보여 주지도 않는다 (REQ-66 B).
 class InboxScan {
-  /// SMS/MMS 는 발신번호가 일치하거나 카드번호+승인이 들어간 문자(REQ-61), 그 밖의 저장소(RCS 등)는 카드번호+승인.
+  /// SMS·MMS·RCS 후보 저장소 모두 같은 조건: '승인'·'취소'가 있고 (발신번호 일치 또는 카드번호+승인·취소)
   final List<RawSms> items;
-  final int smsScanned;
-  final int mmsScanned;
-  final int otherScanned;
-  final int otherMatched;
 
-  /// 진단용 (기본 화면엔 안 보임, 결과 팝업 제목 길게 누르기): SMS/MMS 에서 발신번호가 일치한 건수.
-  /// 예전 네이티브(값 없음)면 null → [senderMatched] 가 예전 방식으로 센다.
-  final int? senderMatchedRaw;
-
-  /// 진단용: 카드 승인 문자의 저장소별 주소 형식 몇 개 ('sms: 15881600' 처럼)
+  /// 진단용: 찾은 문자의 저장소별 주소 형식 몇 개 ('sms: 15881600' 처럼)
   final List<String> addrSamples;
-  const InboxScan(
-    this.items,
-    this.smsScanned,
-    this.mmsScanned, [
-    this.otherScanned = 0,
-    this.otherMatched = 0,
-    this.senderMatchedRaw,
-    this.addrSamples = const [],
-  ]);
-
-  int get scanned => smsScanned + mmsScanned + otherScanned;
-
-  /// SMS/MMS 에서 발신번호가 일치한 건수.
-  int get senderMatched => senderMatchedRaw ?? items.length - otherMatched;
+  const InboxScan(this.items, [this.addrSamples = const []]);
 }
 
 class PermStatus {
@@ -64,6 +47,7 @@ class Native {
       .map((m) => RawSms(
             m['body'] as String,
             DateTime.fromMillisecondsSinceEpoch((m['ts'] as num).toInt()),
+            bySender: m['bySender'] == true,
           ))
       .toList();
 
@@ -75,7 +59,7 @@ class Native {
   static Future<List<String>> takeShared() async =>
       await _ch.invokeListMethod<String>('takeShared') ?? [];
 
-  /// (전용판) 문자함(SMS + MMS + RCS 후보)에서 [from] 이상 [to] 미만 기간에 발신번호가 일치하는 문자를 읽는다.
+  /// (전용판) 문자함(SMS + MMS + RCS 후보)에서 [from] 이상 [to] 미만 기간의 카드 승인·취소 후보 문자를 읽는다.
   static Future<InboxScan> readSmsInbox(DateTime from, DateTime to) async {
     final m = await _ch.invokeMapMethod<String, dynamic>(
           'readSmsInbox',
@@ -84,11 +68,6 @@ class Native {
         {};
     return InboxScan(
       _toRaw(m['items'] as List?),
-      (m['smsScanned'] as num?)?.toInt() ?? 0,
-      (m['mmsScanned'] as num?)?.toInt() ?? 0,
-      (m['otherScanned'] as num?)?.toInt() ?? 0,
-      (m['otherMatched'] as num?)?.toInt() ?? 0,
-      (m['senderMatched'] as num?)?.toInt(),
       ((m['addrSamples'] as List?) ?? const []).map((e) => '$e').toList(),
     );
   }

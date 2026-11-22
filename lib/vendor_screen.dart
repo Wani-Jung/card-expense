@@ -94,9 +94,11 @@ class _VendorScreenState extends State<VendorScreen> {
 
   Widget _deleteAllButton(int count, VoidCallback onPressed) => TextButton(
     style: TextButton.styleFrom(
-      foregroundColor: const Color(0xFFD93025),
+      foregroundColor: const Color(0xFF80868B),
       visualDensity: VisualDensity.compact,
-      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      minimumSize: const Size(0, 32),
+      textStyle: const TextStyle(fontSize: 12),
     ),
     onPressed: count == 0 ? null : onPressed,
     child: const Text('전체 삭제'),
@@ -279,26 +281,21 @@ class _VendorScreenState extends State<VendorScreen> {
     final keywords = _book.keywords;
     final removed = _book.removedKeywords;
     final learned = _book.learned.entries.toList()..sort((a, b) => a.value.name.compareTo(b.value.name));
+    // 설명은 한 줄 전체 폭으로(오른쪽 버튼에 밀려 '추천해 / 요'로 끊기지 않게), [전체 삭제]는 설명 아래 작은 회색 글자 (REQ-67 21)
     Widget header(String title, String sub, {Widget? trailing}) => Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 8, 4),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                Text(sub, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-              ],
-            ),
-          ),
-          ?trailing,
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(keepWords(sub), style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          if (trailing != null) Align(alignment: Alignment.centerRight, child: trailing),
         ],
       ),
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('업체 관리')),
+      appBar: AppBar(title: const Text('등록 업체·추천 키워드')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _add,
         icon: const Icon(Icons.add),
@@ -311,7 +308,7 @@ class _VendorScreenState extends State<VendorScreen> {
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Text(
-              '추천 순서: 자동 등록 업체 > 직접 등록 키워드 > 기본 키워드',
+              '자주 쓴 가게 → 내가 넣은 키워드 → 기본 키워드 순으로 추천해요',
               style: TextStyle(fontSize: 12, color: Colors.black54),
             ),
           ),

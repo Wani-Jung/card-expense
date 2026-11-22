@@ -27,6 +27,9 @@ void main() {
         'tel:+82-1588-1600',
         'sip:+8215881600@ims.mnc008.mcc450.3gppnetwork.org;user=phone',
         '15881600;phone-context=x1',
+        'im/chat: 15881600', // REQ-66 RCS 저장소 표기
+        'im/chat:15881600',
+        'rcs:+82-1588-1600',
       ]) {
         expect(senderMatches(a, conf), isTrue, reason: a);
         expect(senderMatches(conf, a), isTrue, reason: a);
@@ -41,28 +44,20 @@ void main() {
       expect(senderMatches(null, conf), isFalse);
     });
 
-    test('네이티브 진단 값(발신번호 일치·주소 형식)을 받는다', () async {
+    test('네이티브: 후보 문자·발신번호로 찾았는지·주소 형식만 받는다 (전체 개수 없음, REQ-66)', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
         const MethodChannel('card_expense/native'),
         (call) async => {
           'items': [
-            {'body': 'a', 'ts': 0},
+            {'body': 'a', 'ts': 0, 'bySender': true},
             {'body': 'b', 'ts': 0},
           ],
-          'smsScanned': 100,
-          'mmsScanned': 20,
-          'otherScanned': 5,
-          'otherMatched': 2,
-          'senderMatched': 0,
-          'addrSamples': ['im/chat: sip:+8215881600@ims'],
+          'addrSamples': ['im/chat: 15881600'],
         },
       );
       final s = await Native.readSmsInbox(DateTime(2026, 11), DateTime(2026, 12));
-      expect(s.scanned, 125);
-      expect(s.senderMatched, 0);
-      expect(s.addrSamples, ['im/chat: sip:+8215881600@ims']);
-      // 예전 네이티브(값 없음)는 예전 방식으로 센다
-      expect(const InboxScan([], 1, 0, 0, 0).senderMatched, 0);
+      expect(s.items.map((r) => r.bySender), [true, false]);
+      expect(s.addrSamples, ['im/chat: 15881600']);
     });
   });
 
@@ -97,7 +92,7 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    const scan = InboxScan([], 15000, 500, 12, 5, 0, ['sms: 15881600']);
+    const scan = InboxScan([], ['im/chat: 15881600']);
 
     testWidgets('이미 다 있음: 제목·두 줄 본문, 진단 숫자 칸 없음', (tester) async {
       await pump(tester, const ImportPreview(scan, IngestReport(fresh: [], dup: 5, ignoredHits: [], rejected: [])));
@@ -127,15 +122,21 @@ void main() {
       expect(find.text('이 기간엔 카드 승인 문자가 없어요'), findsNothing); // 팝업은 닫힘
     });
 
-    testWidgets('제목을 길게 누르면 숨은 진단 (검사 건수·발신번호 일치·주소 형식)', (tester) async {
-      await pump(tester, const ImportPreview(scan, IngestReport(fresh: [], dup: 5, ignoredHits: [], rejected: [])));
+    testWidgets('제목을 길게 누르면 숨은 진단: 찾은 문자·발신번호 일치·주소 형식만 (전체 개수 없음, REQ-66 B)', (tester) async {
+      await pump(
+        tester,
+        const ImportPreview(scan, IngestReport(fresh: [], dup: 5, ignoredHits: [], rejected: []), unique: 5, bySender: 5),
+      );
       await tester.longPress(find.text('새로 불러온 문자가 없어요'));
       await tester.pumpAndSettle();
       expect(find.text('불러오기 진단'), findsOneWidget);
-      expect(find.text('검사한 문자'), findsOneWidget);
-      expect(find.text('15512건'), findsOneWidget);
-      expect(find.text('발신번호 일치'), findsOneWidget);
-      expect(find.textContaining('sms: 15881600'), findsOneWidget);
+      expect(find.text('찾은 카드 승인 문자'), findsOneWidget);
+      expect(find.text('그중 발신번호 일치'), findsOneWidget);
+      expect(find.text('5건'), findsNWidgets(2));
+      expect(find.textContaining('im/chat: 15881600'), findsOneWidget);
+      for (final no in ['검사한 문자', 'SMS', 'MMS', '기타 저장소']) {
+        expect(find.textContaining(no), findsNothing, reason: no);
+      }
     });
   });
 }

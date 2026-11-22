@@ -84,7 +84,7 @@ void main() {
       await pumpMonth(tester, total: 1000000, car: 400000, usedCar: 342500);
       expect(find.text('단위: 원 ▾'), findsOneWidget);
       expect(find.text('342,500'), findsWidgets);
-      expect(find.text('(반올림)'), findsNothing);
+      expect(find.byTooltip(kRoundingTooltip), findsNothing);
     });
 
     testWidgets('예전에 만원을 고른 사용자는 만원 그대로', (tester) async {

@@ -16,6 +16,9 @@ class PasteResult {
 
 /// 문자 붙여넣기 (여러 건 가능).
 /// 입력칸은 항상 빈칸으로 열고, 클립보드에 카드 승인 문자가 있으면 위에 미리보기로 보여준다.
+/// 붙여넣기 방법 (REQ-67 13)
+const kPasteSteps = ['1. 메시지 앱에서 카드 문자를 길게 눌러 여러 개 선택', '2. 복사', '3. 아래 칸에 붙여넣기'];
+
 class PasteScreen extends StatefulWidget {
   final String digits;
 
@@ -84,9 +87,9 @@ class _PasteScreenState extends State<PasteScreen> with WidgetsBindingObserver {
         builder: (ctx, setLocal) => AlertDialog(
           title: const Text('분류 대기에 넣을까요?'),
           content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${r.total}건 중 새 내역 ${r.fresh.length}건, 중복 ${r.dup}건'
+            Text(keepWords('${r.total}건 중 새 내역 ${r.fresh.length}건, 중복 ${r.dup}건'
                 '${r.ignoredHits.isNotEmpty ? ', 무시했던 문자 ${r.ignoredHits.length}건' : ''}'
-                '${r.rejected.isNotEmpty ? ', 승인 문자 아님 ${r.rejected.length}건' : ''}'),
+                '${r.rejected.isNotEmpty ? ', 승인 문자 아님 ${r.rejected.length}건' : ''}')),
             if (r.ignoredHits.isNotEmpty)
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
@@ -113,10 +116,12 @@ class _PasteScreenState extends State<PasteScreen> with WidgetsBindingObserver {
         padding: EdgeInsets.fromLTRB(16, 16, 16, listBottomPad(context)),
         children: [
           if (_clipText != null) _ClipPreview(found: _clipFound, recommend: widget.recommend, onUse: () => _submit(_clipText!)),
-          const Text(
-            '메시지 앱에서 카드 문자를 길게 눌러 여러 개 선택 → 복사 → 여기에 붙여넣으면 한 번에 들어가요',
-            style: TextStyle(color: Colors.black87),
-          ),
+          // 단계별 한 줄씩 (REQ-67 13: 화살표 앞에서 끊기지 않게)
+          for (final step in kPasteSteps)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(keepWords(step), style: const TextStyle(color: Colors.black87)),
+            ),
           const SizedBox(height: 12),
           TextField(
             controller: _ctrl,
@@ -124,7 +129,7 @@ class _PasteScreenState extends State<PasteScreen> with WidgetsBindingObserver {
             maxLines: 14,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
-              hintText: '여기에 승인 문자를 붙여넣으세요 (여러 건 가능)',
+              hintText: '승인 문자를 붙여넣으세요 (여러 건 가능)',
               hintStyle: TextStyle(color: Colors.black38),
             ),
             onChanged: (_) => setState(() {}),

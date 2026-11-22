@@ -79,9 +79,14 @@ object CardSms {
      * 어느 쪽이든 승인/취소 + 금액 + 일시는 있어야 한다.
      */
     @Synchronized
-    fun handle(ctx: Context, body: String, timestamp: Long, sender: String?) {
+    /** 본문에 '승인'·'취소'가 있는지 (공백 무시) */
+    fun isApprovalText(body: String): Boolean {
         val c = compact(body)
-        if (!c.contains("승인") && !c.contains("취소")) return
+        return c.contains("승인") || c.contains("취소")
+    }
+
+    fun handle(ctx: Context, body: String, timestamp: Long, sender: String?) {
+        if (!isApprovalText(body)) return
         if (!senderMatches(sender, sender(ctx)) && !hasCardApproval(body, digits(ctx))) return
         val key = dedupeKey(body) ?: return
 

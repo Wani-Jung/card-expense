@@ -22,17 +22,16 @@ Widget _headline(Expense e) => Row(children: [
           style: TextStyle(fontWeight: FontWeight.bold, color: e.isCancel ? Colors.red : null)),
     ]);
 
-Widget _smallOutlined(String label, VoidCallback onPressed) => SizedBox(
-      height: 30,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          minimumSize: const Size(0, 30),
-          textStyle: const TextStyle(fontSize: 12),
-        ),
-        onPressed: onPressed,
-        child: Text(label),
+/// [무시] 등 테두리 버튼: [차량비][운영비] 작은 버튼과 같은 높이·모서리 (REQ-67 4: 알약 모양으로 위로 떠 보이지 않게)
+Widget _smallOutlined(String label, VoidCallback onPressed) => OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        minimumSize: const Size(0, 30),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
       ),
+      onPressed: onPressed,
+      child: Text(label),
     );
 
 /// 달 구분선. "2026년 10월 ────"
@@ -98,7 +97,7 @@ class UnclassifiedScreen extends StatelessWidget {
                             const SizedBox(height: 10),
                             Builder(builder: (_) {
                               final rec = recommend(e.merchant);
-                              return Wrap(spacing: 6, runSpacing: 10, children: [
+                              return Wrap(spacing: 6, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
                                 button(kCar, rec, () => onClassify(e, kCar)),
                                 button(kOps, rec, () => onClassify(e, kOps)),
                                 _smallOutlined('무시', () => onClassify(e, kIgnored)),
@@ -258,8 +257,7 @@ class CheckScreen extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(
-              child: Text(first.merchant.isEmpty ? '(가맹점 미상)' : first.merchant,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              child: merchantText(first.merchant, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
             ),
             Text(first.isCancel ? '승인취소 ${won(first.signedAmount)}' : won(first.amount),
                 style: TextStyle(fontWeight: FontWeight.bold, color: first.isCancel ? Colors.red : null)),
@@ -328,10 +326,10 @@ class _ConfirmedScreenState extends State<ConfirmedScreen> {
       Widget chip(String label, String? cat) =>
           ChoiceChip(label: Text(label), selected: _cat == cat, onSelected: (_) => setState(() => _cat = cat));
       return Scaffold(
-        appBar: AppBar(title: Text('확인한 내역 (${list.length}건)')),
+        appBar: AppBar(title: Text('분류한 내역 (${list.length}건)')),
         body: !any
             ? const Center(
-                child: Text('확인한 내역이 없어요', style: TextStyle(color: Colors.black45)),
+                child: Text('분류한 내역이 없어요', style: TextStyle(color: Colors.black45)),
               )
             : ListView(
                 padding: EdgeInsets.only(bottom: listBottomPad(context)),
@@ -371,7 +369,7 @@ class _ConfirmedScreenState extends State<ConfirmedScreen> {
                       onTap: () => widget.onTap(e),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                       leading: CategoryBadge(e.category),
-                      title: Text(e.merchant.isEmpty ? '(가맹점 미상)' : e.merchant),
+                      title: merchantText(e.merchant),
                       subtitle: Text('${fmtDateTime(e.dateTime)}${e.isCancel ? ' · 승인취소' : ''}'),
                       trailing: Text(
                         won(e.signedAmount),

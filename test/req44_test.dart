@@ -72,10 +72,10 @@ void main() {
       await pumpMenu(tester);
       await tester.tap(find.text('개인정보처리방침'));
       await tester.pumpAndSettle();
-      expect(find.text(keepWords('개인정보처리방침 페이지(GitHub)를 인터넷 브라우저로 엽니다.')), findsOneWidget);
+      expect(find.text(keepWords(kPrivacyOpenMessage)), findsOneWidget); // REQ-67 15 공용 팝업
       await tester.tap(find.text('취소'));
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text(keepWords(kPrivacyOpenMessage)), findsNothing);
       expect(launches.where((c) => c.method == 'launch'), isEmpty);
 
       await tester.tap(find.text('개인정보처리방침'));
@@ -107,7 +107,7 @@ void main() {
         await tester.pumpAndSettle();
         final sw = find.widgetWithText(SwitchListTile, '매일 OX 퀴즈');
         expect(tester.widget<SwitchListTile>(sw).value, saved ?? false);
-        expect(find.text('켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나옵니다.'), findsOneWidget);
+        expect(find.text(keepWords('켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나와요.')), findsOneWidget);
         expect(tester.getTopLeft(sw).dy, lessThan(tester.getTopLeft(find.text('점수 기록 지우기')).dy));
         // 챌린지 설명은 10~50
         expect(find.text('10~50문제, 시간과 정답률로 기록에 도전'), findsOneWidget);
@@ -130,14 +130,14 @@ void main() {
       await tester.tap(find.text('점수 기록 지우기'));
       await tester.pumpAndSettle();
       expect(find.text('점수 기록을 지울까요?'), findsOneWidget);
-      for (final s in ['푼 문제 수', '연속 일수', '챌린지 정답률·걸린 시간·최고 기록', '지난 문제 다시 보기 목록']) {
+      for (final s in ['푼 문제 수·정답률', '연속 일수', '챌린지 정답률·걸린 시간·최고 기록', '지난 문제 다시 보기 목록']) {
         expect(find.textContaining(keepWords(s)), findsOneWidget, reason: s);
       }
       await tester.tap(find.text('지우기'));
       await tester.pumpAndSettle();
       expect(find.text('-'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-      expect(store.solvedCount, 2);
+      expect(find.text('0'), findsOneWidget); // 화면 '푼 문제' 는 정답률과 같은 기준 (REQ-67 29)
+      expect(store.solvedCount, 2); // 기록(지난 문제 목록)은 그대로
       expect(store.percent, isNull);
 
       await tester.tap(find.text('되돌리기'));

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:card_expense/layout.dart';
+
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/main.dart';
 import 'package:card_expense/lab_screen.dart';
@@ -35,12 +37,12 @@ void main() {
 
   group('B1 문제 풀 v2', () {
     test('v2 파싱: 452문항, 그룹·분야 순서 그대로, 분야별 수', () {
-      expect(bank.version, 2);
+      expect(bank.version, 3); // REQ-67 27 분야 태그 정리
       expect(bank.questions, hasLength(452));
       expect(bank.groups.map((g) => g.name), ['현장 안전기준', '서류·절차']);
       expect(bank.groups.first.categories, ['추락·비계', '통로·작업장', '전기작업', '굴착·거푸집', '양중기·장비']);
       expect(bank.groups.last.categories.first, '발주자 의무');
-      expect(bank.catCounts['서류·절차|발주자 의무'], 58);
+      expect(bank.catCounts['서류·절차|발주자 의무'], 50);
       final q = bank.byId('w001')!;
       expect(q.group, '현장 안전기준');
       expect(q.catLabel, '현장 안전기준 · 추락·비계');
@@ -95,18 +97,18 @@ void main() {
     test('번들 fallback: 원격 실패·깨짐·활성 0개면 캐시하지 않고 번들 사용', () async {
       final s = await store();
       final now = DateTime(2026, 10, 30, 9);
-      expect(await s.refresh(2, now: now, fetch: () async => null), isFalse);
-      expect(await s.refresh(2, now: now.add(const Duration(days: 1)), fetch: () async => '<html>'), isFalse);
+      expect(await s.refresh(3, now: now, fetch: () async => null), isFalse);
+      expect(await s.refresh(3, now: now.add(const Duration(days: 1)), fetch: () async => '<html>'), isFalse);
       expect(
         await s.refresh(
-          2,
+          3,
           now: now.add(const Duration(days: 2)),
           fetch: () async => jsonEncode({'version': 9, 'questions': []}),
         ),
         isFalse,
       );
       expect(s.cached, isNull);
-      expect((await s.load(readAsset: () async => bundled)).version, 2);
+      expect((await s.load(readAsset: () async => bundled)).version, 3);
       // 예전 앱이 받아 둔 캐시가 깨져 있어도 번들
       final s2 = await store({'quiz_cache_v1': '{"version": 99, "questions": "망가짐"}'});
       expect((await s2.load(readAsset: () async => bundled)).questions, hasLength(452));
@@ -175,14 +177,14 @@ void main() {
     test('선택 분야에서만 출제 (챌린지·연습), 오늘의 퀴즈는 전체', () async {
       final keys = {'현장 안전기준|전기작업', '서류·절차|재해보고·서류'};
       final sub = bank.only(keys);
-      expect(sub.active, hasLength(15 + 14));
+      expect(sub.active, hasLength(16 + 14)); // 전기작업 16 (REQ-67 27 에서 1문항 옮겨 옴)
       final set = QuizStore.challengeSet(sub, 20, random: Random(1));
       expect(set.map((q) => q.id).toSet(), hasLength(20));
       expect(set.every((q) => keys.contains(q.catKey)), isTrue);
 
       final s = await store();
       final got = <String>{};
-      for (var i = 0; i < 29; i++) {
+      for (var i = 0; i < 30; i++) {
         final q = (await s.next(bank, exclude: got, where: (q) => keys.contains(q.catKey)))!;
         expect(keys.contains(q.catKey), isTrue);
         got.add(q.id);
@@ -219,7 +221,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('선택된 문제 452개'), findsOneWidget);
-      expect(find.text('발주자 의무 58'), findsOneWidget);
+      expect(find.text('발주자 의무 50'), findsOneWidget);
 
       ButtonStyleButton size(String n) =>
           tester.widget<ButtonStyleButton>(find.ancestor(of: find.text(n), matching: find.byType(OutlinedButton)));
@@ -249,7 +251,7 @@ void main() {
       expect(s.cats(practice: false), {'서류·절차|재해보고·서류'});
 
       // 그룹 전체 토글
-      await tester.tap(find.text('그룹 전체').first);
+      await tester.tap(find.text('이 묶음 모두 넣기').first);
       await tester.pumpAndSettle();
       expect(s.cats(practice: false)!.where((k) => k.startsWith('현장 안전기준|')), hasLength(5));
       await tester.tap(find.text('전체 선택'));
@@ -377,7 +379,7 @@ void main() {
       phone(tester);
       await tester.pumpWidget(CardExpenseApp(store: await Store.open()));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('분류가게'));
+      await tester.tap(find.text(keepWords('분류가게'))); // 가맹점은 띄어쓰기 기준 줄바꿈 (REQ-67 1)
       await tester.pumpAndSettle();
       expect(find.text('무시'), findsOneWidget);
       expect(find.text('미분류로 되돌리기'), findsOneWidget);

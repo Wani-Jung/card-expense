@@ -97,3 +97,12 @@ int addParsedTo(List<Expense> items, List<ParsedSms> list, {bool realtime = fals
   if (cancels.isNotEmpty) followOrigins(items, only: cancels);
   return added;
 }
+
+/// 결과·미리보기 숫자를 항목별 한 줄씩 (REQ-66 C·REQ-67 14). 0건인 줄은 뺀다.
+/// [done] 이면 '새로 넣은', 아니면(미리보기) '새로 넣을'.
+List<String> resultLines({required int fresh, required int dup, int ignored = 0, int rejected = 0, bool done = false}) => [
+  if (fresh > 0) '새로 넣${done ? '은' : '을'} 문자 $fresh건',
+  if (dup > 0) '이미 있는 문자 $dup건',
+  if (ignored > 0) '무시했던 문자 $ignored건',
+  if (rejected > 0) '승인 문자 아님 $rejected건',
+];
