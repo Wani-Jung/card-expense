@@ -54,8 +54,7 @@ def build(Q, lawjson, decjson, title, path, drop=None, note='', fut=None, base=N
             art = (dec if m.group(1) == '시행령' else law)[m.group(2)]
             body = f"{basis}({art['title']}) " + clean(art['body'])
             am, hist = amend_info(art['body'], quote, fut)
-            if am.startswith('제정'):
-                am = (base if m.group(1) == '법' and base else '제정·전부개정') + ' 이후 개정 없음'
+            # 날짜를 못 찾으면 빈칸 ('이후 개정 없음'은 쓰지 않는다, REQ-67)
             row = [n, 'OX' if typ == 'OX' else '객관식', qq] + ((opts or []) + [''] * 4)[:4] + [ans, exp, basis, am, hist, body[:6000], '', '']
             for j, v in enumerate(row, 1):
                 c = ws.cell(r, j, v); c.font = F; c.alignment = WR; c.border = BD

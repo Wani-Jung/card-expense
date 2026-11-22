@@ -34,7 +34,9 @@ def info(body, quote, future=None):
         br = [(d, k) for k, ds in BR.findall(body) for d in dates(ds)]
         own = br; src = '조'
     if not own:
-        return '제정(전부개정) 이후 개정 없음', ''
+        # 원본(legalize-kr)엔 [본조신설]·[전문개정] 같은 조 단위 표시가 빠져 있어, 표시가 없다고 '개정 없음'이라 할 수 없다
+        # (나중에 신설된 제N조의M 등이 틀리게 나옴, REQ-67) → 날짜 없이 빈칸, 앱은 근거 조문만 보여 준다
+        return '', ', '.join(fmt(x) for x in hist_all)
     d, kind = max(own)
     kind = {'본조개정': '개정'}.get(kind, kind)
     s = f'{fmt(d)} {kind}' + ('' if src == '조항' else f'({src})')

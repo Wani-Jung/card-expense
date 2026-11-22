@@ -30,6 +30,9 @@ import sys
 
 import openpyxl
 
+# '…이후 개정 없음'은 틀릴 수 있어 앱에 넣지 않는다 (REQ-67). 원본에 남아 있어도 빈칸으로
+NO_AMEND_MARK = '개정 없음'
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from quiz_export import keep_ids, text  # noqa: E402
 
@@ -85,6 +88,8 @@ def read_group(path, group, prefix):
                 basis=text(row[col['근거']]),
             )
             amended = text(row[col['개정 시점']]) if '개정 시점' in col else ''
+            if NO_AMEND_MARK in amended:
+                amended = ''
             if amended:
                 q['amended'] = amended
             q['active'] = adopt != 'X'
