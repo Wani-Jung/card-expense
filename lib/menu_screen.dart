@@ -262,12 +262,12 @@ class _MenuScreenState extends State<MenuScreen> {
             builder: (_, snap) {
               final version = '${snap.hasData ? 'v${snap.data!.version}' : ''} · $editionLabel';
               final onUpdate = w.onUpdate;
-              // 스토어판: 업데이트는 플레이스토어가 맡는다. 버전만 보여 주고 누르는 반응 없음
               if (onUpdate == null) return item(Icons.info_outline, '버전 정보', version, null);
+              // 스토어판은 '버전 정보'(누르면 Play 인앱 업데이트 확인, REQ-64), 깃허브판은 '업데이트 확인'
               return item(
-                Icons.system_update,
-                '업데이트 확인',
-                '현재 $version',
+                isStoreChannel ? Icons.info_outline : Icons.system_update,
+                isStoreChannel ? '버전 정보' : '업데이트 확인',
+                isStoreChannel ? version : '현재 $version',
                 busyThen('update', onUpdate),
                 trailing: spinner('update'),
               );

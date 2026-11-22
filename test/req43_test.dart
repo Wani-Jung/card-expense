@@ -67,11 +67,14 @@ void main() {
       if (isStoreChannel) {
         expect(find.text('업데이트 확인'), findsNothing);
         expect(find.text('버전 정보'), findsOneWidget);
-        // 눌러도 아무 일 없음 (메뉴 그대로, 스낵바·창 없음)
+        // REQ-64: 누르면 Play 인앱 업데이트 확인 (테스트 채널은 응답이 없어 '확인할 수 없어요'), 깃허브 조회는 안 함
         await tester.tap(find.text('버전 정보'));
+        // 확인 중 스피너가 도는 동안 실제 비동기(PackageInfo·채널)가 끝나게 기다린다
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
         await tester.pumpAndSettle();
-        expect(find.byType(SnackBar), findsNothing);
-        expect(find.byType(AlertDialog), findsNothing);
+        expect(calls, contains('playUpdateCheck'));
+        expect(find.text('지금은 확인할 수 없어요'), findsOneWidget);
+        expect(find.text('Play 스토어에서 보기'), findsOneWidget);
       } else {
         expect(find.text('업데이트 확인'), findsOneWidget);
         expect(find.text('버전 정보'), findsNothing);

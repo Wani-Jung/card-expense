@@ -111,6 +111,16 @@ class Native {
       _ch.invokeMethod('openNotificationAccessSettings');
   static Future<void> openAppSettings() => _ch.invokeMethod('openAppSettings');
 
+  /// (스토어판 '버전 정보', REQ-64) Play 인앱 업데이트 확인: {status: available|latest|error, versionCode?}
+  static Future<Map<String, dynamic>> playUpdateCheck() async =>
+      await _ch.invokeMapMethod<String, dynamic>('playUpdateCheck') ?? const {'status': 'error'};
+
+  /// Play 유연한 업데이트 시작. 못 하면 false
+  static Future<bool> playUpdateStart() async => await _ch.invokeMethod<bool>('playUpdateStart') ?? false;
+
+  /// Play 스토어 앱의 이 앱 페이지
+  static Future<void> openPlayStore() => _ch.invokeMethod('openPlayStore');
+
   /// 미분류 7일 알림: 미분류 내역 시각과 스위치를 네이티브에 넘긴다 (앱이 꺼져 있어도 판정하도록)
   static Future<void> syncReminder(List<int> times, {required bool enabled}) =>
       _ch.invokeMethod('syncReminder', {'times': times, 'enabled': enabled});

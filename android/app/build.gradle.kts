@@ -95,5 +95,7 @@ flutter {
 dependencies {
     // 미분류 7일 알림: 평일 오후 5시 확인, 재부팅 후에도 유지
     implementation("androidx.work:work-runtime:2.10.1")
+    // 스토어판 '버전 정보' → Play 인앱 업데이트 (REQ-64, 누를 때만)
+    implementation("com.google.android.play:app-update:2.1.0")
     testImplementation("junit:junit:4.13.2")
 }

@@ -65,6 +65,12 @@ class NoticeDialog extends StatelessWidget {
 
   /// 제목 줄을 길게 누르면 (숨은 진단 정보용, 기본 화면엔 표시 없음)
   final VoidCallback? onTitleLongPress;
+
+  /// 골드 버튼을 누르면 팝업을 닫고 이어서 할 일 (예: [업데이트]). 없으면 닫기만
+  final VoidCallback? onOk;
+
+  /// 골드 버튼 왼쪽 글자 버튼 (예: [나중에]). 누르면 닫기만. 없으면 버튼 하나
+  final String? cancelLabel;
   const NoticeDialog({
     super.key,
     this.icon,
@@ -74,6 +80,8 @@ class NoticeDialog extends StatelessWidget {
     this.okLabel = '확인',
     this.child,
     this.onTitleLongPress,
+    this.onOk,
+    this.cancelLabel,
   });
 
   @override
@@ -153,29 +161,46 @@ class NoticeDialog extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
-            if (body.isNotEmpty) Text(
-              keepWords(body),
-              style: TextStyle(fontSize: 15, height: 1.6, color: onSurface.withValues(alpha: 0.78)),
-            ),
+            if (body.isNotEmpty)
+              Text(
+                keepWords(body),
+                style: TextStyle(fontSize: 15, height: 1.6, color: onSurface.withValues(alpha: 0.78)),
+              ),
             if (child != null) Flexible(child: SingleChildScrollView(child: child)),
             const SizedBox(height: 14),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: kGold,
-                  foregroundColor: kGoldText,
-                  shape: const StadiumBorder(),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap, // 아래 빈 공간 줄이기 (버튼 높이 ≥ 44 라 누르기는 충분)
-                  padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 12),
-                  textStyle: (Theme.of(context).textTheme.labelLarge ?? const TextStyle()).copyWith(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (cancelLabel != null) ...[
+                  TextButton(
+                    style: TextButton.styleFrom(foregroundColor: onSurface.withValues(alpha: 0.7)),
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(cancelLabel!),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: kGold,
+                      foregroundColor: kGoldText,
+                      shape: const StadiumBorder(),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap, // 아래 빈 공간 줄이기 (버튼 높이 ≥ 44 라 누르기는 충분)
+                      padding: EdgeInsets.symmetric(horizontal: cancelLabel == null ? 26 : 20, vertical: 12),
+                      textStyle: (Theme.of(context).textTheme.labelLarge ?? const TextStyle()).copyWith(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      onOk?.call();
+                    },
+                    // 좁은 화면에서 [보조][긴 라벨]이 한 줄에 안 들어가면 글자를 줄인다 (REQ-64 'Play 스토어에서 보기')
+                    child: FittedBox(fit: BoxFit.scaleDown, child: Text(okLabel, maxLines: 1)),
                   ),
                 ),
-                onPressed: () => Navigator.pop(context),
-                child: Text(okLabel),
-              ),
+              ],
             ),
           ],
         ),

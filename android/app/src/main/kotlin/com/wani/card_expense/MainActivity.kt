@@ -152,6 +152,13 @@ class MainActivity : FlutterActivity() {
                         requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
                     }
                 }
+                // 스토어판 '버전 정보' (REQ-64): Play 인앱 업데이트. 누를 때만
+                "playUpdateCheck" -> PlayUpdate.check(this) { result.success(it) }
+                "playUpdateStart" -> PlayUpdate.start(this) { result.success(it) }
+                "openPlayStore" -> {
+                    PlayUpdate.openStore(this)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

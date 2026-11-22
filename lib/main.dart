@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'app_update.dart';
 import 'budget.dart';
 import 'cancel_link.dart';
 import 'category_badge.dart';
@@ -921,15 +922,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final current = (await PackageInfo.fromPlatform()).version;
     final latest = await fetchLatestTag();
     if (!mounted) return;
-    if (latest == null) {
-      if (manual) _toast('업데이트 정보를 확인하지 못했어요. 인터넷 연결을 확인해주세요');
+    if (manual) {
+      // 메뉴에서 누른 확인: 결과 세 가지를 같은 모양 팝업으로 (REQ-64, 스토어판 '버전 정보'와 같음)
+      final c = latest == null
+          ? UpdateCheck(UpdateStatus.failed, current)
+          : UpdateCheck(isNewerVersion(latest, current) ? UpdateStatus.available : UpdateStatus.latest, current, latest);
+      // 팝업이 뜨면 메뉴 항목의 스피너는 멈추게 (닫힐 때까지 기다리지 않음)
+      unawaited(showDialog<void>(
+        context: context,
+        builder: (_) => updateResultDialog(
+          c,
+          store: false,
+          onUpdate: () => launchUrl(Uri.parse(latestApkUrl), mode: LaunchMode.externalApplication),
+        ),
+      ));
       return;
     }
-    if (!isNewerVersion(latest, current)) {
-      if (manual) _toast('최신 버전이에요 (v$current · $editionLabel)');
-      return;
-    }
-    if (!manual && store.updateSkippedTag == latest) return;
+    if (latest == null || !isNewerVersion(latest, current)) return;
+    if (store.updateSkippedTag == latest) return;
     // 퀴즈 시트가 떠 있으면 닫힌 뒤에 (겹쳐 뜨지 않게)
     if (_quizSheet != null) await _quizSheet;
     if (!mounted) return;
@@ -950,6 +960,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } else if (go == false) {
       await store.setUpdateSkippedTag(latest);
     }
+  }
+
+  /// 스토어판 메뉴 '버전 정보' (REQ-64): Play 인앱 업데이트 확인 → 결과 팝업. 앱 시작 때 자동으로는 안 한다
+  Future<void> _checkStoreUpdate() async {
+    final c = await checkPlayUpdate((await PackageInfo.fromPlatform()).version);
+    if (!mounted) return;
+    unawaited(showDialog<void>(
+      context: context,
+      builder: (_) => updateResultDialog(
+        c,
+        store: true,
+        // 유연한 업데이트 흐름, 시작 못 하면 Play 스토어 앱 페이지
+        onUpdate: () async {
+          if (!await Native.playUpdateStart()) await Native.openPlayStore();
+        },
+        onStore: Native.openPlayStore,
+      ),
+    ));
   }
 
   // ---------------- 메뉴 동작 ----------------
@@ -1045,7 +1073,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onLab: _openLab,
         onGuide: _openGuide,
         // 메뉴에 그대로 있고, 결과(스낵바·업데이트 창)도 메뉴 위에서
-        onUpdate: isStoreChannel ? null : () => _checkUpdate(manual: true),
+        onUpdate: isStoreChannel ? _checkStoreUpdate : () => _checkUpdate(manual: true),
         counts: () => (
           pending: _items.where((e) => e.category == null).length,
           check: _issues.length,

@@ -319,9 +319,9 @@ void main() {
     // 메인으로 돌아가지 않음
     expect(find.text('메뉴'), findsOneWidget);
     expect(find.text('결제내역 입력'), findsOneWidget);
-    // 결과(테스트에서는 네트워크 없음 → 실패 안내)는 메뉴 위 스낵바로
-    expect(find.textContaining('업데이트 정보를 확인하지 못했어요'), findsOneWidget);
-  }, skip: isStoreChannel); // 스토어판에는 업데이트 확인이 없다 (req43_test 가 확인)
+    // 결과(테스트에서는 네트워크 없음 → 실패)는 메뉴 위 공용 팝업으로 (REQ-64)
+    expect(find.text('지금은 확인할 수 없어요'), findsOneWidget);
+  }, skip: isStoreChannel); // 스토어판은 '버전 정보' (req43·req64 테스트가 확인)
 
   testWidgets('오늘의 안전 OX: 새 스위치가 켜져 있으면 예전 키(quiz_enabled_v1=false)와 상관없이 뜸', (tester) async {
     SharedPreferences.setMockInitialValues({
