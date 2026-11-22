@@ -33,7 +33,7 @@ class ChallengeResultCard extends StatelessWidget {
     required this.date,
     required this.newBest,
     this.title = '안전 OX 챌린지',
-    this.subtitle = '한국농어촌공사 현장 안전 OX',
+    this.subtitle = '현장 안전 OX', // 특정 기관 이름은 넣지 않는다 (REQ-62)
     this.gradeTopic = '안전',
   });
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'challenge_card.dart';
+import 'law_notice.dart';
 import 'layout.dart';
 import 'quiz.dart';
 import 'quiz_category_picker.dart';
@@ -145,6 +146,7 @@ class _RuralQuizHomeScreenState extends State<RuralQuizHomeScreen> {
               child: const Text('점수 기록 지우기'),
             ),
           ),
+          const LawSourceNotice(), // 출처·'정부와 무관' 고지 (REQ-62)
         ],
       ),
     );

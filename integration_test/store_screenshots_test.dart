@@ -16,6 +16,8 @@ import 'package:card_expense/import_screen.dart';
 import 'package:card_expense/ingest.dart';
 import 'package:card_expense/main.dart';
 import 'package:card_expense/native.dart';
+import 'package:card_expense/rural_quiz.dart';
+import 'package:card_expense/rural_quiz_screens.dart';
 import 'package:card_expense/sms_parser.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -150,6 +152,27 @@ void main() {
     await tap(find.text('이번 달'));
     await tap(find.text('이 기간 문자 확인'));
     await shot('07_import', '지난 승인 문자도 기간 골라 한 번에');
+
+    // ⑧ 법령 Quiz 문제 (REQ-62 후보, 콘솔엔 아직 안 올림). 근거·개정 시점 줄이 보이는 짧은 객관식 한 문제를 고정
+    await start();
+    final law = (await tester.runAsync(RuralBank.load))!;
+    bool fits(RuralQuestion q) =>
+        q.group == kRuralLaw.group && q.amended.isNotEmpty && q.question.length <= 60 && q.choices.every((c) => c.length <= 24);
+    final q8 = law.active.firstWhere((q) => fits(q) && q.isChoice, orElse: () => law.active.firstWhere(fits));
+    final one = RuralBank(law.version, [q8], law.groups.where((g) => g.name == kRuralLaw.group).toList());
+    Navigator.of(tester.element(find.byType(Scaffold).first)).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RuralPracticeScreen(store: RuralStore(prefs, kRuralLaw), bank: () async => one),
+      ),
+    );
+    await settle();
+    await shot('08_law_quiz', '법령 Quiz · 근거 조문과 개정 시점까지');
+
+    // ⑨ 실험실 (법령 Quiz 4종 + 출처·고지, 보고용)
+    await start();
+    await tap(find.byTooltip('메뉴'));
+    await tap(find.text('실험실'));
+    await shot('09_lab', '실험실 · 법령 Quiz 출처·고지');
   });
 }
 

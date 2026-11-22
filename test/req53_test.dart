@@ -84,8 +84,13 @@ void main() {
     expect(read('short_description.txt').length, lessThanOrEqualTo(80));
     final full = read('full_description.txt');
     expect(full.length, lessThanOrEqualTo(4000));
-    // 스토어 = 전용판(2.0.1~, REQ-60): 문자 읽기·지난 문자 불러오기는 써도 됨. 캡처(OCR)·법령 Quiz 는 스토어판에 없음
-    for (final no in ['캡처', '법령 Quiz', '농어촌정비법', '건축법', '국가계약법']) {
+    // 법령 Quiz 문단에는 출처·'정부와 무관' 고지 (REQ-62, 정부 정보 앱 정책)
+    expect(full, contains('■ 법령 Quiz'));
+    expect(full, contains('법령 원문 출처: 국가법령정보센터 https://www.law.go.kr'));
+    expect(full, contains('이 앱은 정부·공공기관을 대표하지 않는 개인 개발 앱입니다.'));
+    // 스토어 = 전용판(2.0.1~, REQ-60): 문자 읽기·지난 문자 불러오기는 써도 됨. 법령 Quiz 도 REQ-62 부터 스토어판에 있음.
+    // 캡처(OCR)는 스토어판에 없음
+    for (final no in ['캡처']) {
       expect(full.contains(no), isFalse, reason: no);
       expect(read('short_description.txt').contains(no), isFalse, reason: no);
     }

@@ -60,9 +60,9 @@ void main() {
         ),
       );
       expect(find.text('안전 OX Quiz'), findsOneWidget);
-      expect(find.text('농어촌정비법 Quiz'), isStoreChannel ? findsNothing : findsOneWidget);
+      expect(find.text('농어촌정비법 Quiz'), findsOneWidget);
       expect(kShowRuralQuiz, !isStoreChannel || kRuralQuizInStore);
-      expect(kRuralQuizInStore, isFalse); // 검토가 끝나면 true 로
+      expect(kRuralQuizInStore, isTrue); // REQ-62 부터 스토어판에도
     });
 
     testWidgets('메뉴 실험실 설명도 채널에 맞게', (tester) async {
@@ -81,7 +81,7 @@ void main() {
       await tester.tap(find.byTooltip('메뉴'));
       await tester.pumpAndSettle();
       expect(find.text('실험실'), findsOneWidget);
-      expect(find.text(isStoreChannel ? '안전 OX Quiz' : '안전 OX Quiz · 법령 Quiz 4종'), findsOneWidget);
+      expect(find.text('안전 OX Quiz · 법령 Quiz 4종'), findsOneWidget);
     });
   });
 }

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'flavor.dart';
+import 'law_notice.dart';
 import 'layout.dart';
 import 'menu_screen.dart';
 import 'rural_quiz.dart';
 
 /// 메뉴 > 실험실 (REQ-47·51): 안전 OX Quiz, 법령 Quiz 4종([kLawQuizzes] 순서). 항목을 누르면 그 화면, 돌아오면 설명을 다시 읽는다.
-/// 법령 Quiz 는 스토어판에서 모두 숨긴다 (`kShowRuralQuiz`, REQ-49·51).
+/// 법령 Quiz 는 `kShowRuralQuiz` 일 때만 (REQ-62 부터 스토어판에도), 맨 아래에 출처·고지 `LawSourceNotice`.
 class LabScreen extends StatefulWidget {
   final String Function() quizSummary;
   final String Function(LawQuiz) lawSummary;
@@ -61,6 +62,7 @@ class _LabScreenState extends State<LabScreen> {
               onTap: _then(() => widget.onLaw(law)),
             ),
           ],
+        if (kShowRuralQuiz) const LawSourceNotice(),
       ],
     ),
   );

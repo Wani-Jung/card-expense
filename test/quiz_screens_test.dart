@@ -181,7 +181,7 @@ void main() {
       expect(find.text('2분 14초'), findsOneWidget);
       expect(find.text('6.7초'), findsOneWidget);
       expect(find.text('Made by wani'), findsNothing); // REQ-48 카드에 크레딧 없음
-      expect(find.text('한국농어촌공사 현장 안전 OX'), findsOneWidget);
+      expect(find.text('현장 안전 OX'), findsOneWidget);
       // 세로 2:3
       final size = tester.getSize(find.byType(ChallengeResultCard));
       expect(size.height / size.width, closeTo(1.5, 0.01));

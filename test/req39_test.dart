@@ -4,7 +4,6 @@ import 'dart:math';
 
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/main.dart';
-import 'package:card_expense/flavor.dart';
 import 'package:card_expense/lab_screen.dart';
 import 'package:card_expense/menu_screen.dart';
 import 'package:card_expense/quiz.dart';
@@ -491,7 +490,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('연속 3일'), findsOneWidget);
-      expect(find.text('농어촌정비법 Quiz'), isStoreChannel ? findsNothing : findsOneWidget); // 스토어판은 숨김 (REQ-49)
+      expect(find.text('농어촌정비법 Quiz'), findsOneWidget); // 스토어판은 숨김 (REQ-49)
       final icon = find.byType(QuizIcon);
       expect(icon, findsOneWidget);
       expect(tester.getSize(icon), const Size(24, 24));

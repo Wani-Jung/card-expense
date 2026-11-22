@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:card_expense/budget.dart';
 import 'package:card_expense/expense.dart';
-import 'package:card_expense/flavor.dart';
 import 'package:card_expense/lab_screen.dart';
 import 'package:card_expense/layout.dart';
 import 'package:card_expense/main.dart';
@@ -318,10 +317,10 @@ void main() {
       final names = ['농어촌정비법 Quiz', '건설기술 진흥법 Quiz', '국가계약법 Quiz', '건축법 Quiz'];
       expect(find.text('안전 OX Quiz'), findsOneWidget);
       for (final n in names) {
-        expect(find.text(n), isStoreChannel ? findsNothing : findsOneWidget, reason: n);
+        expect(find.text(n), findsOneWidget, reason: n);
       }
       expect(find.text('농어촌정비법 퀴즈'), findsNothing);
-      if (isStoreChannel) return;
+      // REQ-62: 스토어판에도 보임
       for (var i = 1; i < names.length; i++) {
         expect(tester.getTopLeft(find.text(names[i])).dy, greaterThan(tester.getTopLeft(find.text(names[i - 1])).dy));
       }
