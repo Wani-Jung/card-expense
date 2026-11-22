@@ -46,7 +46,7 @@ void main() {
       final now = DateTime.now();
       String two(int n) => n.toString().padLeft(2, '0');
       final p = parseSms(
-        '[Web발신] NH기업0000승인 공용카드 8,500원 체크 ${two(now.month)}/${two(now.day)} 08:10 좋은아침페스츄리 홍성내포점',
+        '[Web발신] NH기업0000승인 공용카드 8,500원 체크 ${two(now.month)}/${two(now.day)} 08:10 좋은아침페스츄리베이커리카페 홍성내포신도시점',
         cardDigits: '0000',
         receivedAt: now,
       )!;
@@ -58,7 +58,6 @@ void main() {
 
     // 메인 (긴 가맹점 이름 2줄) → 상세 시트 버튼
     await start();
-    await tester.drag(find.byType(Scrollable).last, const Offset(0, -300));
     await shot('01_main_merchant');
     await tap(find.textContaining('좋'));
     await shot('02_edit_sheet');
@@ -66,8 +65,6 @@ void main() {
     await settle();
 
     // 단위 메뉴 (원/천원/만원), ⓘ
-    await tester.drag(find.byType(Scrollable).last, const Offset(0, 600));
-    await settle();
     await tap(find.text('단위: 원 ▾'));
     await shot('03_unit_menu');
     await tap(find.text('만원').last);
