@@ -88,8 +88,18 @@ Future<ImportPreview> previewImportRange(
   required String digits,
   required Map<String, Expense> existing,
 }) async {
-  final scan = await Native.readSmsInbox(start, end);
+  final scan = inRangeOnly(await Native.readSmsInbox(start, end), start, end);
   return importPreviewOf(scan, digits: digits, existing: existing);
+}
+
+/// 고른 기간 [start, end) 밖의 문자는 버린다 (REQ-69). 네이티브도 거르지만, 저장소마다 날짜 칸·단위가 달라
+/// 혹시 넘어온 게 있어도 미리보기·불러오기 둘 다에 안 들어가게 한 번 더.
+InboxScan inRangeOnly(InboxScan scan, DateTime start, DateTime end) {
+  final kept = [
+    for (final r in scan.items)
+      if (!r.receivedAt.isBefore(start) && r.receivedAt.isBefore(end)) r,
+  ];
+  return kept.length == scan.items.length ? scan : InboxScan(kept, scan.addrSamples);
 }
 
 /// 읽어 온 문자를 분류한다 (REQ-59). 같은 문자가 SMS 와 RCS 후보 저장소 등에서 두 번 읽히면 **한 번만** 센다 —

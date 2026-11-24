@@ -390,6 +390,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<CheckIssue> get _issues =>
       findIssues(_items, _vendors, now: DateTime.now(), okKeys: widget.store.checkOk);
   PermStatus _perms = const PermStatus();
+
+  /// 지난 문자 불러오기 화면이 열려 있는 동안 (두 번 눌러 두 번 열리지 않게)
   bool _importing = false;
 
   @override
@@ -522,13 +524,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   @override
-  void didUpdateWidget(HomeScreen old) {
-    super.didUpdateWidget(old);
-    // (전용판) 설정이 바뀌면 자동 불러오기 표시가 지워져 있으므로 다시 불러온다.
-    if (old.digits != widget.digits || old.sender != widget.sender) _maybeAutoImport();
-  }
-
-  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _quizTimer?.cancel();
@@ -579,7 +574,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _refreshPerms() async {
     final p = await Native.permissionStatus();
     if (mounted) setState(() => _perms = p);
-    await _maybeAutoImport();
   }
 
   /// 알림 감지·SMS 리시버가 쌓아 둔 문자. 네이티브에서 이미 걸렀으므로 카드번호는 다시 보지 않는다.
@@ -843,29 +837,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // ---------------- (전용판) 지난 문자 불러오기 ----------------
 
-  /// 문자 권한이 처음 허용됐거나 설정이 바뀐 뒤면 최근 1년치를 한 번 불러온다 (미리보기 없이).
-  Future<void> _maybeAutoImport() async {
-    if (!isFullEdition || !widget.store.useSms || _perms.sms != true || widget.store.autoImported || _importing) {
-      return;
-    }
-    final r = defaultImportRange(DateTime.now());
-    // 종료일 당일 문자까지 (REQ-61: 예전엔 [1년 전, 오늘 0시) 라 오늘 온 문자가 빠졌다)
-    final q = importQueryRange(r.from, r.to);
-    await _importRange(q.start, q.end);
-    await widget.store.setAutoImported();
-  }
-
   /// 메뉴 > 결제내역 입력 > 지난 문자 불러오기: 권한 확인 → 기간 고르기·미리보기 화면 → [불러오기]
   Future<void> _importInbox() async {
     if (_importing) return;
+    _importing = true;
+    try {
+      await _importInboxFlow();
+    } finally {
+      _importing = false;
+    }
+  }
+
+  Future<void> _importInboxFlow() async {
     if (!widget.store.useSms) {
       _toast('권한 설정에서 문자 읽기를 켜주세요');
       return;
     }
     if (_perms.sms != true) {
-      // 안내 화면 → [동의하고 계속]일 때만 시스템 권한 창. [나중에]면 아무것도 안 함 (다음에 누르면 다시 안내부터)
-      await requestSmsWithDisclosure(context);
-      return; // 허용되면 permissionsChanged → 자동 불러오기
+      // 안내 화면 → [동의하고 계속]일 때만 시스템 권한 창 → 허용되면 이어서 기간 고르는 화면 (REQ-69: 예전처럼
+      // 권한을 처음 허용했다고 최근 1년을 미리보기 없이 불러오지 않는다). [나중에]·거부면 아무것도 안 함
+      if (!await ensureSmsForImport(context)) return;
+      await _refreshPerms();
+      if (!mounted) return;
     }
     final picked = await Navigator.of(context).push<ImportPreview>(MaterialPageRoute(
       builder: (_) => ImportRangeScreen(preview: _previewRange),
@@ -876,18 +869,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 기간 미리보기: 문자를 읽어 새·중복·무시했던 건수를 센다 (아직 넣지 않음)
   Future<ImportPreview> _previewRange(DateTime from, DateTime to) =>
       previewImportRange(from, to, digits: widget.digits, existing: _byId);
-
-  Future<void> _importRange(DateTime from, DateTime to) async {
-    if (_importing) return;
-    _importing = true;
-    try {
-      await _applyImport(await _previewRange(from, to));
-    } on PlatformException catch (e) {
-      _toast(e.code == 'NO_PERMISSION' ? '문자 권한을 먼저 허용해주세요' : '불러오기 실패: ${e.message}');
-    } finally {
-      _importing = false;
-    }
-  }
 
   /// 불러오기 결과 (REQ-61): 무시했던 문자가 있으면 되살리기 창, 새로 넣었으면 스낵바, 없으면 경우별 안내 팝업.
   /// 문자함에서 읽은 '승인 문자 아님'(같은 발신번호의 광고 등)은 사용자가 넣은 게 아니라 보여주지 않는다.
@@ -1183,7 +1164,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onUsageChanged: () async {
             await Native.setUsage(listener: widget.store.useListener, sms: widget.store.useSms);
             if (mounted) setState(() {});
-            await _maybeAutoImport();
           },
         ),
       ));

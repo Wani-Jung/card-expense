@@ -90,14 +90,15 @@ object Flavor {
         try {
             ctx.contentResolver.query(Uri.parse(uri), null, null, null, null)?.use { c ->
                 val bodyIdx = BODY_COLUMNS.map { c.getColumnIndex(it) }.firstOrNull { it >= 0 } ?: return
-                val dateIdx = DATE_COLUMNS.map { c.getColumnIndex(it) }.firstOrNull { it >= 0 }
+                // 날짜 칸이 없는 저장소는 기간을 걸 수 없으니 통째로 건너뛴다 (REQ-69: 예전엔 '지금'으로 쳐서 기간과 상관없이 다 읽었다)
+                val dateIdx = DATE_COLUMNS.map { c.getColumnIndex(it) }.firstOrNull { it >= 0 } ?: return
                 val addrIdx = ADDRESS_COLUMNS.map { c.getColumnIndex(it) }.firstOrNull { it >= 0 }
                 var rows = 0
                 while (c.moveToNext() && rows < MAX_ROWS) {
                     rows++
                     val body = try { c.getString(bodyIdx) } catch (_: Exception) { null } ?: continue
-                    val ts = dateIdx?.let { toMillis(c.getLong(it)) } ?: System.currentTimeMillis()
-                    if (ts < fromMs || ts >= toMs) continue
+                    val ts = InboxDate.toMillis(try { c.getLong(dateIdx) } catch (_: Exception) { null })
+                    if (ts == null || !InboxDate.inRange(ts, fromMs, toMs)) continue
                     val address = addrIdx?.let { try { c.getString(it) } catch (_: Exception) { null } }
                     each(address, body, ts)
                 }
@@ -105,9 +106,6 @@ object Flavor {
         } catch (_: Exception) {
         }
     }
-
-    /** 날짜 컬럼이 초 단위면 밀리초로. (2001년 이후 밀리초 값은 1e12 이상) */
-    private fun toMillis(v: Long) = if (v in 1 until 100_000_000_000L) v * 1000 else v
 
     private fun mmsFrom(ctx: Context, id: Long): String? =
         ctx.contentResolver.query(
