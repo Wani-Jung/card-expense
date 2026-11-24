@@ -308,7 +308,6 @@ void main() {
         MaterialApp(
           home: LabScreen(
             quizSummary: () => '',
-            lawSummary: (l) => '${l.group} 요약',
             onQuiz: () async {},
             onLaw: (l) async => opened.add(l.group),
           ),

@@ -487,7 +487,7 @@ void main() {
       ); // 메뉴 항목으로는 없음 (실험실 설명에만)
       await tester.pumpWidget(
         MaterialApp(
-          home: LabScreen(quizSummary: () => '연속 3일', lawSummary: (_) => 'OX·객관식', onQuiz: noop, onLaw: (_) => noop()),
+          home: LabScreen(quizSummary: () => '연속 3일', onQuiz: noop, onLaw: (_) => noop()),
         ),
       );
       await tester.pumpAndSettle();

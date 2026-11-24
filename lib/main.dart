@@ -1027,19 +1027,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   RuralBank? _ruralBank;
   Future<RuralBank?> _loadLaw(LawQuiz l) async => (_ruralBank ??= await RuralBank.load())?.only(l.group);
 
-  /// 메뉴 > 실험실 (안전 OX Quiz · 법령 Quiz 4종). 부제에 쓸 문항·분야 수를 먼저 읽어 둔다 (내장 파일, 금방)
+  /// 메뉴 > 실험실 (안전 OX Quiz · 법령 Quiz 4종, 법령은 제목만)
   Future<void> _openLab() async {
-    // 부제의 문항·분야 수: 미리 읽어 둔 게 없으면 읽기 시작만 하고 바로 연다 (못 읽었으면 예전 문구)
-    if (_ruralBank == null) unawaited(RuralBank.load().then((b) => _ruralBank ??= b));
     await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => LabScreen(
           quizSummary: () => _quiz.menuText(quizDay(DateTime.now())),
-          lawSummary: (l) {
-            final s = _laws[l.group]!;
-            final p = s.percent;
-            // 안 풀었으면 법령마다 다른 'n문제 · 분야 n개' (REQ-67 28), 풀었으면 점수 남은 기록 기준 (29)
-            return p == null ? lawQuizSummary(_ruralBank, l) : '푼 문제 ${s.scoredCount} · 정답률 $p%';
-          },
           onQuiz: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => QuizHomeScreen(store: _quiz, bank: _bank),
               )),
@@ -1293,10 +1285,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final pending = _items.where((e) => e.category == null).toList()
-      ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
-    // 월 화면이면 그 달, 합산 화면이면 두 달 (표·내역 모두)
+    // 월 화면이면 그 달, 합산 화면이면 두 달 (표·분류 대기·내역 모두)
     final months = _view.months(_period);
+    final (here: pending, others: otherPending) = pendingInView(_items, months);
     final combined = months.length > 1;
     final monthItems = _items
         .where((e) => months.any(e.inMonth) && (e.category == kCar || e.category == kOps))
@@ -1397,8 +1388,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 onOps: () => _classify(e, kOps, askBulk: true),
                 onIgnore: () => _classify(e, kIgnored),
               ),
-            const SizedBox(height: 12),
           ],
+          if (otherPending > 0) _OtherPendingLine(count: otherPending, onTap: _openUnclassified),
+          if (pending.isNotEmpty || otherPending > 0) const SizedBox(height: 12),
           if (showCheck)
             _CheckBanner(
               count: issues.length,
@@ -1534,6 +1526,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 // ------------------------------------------------------------------
 // 위젯 조각
 // ------------------------------------------------------------------
+/// 분류 대기 카드 아래(그 기간 대기가 없으면 그 자리) 작은 한 줄 → 메뉴의 미분류 내역 화면
+class _OtherPendingLine extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+  const _OtherPendingLine({required this.count, required this.onTap});
+  @override
+  Widget build(BuildContext context) => Align(
+        alignment: Alignment.centerLeft,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
+            child: Text('${otherPendingLabel(count)} ›', style: const TextStyle(fontSize: 13, color: Color(0xFF5F6368))),
+          ),
+        ),
+      );
+}
+
 class _SectionTitle extends StatelessWidget {
   final String text;
   const _SectionTitle(this.text);

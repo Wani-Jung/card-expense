@@ -13,7 +13,15 @@ const kLawSourceUrl = 'https://www.law.go.kr';
 const kLawSourceLine = '법령 원문 출처: 국가법령정보센터(law.go.kr)';
 const kLawDisclaimer = '이 앱은 정부·공공기관과 관련 없는 개인 앱이며, 문제는 학습용으로 법적 효력이 없어요.';
 
-/// 'yyyy-mm-dd' → 'yyyy.mm.dd' (형식이 다르면 그대로)
+/// 고지 문단 (2.0.3): 쉼표·마침표 뒤에서 줄을 직접 나누고, 줄 안은 띄어쓰기에서만 줄바꿈(keepWords)
+/// → '…법적 / 효력이' 처럼 어색하게 끊기지 않는다
+String lawDisclaimerText(String date) => [
+  '이 앱은 정부·공공기관과 관련 없는 개인 앱이며,',
+  '문제는 학습용으로 법적 효력이 없어요.',
+  if (date.isNotEmpty) '기준일: $date',
+].map(keepWords).join('\n');
+
+/// 'yyyy-mm-dd' →'yyyy.mm.dd' (형식이 다르면 그대로)
 String lawBaseDateText(String updated) =>
     RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(updated) ? updated.replaceAll('-', '.') : updated;
 
@@ -58,7 +66,7 @@ class LawSourceNotice extends StatelessWidget {
               ),
             ),
             Text(
-              keepWords([kLawDisclaimer, if (date.isNotEmpty) '기준일: $date'].join(' ')),
+              lawDisclaimerText(date),
               style: const TextStyle(fontSize: 11, height: 1.5, color: _grey),
             ),
           ],

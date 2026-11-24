@@ -100,18 +100,6 @@ void main() {
       expect((merchantText('') as Text).data, keepWords('(가맹점 미상)'));
     });
 
-    test('실험실 법령 Quiz 부제: 법령마다 n문제 · 분야 n개, 건축법은 2027 개정 반영', () async {
-      TestWidgetsFlutterBinding.ensureInitialized();
-      final bank = await RuralBank.load();
-      final subs = [for (final l in kLawQuizzes) lawQuizSummary(bank, l)];
-      expect(subs.toSet(), hasLength(4));
-      for (final s in subs) {
-        expect(s, matches(RegExp(r'^\d+문제 · 분야 \d+개')));
-      }
-      expect(subs.last, endsWith('· 2027 개정 반영'));
-      expect(lawQuizSummary(null, kRuralLaw), 'OX·객관식 문제를 분야별로 풀어요');
-    });
-
     testWidgets('분야별 정답률: 큰 분야는 소제목으로 한 번만', (tester) async {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(

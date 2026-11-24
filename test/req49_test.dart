@@ -56,7 +56,7 @@ void main() {
       Future<void> noop() async {}
       await tester.pumpWidget(
         MaterialApp(
-          home: LabScreen(quizSummary: () => '', lawSummary: (_) => '', onQuiz: noop, onLaw: (_) => noop()),
+          home: LabScreen(quizSummary: () => '', onQuiz: noop, onLaw: (_) => noop()),
         ),
       );
       expect(find.text('안전 OX Quiz'), findsOneWidget);

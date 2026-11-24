@@ -319,11 +319,3 @@ class RuralStore {
     return active[id];
   }
 }
-
-/// 실험실 법령 Quiz 부제 (REQ-67 28): 'n문제 · 분야 n개', 건축법은 '· 2027 개정 반영'. 파일을 못 읽었으면 예전 문구
-String lawQuizSummary(RuralBank? bank, LawQuiz l) {
-  final b = bank?.only(l.group);
-  if (b == null) return 'OX·객관식 문제를 분야별로 풀어요';
-  final cats = b.groups.isEmpty ? b.active.map((q) => q.category).toSet().length : b.groups.first.categories.length;
-  return '${b.active.length}문제 · 분야 $cats개${l.group == '건축법' ? ' · 2027 개정 반영' : ''}';
-}

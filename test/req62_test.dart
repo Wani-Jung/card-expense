@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:card_expense/flavor.dart';
 import 'package:card_expense/lab_screen.dart';
 import 'package:card_expense/law_notice.dart';
-import 'package:card_expense/layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -32,7 +31,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('법령 원문 출처: 국가법령정보센터(law.go.kr)'), findsOneWidget);
     expect(
-      find.text(keepWords('이 앱은 정부·공공기관과 관련 없는 개인 앱이며, 문제는 학습용으로 법적 효력이 없어요. 기준일: 2026.11.16')),
+      find.text(lawDisclaimerText('2026.11.16')),
       findsOneWidget,
     );
     await tester.tap(find.text('법령 원문 출처: 국가법령정보센터(law.go.kr)'));
@@ -46,7 +45,7 @@ void main() {
     Future<void> noop() async {}
     await tester.pumpWidget(
       MaterialApp(
-        home: LabScreen(quizSummary: () => '', lawSummary: (_) => '', onQuiz: noop, onLaw: (_) => noop()),
+        home: LabScreen(quizSummary: () => '', onQuiz: noop, onLaw: (_) => noop()),
       ),
     );
     await tester.pumpAndSettle();

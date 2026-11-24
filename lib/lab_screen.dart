@@ -7,16 +7,14 @@ import 'menu_screen.dart';
 import 'rural_quiz.dart';
 
 /// 메뉴 > 실험실 (REQ-47·51): 안전 OX Quiz, 법령 Quiz 4종([kLawQuizzes] 순서). 항목을 누르면 그 화면, 돌아오면 설명을 다시 읽는다.
-/// 법령 Quiz 는 `kShowRuralQuiz` 일 때만 (REQ-62 부터 스토어판에도), 맨 아래에 출처·고지 `LawSourceNotice`.
+/// 법령 Quiz 는 부제 없이 제목만(2.0.3). `kShowRuralQuiz` 일 때만 (REQ-62 부터 스토어판에도), 맨 아래에 출처·고지 `LawSourceNotice`.
 class LabScreen extends StatefulWidget {
   final String Function() quizSummary;
-  final String Function(LawQuiz) lawSummary;
   final Future<void> Function() onQuiz;
   final Future<void> Function(LawQuiz) onLaw;
   const LabScreen({
     super.key,
     required this.quizSummary,
-    required this.lawSummary,
     required this.onQuiz,
     required this.onLaw,
   });
@@ -56,8 +54,7 @@ class _LabScreenState extends State<LabScreen> {
             const Divider(height: 1, thickness: 0.5),
             ListTile(
               leading: Icon(law.icon),
-              title: Text(law.title),
-              subtitle: Text(widget.lawSummary(law), style: const TextStyle(fontSize: 12)),
+              title: Text(law.title), // 부제 없이 제목만 (2.0.3), ListTile 이 줄 가운데에 맞춘다
               trailing: const Icon(Icons.chevron_right),
               onTap: _then(() => widget.onLaw(law)),
             ),

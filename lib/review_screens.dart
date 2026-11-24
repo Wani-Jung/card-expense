@@ -65,6 +65,17 @@ List<Expense> pendingBeforeMonth(List<Expense> items, DateTime now) {
   ];
 }
 
+/// 메인 '분류 대기' 카드 (2.0.3): 보고 있는 기간(1개월 = 그 달, 합산 = 두 달)의 미분류만, 최신순.
+/// [others] = 그 밖 달의 미분류 수 → 카드 아래 '다른 달 미분류 n건 ›'. 배지·7일 알림은 전체 기준 그대로
+({List<Expense> here, int others}) pendingInView(List<Expense> items, List<DateTime> months) {
+  final all = items.where((e) => e.category == null);
+  final here = all.where((e) => months.any(e.inMonth)).toList()
+    ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+  return (here: here, others: all.length - here.length);
+}
+
+String otherPendingLabel(int n) => '다른 달 미분류 $n건';
+
 /// 한꺼번에 무시 버튼 글자·확인창 문구 (REQ-69 C)
 String ignoreOldLabel(int n) => '이번 달 이전 미분류 $n건 한꺼번에 무시';
 String ignoreOldTitle(int n) => '이번 달 이전 미분류 $n건을 무시할까요?';

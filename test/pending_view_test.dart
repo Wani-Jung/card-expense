@@ -1,0 +1,120 @@
+import 'dart:convert';
+
+import 'package:card_expense/budget.dart';
+import 'package:card_expense/expense.dart';
+import 'package:card_expense/layout.dart';
+import 'package:card_expense/main.dart';
+import 'package:card_expense/quiz.dart';
+import 'package:card_expense/review_screens.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// 2.0.3: 메인 '분류 대기' 카드는 보고 있는 기간(1개월 = 그 달, 합산 = 두 달) 것만,
+/// 다른 달 미분류는 '다른 달 미분류 n건 ›' 한 줄 → 미분류 내역 화면
+void main() {
+  final now = DateTime.now();
+  DateTime at(int monthsAgo, int day) => DateTime(now.year, now.month - monthsAgo, day, 12);
+
+  Map<String, Object?> item(String id, String merchant, DateTime t, [String? cat]) => {
+    'id': id,
+    'amount': 10000,
+    'dateTime': t.toIso8601String(),
+    'merchant': merchant,
+    'isCancel': false,
+    'raw': 'NH기업0000승인',
+    'category': cat,
+  };
+
+  // 이번 달 대기 2 · 지난달 대기 1 · 석 달 전 대기 1 · 이번 달 분류된 1 (대기 아님)
+  final items = [
+    item('a', '가식당', at(0, 1)),
+    item('b', '나식당', at(0, 2)),
+    item('c', '다식당', at(1, 10)),
+    item('d', '라식당', at(3, 10)),
+    item('e', '마주유소', at(0, 1), 'car'),
+  ];
+
+  test('pendingInView: 그 기간 대기만 최신순, 나머지는 개수', () {
+    final list = [for (final m in items) Expense.fromJson(m)];
+    final r = pendingInView(list, [DateTime(now.year, now.month)]);
+    expect(r.here.map((e) => e.id), ['b', 'a']);
+    expect(r.others, 2);
+    final two = pendingInView(list, [DateTime(now.year, now.month - 1), DateTime(now.year, now.month)]);
+    expect(two.here.map((e) => e.id), ['b', 'a', 'c']);
+    expect(two.others, 1);
+    expect(pendingInView(list, [DateTime(now.year, now.month - 6)]).others, 4);
+  });
+
+  Future<void> pumpHome(WidgetTester tester, [List<Map<String, Object?>>? seed]) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('card_expense/native'),
+      (_) async => null,
+    );
+    SharedPreferences.setMockInitialValues({
+      'card_digits': '0000',
+      'sender_number': '1588-1600',
+      'update_checked_at': DateTime.now().millisecondsSinceEpoch,
+      'quiz_last_day_v1': quizDay(DateTime.now()),
+      'expenses_v1': jsonEncode(seed ?? items),
+    });
+    tester.view.physicalSize = const Size(1080, 4680);
+    tester.view.devicePixelRatio = 3;
+    tester.view.viewPadding = const FakeViewPadding(bottom: 144);
+    addTearDown(tester.view.reset);
+    final store = await Store.open();
+    await tester.pumpWidget(CardExpenseApp(store: store));
+    await tester.pumpAndSettle();
+  }
+
+  Finder other(int n) => find.text('다른 달 미분류 $n건 ›');
+
+  testWidgets('월 이동·보기 전환 때 분류 대기 카드가 그 기간 것으로, 다른 달 n건 숫자', (tester) async {
+    await pumpHome(tester);
+    // 이번 달 (1개월)
+    expect(find.text('분류 대기 2건'), findsOneWidget);
+    expect(find.text(keepWords('가식당')), findsOneWidget);
+    expect(find.text(keepWords('다식당')), findsNothing);
+    expect(other(2), findsOneWidget);
+
+    // ◀ 지난달
+    await tester.tap(find.byTooltip('이전'));
+    await tester.pumpAndSettle();
+    expect(find.text('분류 대기 1건'), findsOneWidget);
+    expect(find.text(keepWords('다식당')), findsOneWidget);
+    expect(find.text(keepWords('가식당')), findsNothing);
+    expect(other(3), findsOneWidget);
+
+    // ◀ 두 달 전: 그 달 대기 없음 → 카드 자리에 한 줄만
+    await tester.tap(find.byTooltip('이전'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('분류 대기'), findsNothing);
+    expect(other(4), findsOneWidget);
+
+    // 보기 전환: 홀짝 → 보던 달이 속한 두 달 합산 화면
+    await tester.tap(find.text('1개월 ▾'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('홀짝 ('));
+    await tester.pumpAndSettle();
+    final months = periodMonths(DateTime(now.year, now.month - 2), PeriodMode.oddEven);
+    final list = [for (final m in items) Expense.fromJson(m)];
+    final want = pendingInView(list, months);
+    if (want.here.isEmpty) {
+      expect(find.textContaining('분류 대기'), findsNothing);
+    } else {
+      expect(find.text('분류 대기 ${want.here.length}건'), findsOneWidget);
+    }
+    expect(other(want.others), findsOneWidget);
+
+    // 한 줄을 누르면 미분류 내역 화면 (모든 달 4건)
+    await tester.tap(other(want.others));
+    await tester.pumpAndSettle();
+    expect(find.text('미분류 내역 (4건)'), findsOneWidget);
+  });
+
+  testWidgets('다른 달 미분류가 없으면 한 줄 없음', (tester) async {
+    await pumpHome(tester, [items[0], items[1], items[4]]);
+    expect(find.text('분류 대기 2건'), findsOneWidget);
+    expect(find.textContaining('다른 달 미분류'), findsNothing);
+  });
+}
