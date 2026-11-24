@@ -261,4 +261,45 @@ void main() {
     expect(find.textContaining('미분류 내역 ('), findsOneWidget);
     expect(find.textContaining('취소가게'), findsNWidgets(2));
   });
+
+  testWidgets('미분류 내역: 이번 달 이전 미분류 n건 한꺼번에 무시 → 확인창 → 무시한 내역으로 → 5초 [되돌리기] (REQ-69 C)', (tester) async {
+    await pumpHome(tester, [
+      item('o1', '옛가게1', null, at(2, 5)),
+      item('o2', '옛가게2', null, at(1, 10)),
+      item('n1', '이번달가게', null, at(0, 1, 9)),
+      item('c1', '분류가게', kCar, at(1, 3)),
+    ]);
+    await openMenu(tester);
+    await openManage(tester);
+    await tester.tap(find.text('미분류 내역'));
+    await tester.pumpAndSettle();
+    expect(find.text('이번 달 이전 미분류 2건 한꺼번에 무시'), findsOneWidget);
+
+    // 취소면 아무것도 안 바뀜
+    await tester.tap(find.text('이번 달 이전 미분류 2건 한꺼번에 무시'));
+    await tester.pumpAndSettle();
+    expect(find.text('이번 달 이전 미분류 2건을 무시할까요?'), findsOneWidget);
+    await tester.tap(find.text('취소'));
+    await tester.pumpAndSettle();
+    expect(stored()['o1']!['category'], isNull);
+
+    await tester.tap(find.text('이번 달 이전 미분류 2건 한꺼번에 무시'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('모두 무시'));
+    await tester.pumpAndSettle();
+    expect(stored()['o1']!['category'], kIgnored);
+    expect(stored()['o2']!['category'], kIgnored);
+    expect(stored()['o1']!['ignoreReason'], kIgnoreManual); // 무시한 내역에서 되살릴 수 있는 '직접 무시'
+    expect(stored()['n1']!['category'], isNull); // 이번 달 건은 그대로
+    expect(stored()['c1']!['category'], kCar);
+    expect(find.text('이번 달 이전 미분류 2건 한꺼번에 무시'), findsNothing);
+    expect(find.text('2건을 무시한 내역으로 옮겼어요'), findsOneWidget);
+
+    await tester.tap(find.text('되돌리기'));
+    await tester.pumpAndSettle();
+    expect(stored()['o1']!['category'], isNull);
+    expect(stored()['o2']!['category'], isNull);
+    expect(stored()['o1']!.containsKey('ignoreReason'), isFalse);
+    expect(find.text('이번 달 이전 미분류 2건 한꺼번에 무시'), findsOneWidget);
+  });
 }

@@ -56,6 +56,20 @@ class MonthDivider extends StatelessWidget {
       );
 }
 
+/// 이번 달 1일보다 앞선 미분류 건 (REQ-69 C: 잘못 들어온 지난 문자 한꺼번에 무시용)
+List<Expense> pendingBeforeMonth(List<Expense> items, DateTime now) {
+  final start = DateTime(now.year, now.month);
+  return [
+    for (final e in items)
+      if (e.category == null && e.dateTime.isBefore(start)) e,
+  ];
+}
+
+/// 한꺼번에 무시 버튼 글자·확인창 문구 (REQ-69 C)
+String ignoreOldLabel(int n) => '이번 달 이전 미분류 $n건 한꺼번에 무시';
+String ignoreOldTitle(int n) => '이번 달 이전 미분류 $n건을 무시할까요?';
+const kIgnoreOldBody = '지우지 않고 무시한 내역으로 옮겨요.\n무시한 내역에서 언제든 되살릴 수 있어요.';
+
 /// 메뉴 > 내역 관리 > 미분류 내역. 모든 달의 분류 대기 건을 최신순으로.
 /// 버튼은 메인 분류 대기와 같은 동작 (추천 표시, 같은 업체 일괄 정리, 등록 업체 기억, 되돌리기).
 class UnclassifiedScreen extends StatelessWidget {
@@ -65,6 +79,10 @@ class UnclassifiedScreen extends StatelessWidget {
   final Future<void> Function(Expense e, String category) onClassify;
   final CategoryButtonBuilder button;
 
+  /// [이번 달 이전 미분류 n건 한꺼번에 무시] (확인창·되돌리기는 메인이). 없으면 버튼 숨김
+  final Future<void> Function()? onIgnoreOld;
+  final DateTime Function()? clock;
+
   const UnclassifiedScreen({
     super.key,
     required this.items,
@@ -72,6 +90,8 @@ class UnclassifiedScreen extends StatelessWidget {
     required this.recommend,
     required this.onClassify,
     required this.button,
+    this.onIgnoreOld,
+    this.clock,
   });
 
   @override
@@ -80,6 +100,7 @@ class UnclassifiedScreen extends StatelessWidget {
         builder: (context, _) {
           final list = items.where((e) => e.category == null).toList()
             ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+          final old = pendingBeforeMonth(list, (clock ?? DateTime.now)()).length;
           return Scaffold(
             appBar: AppBar(title: Text('미분류 내역 (${list.length}건)')),
             body: list.isEmpty
@@ -87,6 +108,19 @@ class UnclassifiedScreen extends StatelessWidget {
                 : ListView(
                     padding: EdgeInsets.only(bottom: listBottomPad(context)),
                     children: [
+                      if (old > 0 && onIgnoreOld != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(44),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.visibility_off_outlined, size: 18),
+                            label: FittedBox(fit: BoxFit.scaleDown, child: Text(ignoreOldLabel(old), maxLines: 1)),
+                            onPressed: onIgnoreOld,
+                          ),
+                        ),
                       for (final (i, e) in list.indexed) ...[
                         if (i == 0 || !list[i - 1].inMonth(e.dateTime))
                           MonthDivider('${e.dateTime.year}년 ${e.dateTime.month}월'),

@@ -1093,8 +1093,64 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           recommend: _vendors.recommend,
           onClassify: (e, cat) => _classify(e, cat, askBulk: cat != kIgnored),
           button: _smallButton,
+          onIgnoreOld: _ignoreOldPending,
         ),
       ));
+
+  /// 미분류 내역 [이번 달 이전 미분류 n건 한꺼번에 무시] (REQ-69 C): 확인창 → '직접 무시'로 옮김 → 5초 [되돌리기].
+  /// 지우지 않으니 무시한 내역에서 되살릴 수 있다. 승인취소 묶음은 짝도 미분류면 같이.
+  Future<void> _ignoreOldPending() async {
+    final pairs = pairsById(_items);
+    final old = pendingBeforeMonth(_items, DateTime.now());
+    final targets = {
+      for (final t in old) ...[
+        t,
+        if (pairs[t.id] != null && pairs[t.id]!.partnerOf(t).category == null) pairs[t.id]!.partnerOf(t),
+      ],
+    }.toList();
+    if (targets.isEmpty) return;
+    var go = false;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => NoticeDialog(
+        icon: const NoticeInfoIcon(),
+        title: ignoreOldTitle(targets.length),
+        body: kIgnoreOldBody,
+        okLabel: '모두 무시',
+        onOk: () => go = true,
+        cancelLabel: '취소',
+      ),
+    );
+    if (!go || !mounted) return;
+    setState(() {
+      for (final t in targets) {
+        _setCategory(t, kIgnored);
+      }
+    });
+    await widget.store.saveItems(_items);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(appSnackBar(
+        content: Text('${targets.length}건을 무시한 내역으로 옮겼어요'),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: '되돌리기',
+          onPressed: () async {
+            setState(() {
+              for (final t in targets) {
+                t
+                  ..category = null
+                  ..ignoreReason = null
+                  ..dupOf = null
+                  ..ignoredFrom = null;
+              }
+            });
+            await widget.store.saveItems(_items);
+          },
+        ),
+      ));
+  }
 
   /// 메뉴 > 확인 필요 내역.
   Future<void> _openCheck() => Navigator.of(context).push(MaterialPageRoute(
