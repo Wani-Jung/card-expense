@@ -14,8 +14,8 @@
 | 항목 | 값 | 출처 |
 |---|---|---|
 | 앱 이름 | 공감카드 관리 | `AndroidManifest.xml` `android:label`, `lib/flavor.dart` `kAppName` |
-| 현재 버전 | **2.0.3** (pubspec `version: 2.0.3+42`) — 1.x 끝, 2.x 엄격 버전 규칙 | `pubspec.yaml` |
-| 실제 versionCode | **770** (v2.0.3, 깃허브 APK 2개) / **771** (스토어 일반 AAB, 스토어에 안 냄) / **772** (스토어 전용 AAB, 내부 테스트 → 프로덕션). 이전: v2.0.2 750/751/752(752 프로덕션), dev 760~762, v2.0.1 700/701/702(702 프로덕션), dev 710~742(742 내부 테스트), v2.0.0 650/651/652(651 프로덕션 출시), dev 660~692, REQ-51 dev 640/641/642, REQ-50 630/631/632, REQ-49 620/621/622, REQ-43 550/551/552, REQ-44 560/561/562, REQ-45 570/571/572(시작 즉시 종료 버그, 쓰지 말 것), REQ-46 590/591/592, dev(REQ-47) 600/601/602, dev(REQ-48) 610/611/612 — v2.0.0 부터 CI `run_number`×10 + (0/1/2). pubspec 의 `+N` 은 쓰지 않음 | `aapt dump badging`, `bundletool dump manifest`, 워크플로 `--build-number` |
+| 현재 버전 | **2.1.0** (pubspec `version: 2.1.0+43`, REQ-70 판 하나) — 1.x 끝, 2.x 엄격 버전 규칙 | `pubspec.yaml` |
+| 실제 versionCode | **792** (v2.1.0 스토어 AAB, 내부 테스트 → 프로덕션. APK 790 은 스모크용·배포 안 함). 이전: dev 780/782(782 내부 테스트), v2.0.3 770/771/772(772 프로덕션), v2.0.2 750/751/752(752 프로덕션), dev 760~762, v2.0.1 700/701/702(702 프로덕션), dev 710~742(742 내부 테스트), v2.0.0 650/651/652(651 프로덕션 출시), dev 660~692, REQ-51 dev 640/641/642, REQ-50 630/631/632, REQ-49 620/621/622, REQ-43 550/551/552, REQ-44 560/561/562, REQ-45 570/571/572(시작 즉시 종료 버그, 쓰지 말 것), REQ-46 590/591/592, dev(REQ-47) 600/601/602, dev(REQ-48) 610/611/612 — v2.0.0 부터 CI `run_number`×10 + (0/1/2). pubspec 의 `+N` 은 쓰지 않음 | `aapt dump badging`, `bundletool dump manifest`, 워크플로 `--build-number` |
 | 패키지명 (applicationId / namespace) | `com.wani.card_expense` | `android/app/build.gradle.kts` |
 | minSdk / targetSdk | **24 / 36** (gradle 은 `flutter.minSdkVersion`·`flutter.targetSdkVersion` 기본값, 실제 값은 릴리스 APK 에서 확인) | `aapt dump badging` |
 | compileSdk | 36 | `aapt dump badging` |
