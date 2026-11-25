@@ -3,6 +3,7 @@
 - 기준: `main` 브랜치, `v1.20.1` (2026-10-30). v1.20.1 = 빌드·CI 개선(태그에서만 빌드, Gradle·NDK 캐시, x86_64 제외)과 '매일 OX 퀴즈' 스위치(기본 꺼짐).
 - v1.20.0: v1.20.0 = 퀴즈 문제풀 452문항(v2 형식)·분야 선택·분야 표시, 요약표 틀고정, 편집 시트 [삭제] 제거, 업체 관리 전체 삭제, 메뉴 순서·QUIZ 아이콘(2-2·2-3·2-7·2-11·2-12·4-7·6-1·10·11장).
 - 이전: v1.16.0 '오늘의 안전 OX' 퀴즈, v1.17.0 안전 OX 화면·챌린지·메뉴 정리, v1.18.0 챌린지 결과 카드·이미지 공유·점수 기록 지우기, v1.19.0 메뉴·내역 관리 다듬기(확인한 내역, 되살리기 → 미분류)·추천 키워드 확장(2-3·2-6·2-7·2-13·4-1·6-1·10장).
+- **2.1.0 (REQ-70) 바뀐 점**: 일반판·전용판을 한 판으로 합쳤다(flavor 없음, 문자 권한 모든 빌드). 첫 권한 허용 때 자동 1년 불러오기는 2.0.3(REQ-69)에서 없앴다 — 지난 문자는 사용자가 고른 기간만 읽는다. 아래 1.x 기준 설명 중 판·자동 불러오기 부분은 이 두 줄이 우선이고, 최신 동작은 `CLAUDE.md` 를 본다.
 - 작성 방법: 코드·설정 파일·git 기록·CI 결과에서 확인한 것만 적었다. 코드로 확인하지 못한 것은 **(확인 필요)** 로 표시했다.
 - 예시 카드번호는 모두 가짜 값 `0000`. 서명키·비밀번호·토큰 값은 이 문서에 없다.
 
@@ -22,13 +23,17 @@
 | 네이티브 ABI | arm64-v8a, armeabi-v7a (v1.20.1 부터 x86_64 제외) | `aapt dump badging` |
 | 저장소 | GitHub `Wani-Jung/card-expense` (public — 앱이 `releases/latest` 를 익명으로 조회하기 때문) | `lib/update_check.dart`, `CLAUDE.md` |
 
-### 판(flavor) 구성
+### 판 구성 (2.1.0~ 한 판)
 
-`flavorDimensions = "edition"`, flavor 는 **public(일반판)** 과 **full(전용판)** 두 개뿐이다. 그 밖의 flavor 는 없다.
-두 판은 applicationId·서명키가 같아서 서로 덮어 설치해도 데이터가 유지된다.
+product flavor 는 없다(REQ-70 에서 예전 public(일반판)·full(전용판)을 합침). applicationId·서명키가 예전 두 판·Play 설치본과 같아서 어느 위에도 덮어 설치되고 데이터가 유지된다.
 
-| | 일반판 (`public`) | 전용판 (`full`) |
-|---|---|---|
+- 문자 권한 `RECEIVE_SMS`·`READ_SMS` 와 SMS 수신 리시버(`SmsReceiver`)는 `src/main/AndroidManifest.xml`, 지난 문자 조회는 `SmsInbox.kt`(SMS·MMS·RCS 후보 저장소, 사용자가 고른 기간).
+- 문자 권한은 앱 안 안내(`lib/disclosure.dart`) → [동의하고 계속] → 시스템 권한 창으로만 켜진다. 거부해도 알림 감지·붙여넣기·공유로 쓸 수 있다.
+- 권한 설정 화면 '문자 읽기' 항목·메뉴 '지난 문자 불러오기'는 항상 보인다. 앱에 '전용판'·'일반판' 표시는 없다.
+- GitHub 릴리스: `app-full-release.apk`(고정 링크) + 같은 파일 사본 `app-release.apk`(옛 일반판 링크·옛 일반판 앱 업데이트 확인용). 스토어: `app-store-release.aab`.
+- 예전(1.2.0~2.0.3)엔 Play Protect 차단 때문에 문자 권한 없는 일반판을 따로 뒀다.
+
+---|---|---|
 | Release 파일 | `app-release.apk` | `app-full-release.apk` |
 | 문자 권한 | 없음 | `RECEIVE_SMS`, `READ_SMS` |
 | SMS 수신 리시버 (`SmsReceiver`) | 없음 | 있음 (`src/full/AndroidManifest.xml`) |
@@ -64,7 +69,6 @@
 - [저장]은 카드번호가 4자리이고 발신번호가 숫자 7자리 이상일 때만 눌린다.
 - 저장하면 다음이 일어난다.
   - shared_preferences 와 네이티브 저장소에 저장한다(`Native.setSettings`).
-  - 값이 하나라도 바뀌었으면 1년치 자동 불러오기 표시(`auto_import_done`)를 지운다.
 - 메뉴 > 카드 문자 설정에서도 같은 화면이 열린다.
 
 ### 2-2. 메인 화면 (`HomeScreen`)
@@ -129,7 +133,7 @@
   - 무시했던 문자가 있거나 승인 문자가 아닌 조각이 있으면 결과 다이얼로그가 뜬다.
     - '승인 문자 아님 N건 내용 보기'(최대 50건)를 펼쳐 볼 수 있다.
     - [무시했던 N건 다시 분류 대기로] 버튼이 있다.
-- **1년치 불러오기 0건 다이얼로그**: '새로 불러온 문자가 없어요'.
+- **지난 문자 불러오기 0건 다이얼로그**: '새로 불러온 문자가 없어요' (2.0.x 기준 문구는 CLAUDE.md `importResultDialog`).
   - 검사 건수(SMS, MMS, 기타 저장소), 발신번호 일치 건수, 카드번호 일치 건수를 보여 준다.
   - RCS 로 왔을 수 있으니 캡처 업로드를 쓰라고 안내한다.
 - **1회 바로잡기 스낵바**: '취소·재결제 내역 N건을 바로잡았어요' (4-6).
@@ -141,7 +145,7 @@
 | # | 항목 | 설명(부제) | 동작 |
 |---|---|---|---|
 | 1 | 결제내역 입력 | 문자 불러오기 · 붙여넣기 · 캡처 업로드 | 그 자리에서 펼침/접힘 (기본 접힘) |
-| ┗ | 지난 문자 1년치 불러오기 | — | **전용판만**. 권한 설정에서 문자 읽기를 끄면 흐리게(비활성). 메뉴에 머문 채 실행(오른쪽 작은 로딩), 결과 창도 메뉴 위에 |
+| ┗ | 지난 문자 불러오기 | — | 기간을 골라서(2.0.x~). 권한 설정에서 문자 읽기를 끄면 흐리게(비활성). 메뉴에 머문 채 실행(오른쪽 작은 로딩), 결과 창도 메뉴 위에 |
 | ┗ | 문자 붙여넣기 | — | 메뉴 위에 붙여넣기 화면 |
 | ┗ | 문자 캡처화면 업로드 | — | 메뉴 위에 OCR 화면 |
 | 2 | 내역 관리 | 미분류 · 확인 필요 · 무시한 내역 | 펼침/접힘. 오른쪽 배지 = 미분류 + 확인 필요 건수 (1 이상 빨강, 0 회색. 무시·확인한 건수는 안 넣음). 확인 필요가 1건 이상이면 펼친 채 시작 |
@@ -154,7 +158,7 @@
 | 5 | 카드 문자 설정 | `카드 0000 · 발신 1588-1600` (실제 저장값) | 설정 화면 (2-1) |
 | 6 | 권한 설정 | 예: `알림 감지 켜짐 · 문자 읽기 켜짐` | 권한 설정 화면 |
 | 6' | 설정 (v1.20.1) | `매일 OX 퀴즈 켜짐` / `꺼짐` | 설정 화면: '매일 OX 퀴즈' 스위치 + 설명 '켜면 앱을 열 때 하루 한 번 안전 OX 퀴즈가 나옵니다.' (기본 꺼짐) |
-| 7 | 업데이트 확인 | `현재 v1.19.0 · 전용판` (일반판이면 '일반판') | 메뉴를 닫지 않고 확인. 확인 중엔 오른쪽 작은 로딩, 결과(최신·실패 스낵바, 새 버전 다이얼로그)는 메뉴 위에 |
+| 7 | 업데이트 확인 | `현재 v2.1.0` (2.1.0~ 판 표시 없음, 스토어판은 '버전 정보') | 메뉴를 닫지 않고 확인. 확인 중엔 오른쪽 작은 로딩, 결과(최신·실패 스낵바, 새 버전 다이얼로그)는 메뉴 위에 |
 
 - 맨 아래 크레딧: 'Made by wani' (가운데, 12, `#9AA0A6`, 위 여백 32, 누르는 반응 없음). 목록 항목·구분선이 아니다.
 - 퀴즈 켜기/끄기 스위치와 '제작자' 항목은 v1.17.0 에서 삭제됐다.
@@ -335,14 +339,14 @@
 | 경로 | 판 | 어디서 | 판정 조건 | 들어가는 곳 |
 |---|---|---|---|---|
 | **알림 감지** | 두 판 | `CardNotificationListener` (NotificationListenerService) | 자기 앱 알림은 제외. 권한 설정 '알림 감지 사용'이 꺼져 있으면 버림. MessagingStyle 메시지별 / TEXT_LINES / BIG_TEXT·TEXT 순서로 본문을 꺼냄. `CardSms.handle`: '승인' 또는 '취소' + (**알림 제목·보낸 사람이 발신번호와 일치 또는 본문에 카드번호+승인/취소**) + 금액·일시를 읽을 수 있어야 함 | 네이티브 inbox |
-| **SMS 수신** | 전용판 | `SmsReceiver` (`SMS_RECEIVED`, priority 999) | '문자 읽기 사용'이 꺼져 있으면 버림. **발신번호 일치 그리고 카드번호+승인/취소** 둘 다 필요. 긴 문자는 조각을 이어 붙임 → `CardSms.handle` | 네이티브 inbox |
-| **1년치 불러오기** | 전용판 | `Flavor.readInbox(365일)` | SMS(`content://sms`): 발신번호 일치. MMS(`content://mms`, 보낸 사람 type 137, text/plain 파트): 발신번호 일치. 기타 저장소(RCS 등 7곳, 최대 5만 행, 열리는 곳만): 본문에 카드번호+승인/취소. Dart 에서 다시 `parseSms(requireCard: true)` | 분류 대기 (결과 스낵바/다이얼로그) |
+| **SMS 수신** | 모든 빌드(2.1.0~) | `SmsReceiver` (`SMS_RECEIVED`, priority 999) | '문자 읽기 사용'이 꺼져 있으면 버림. **발신번호 일치 그리고 카드번호+승인/취소** 둘 다 필요. 긴 문자는 조각을 이어 붙임 → `CardSms.handle` | 네이티브 inbox |
+| **지난 문자 불러오기** | 모든 빌드(2.1.0~) | `SmsInbox.readInbox(from, to)` — 사용자가 고른 기간 | SMS(`content://sms`): 발신번호 일치. MMS(`content://mms`, 보낸 사람 type 137, text/plain 파트): 발신번호 일치. 기타 저장소(RCS 등 7곳, 최대 5만 행, 열리는 곳만): 본문에 카드번호+승인/취소. Dart 에서 다시 `parseSms(requireCard: true)` | 분류 대기 (결과 스낵바/다이얼로그) |
 | **붙여넣기** | 두 판 | `PasteScreen` | `splitMessages` 로 `[Web발신]` 단위, 다시 `카드명+4자리+승인/취소` 단위로 쪼갬 → `parseSms(requireCard: true)` | 분류 대기 |
 | **공유** | 두 판 | 메시지 앱 → 공유 → 공감카드 관리 (`SEND`/`SEND_MULTIPLE` text/plain) | `MainActivity` 가 받아 두고 Dart `takeShared` → 붙여넣기와 같은 쪼개기·판정 | 분류 대기 |
 | **캡처 OCR** | 두 판 | `OcrScreen` + `lib/ocr_parse.dart` | OCR 보정(O·I·l→숫자, 금액 마침표·공백→쉼표, 날짜 공백 제거, RCS 화면 글자 제거) → 카드번호+승인 있는 조각만 후보. 금액·날짜 못 읽으면 '확인 필요'(valid=false)로 남겨 직접 고치게 함 | 분류 대기 (선택한 건) |
 
 - 기타 저장소 7곳: `content://im/chat`, `im/ft`, `im/session`, `mms-sms/complete-conversations`, `mms-sms/conversations?simple=true`, `com.samsung.rcs.im/chat`, `rcs/message`.
-- **자동 1년치 불러오기**: 전용판에서 문자 권한이 허용돼 있고, '문자 읽기 사용'이 켜져 있고, 현재 설정으로 아직 안 불러왔으면 한 번 자동으로 한다(`auto_import_done`).
+- **자동 불러오기 없음**: 2.0.3(REQ-69)부터 권한을 허용해도 앱이 스스로 지난 문자를 훑어보지 않는다. 메뉴·사전입력 3단계에서 사용자가 기간을 골라 미리보기 → [불러오기]로만 넣는다. 예전 `auto_import_done` 키는 읽지 않는다.
 - **네이티브 inbox → 앱**: 앱이 켜져 있으면 `onNewSms` 로 바로 가져간다. 꺼져 있었으면 다음에 켜거나 돌아올 때(`resumed`) 가져간다. 이때 `requireCard: false` 로 파싱한다.
 - **앱 알림 없음**: 이 앱은 상태바 알림을 띄우지 않는다. `NotificationManager`·`POST_NOTIFICATIONS` 사용이 코드에 없다. 조용히 쌓아 두고, 앱을 열면 보인다.
 
@@ -526,7 +530,7 @@
 | `sender_number` | String | 발신번호. 예: `1588-1600` |
 | `budgets_v1` | String (JSON 객체) | 월별 수립(원). 예: `{"2026-10":{"total":5000000,"car":3000000}}` |
 | `vendor_book_v1` | String (JSON 객체) | `{"learned":{"홍성칼국수":{"name":"(주)홍성 칼국수","category":"ops"}},"keywords":[{"keyword":"주유소","category":"car","isDefault":true}],"defaultsVersion":2,"removedDefaults":["주차"]}` (learned 키는 `merchantKey`, removedDefaults 는 지운 기본 키워드의 `keywordKey`, defaultsVersion 이 없으면 1) |
-| `auto_import_done` | bool | (전용판) 현재 카드번호·발신번호로 1년치 자동 불러오기를 했는지. 설정이 바뀌면 지움 |
+| `auto_import_done` | bool | (2.0.3 부터 안 씀) 예전 자동 1년 불러오기 표시. 남아 있어도 읽지 않음 |
 | `update_checked_at` | int (ms) | 마지막 자동 업데이트 확인 시각 |
 | `update_skipped_tag` | String | [나중에]를 누른 버전 태그. 예: `v1.15.0` |
 | `check_ok_v1` | StringList | 확인 필요 '맞아요' 기억 키 (4-4) |
@@ -566,12 +570,12 @@
 
 ### 7-1. 매니페스트 권한 (릴리스 APK `aapt` 결과 기준)
 
-| 권한 | 일반판 | 전용판 | 비고 |
+| 권한 | 2.0.x 일반판 | 2.0.x 전용판 · 2.1.0~ | 비고 |
 |---|---|---|---|
 | `INTERNET` | ✓ | ✓ | 업데이트 확인 (`src/main`) |
 | `ACCESS_NETWORK_STATE` | ✓ | ✓ | 앱 매니페스트에는 없음. 의존 플러그인에서 병합된 것으로 보임 — 어느 플러그인인지 **(확인 필요)** |
 | `com.wani.card_expense.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | ✓ | ✓ | 빌드 도구가 자동으로 추가 (앱 코드에서 선언 안 함) |
-| `RECEIVE_SMS`, `READ_SMS` | ✗ | ✓ | `src/full/AndroidManifest.xml` 에만 있음 |
+| `RECEIVE_SMS`, `READ_SMS` | ✗ | ✓ | 2.1.0~ `src/main/AndroidManifest.xml` |
 
 - 서비스 `CardNotificationListener`: `BIND_NOTIFICATION_LISTENER_SERVICE`. 사용자가 휴대폰 설정에서 '알림 접근'을 허용해야 동작한다.
 - 공유 받기 intent-filter: `SEND`, `SEND_MULTIPLE` (`text/plain`).
@@ -582,8 +586,8 @@
 
 | 항목 | 설명 | 스위치 '앱에서 사용' (기본 켜짐) | 시스템 권한 표시 / 버튼 |
 |---|---|---|---|
-| 알림 감지 (두 판) | 메시지 앱 알림에서 카드 승인 문자를 자동으로 찾아요 | 끄면 알림 리스너가 문자를 받아도 버린다 (분류 대기에 안 쌓임). 켰는데 시스템 권한이 꺼져 있으면 '휴대폰 설정에서 알림 접근을 허용해야 해요' 안내 후 알림 접근 설정을 연다 | '허용됨'(초록 `#1E8E3E`/바탕 `#E6F4EA`) 또는 '꺼짐'(회색). [설정 열기] → 알림 접근 설정 |
-| 문자 읽기 (전용판만) | 문자함에서 카드 승인 문자를 읽고, 새 문자를 바로 받아요 | 끄면 SMS 리시버가 문자를 버리고, 1년치 불러오기(자동·수동)가 꺼지고, 메뉴의 1년치 불러오기가 흐려진다 | '허용됨'/'꺼짐'. 꺼져 있으면 [권한 요청], 영구 거부(요청한 적 있고 다시 물을 수 없음)면 [설정 열기] → 앱 정보. 아래 작은 글씨 '권한 자체를 끄려면 [휴대폰 설정 열기]' |
+| 알림 감지 | 메시지 앱 알림에서 카드 승인 문자를 자동으로 찾아요 | 끄면 알림 리스너가 문자를 받아도 버린다 (분류 대기에 안 쌓임). 켰는데 시스템 권한이 꺼져 있으면 '휴대폰 설정에서 알림 접근을 허용해야 해요' 안내 후 알림 접근 설정을 연다 | '허용됨'(초록 `#1E8E3E`/바탕 `#E6F4EA`) 또는 '꺼짐'(회색). [설정 열기] → 알림 접근 설정 |
+| 문자 읽기 (2.1.0~ 모든 빌드) | 문자함에서 카드 승인 문자를 읽고, 새 문자를 바로 받아요 | 끄면 SMS 리시버가 문자를 버리고, 메뉴의 지난 문자 불러오기가 흐려진다 | '허용됨'/'꺼짐'. 꺼져 있으면 [권한 요청], 영구 거부(요청한 적 있고 다시 물을 수 없음)면 [설정 열기] → 앱 정보. 아래 작은 글씨 '권한 자체를 끄려면 [휴대폰 설정 열기]' |
 
 - 화면에 들어올 때와 앱으로 돌아올 때(`resumed`)마다 시스템 권한 상태를 다시 읽는다.
 - 메인 권한 배너는 '앱에서 사용'이 켜져 있는데 시스템 권한이 꺼진 항목이 있을 때만 보인다.
@@ -615,12 +619,12 @@
   6. **keystore 복원**: Secret `ANDROID_KEYSTORE_BASE64` 를 디코드해 러너 임시 폴더에 `release.jks` 로 만든다. 없으면 실패.
   7. `flutter pub get`
   8. **`flutter test`** (실패하면 배포 안 함)
-  9. 두 판을 순서대로 빌드한다: `flutter build apk --release --flavor public/full --target-platform android-arm,android-arm64`
+  9. (2.1.0~) APK 1개·스토어 AAB 1개를 빌드한다: `flutter build apk --release --target-platform android-arm,android-arm64`, `flutter build appbundle --release --dart-define=CHANNEL=store …`
      - ABI 는 arm64-v8a·armeabi-v7a 2개(x86_64 제외, v1.20.1). `--target-platform` 은 Flutter 라이브러리만 거르므로 ML Kit 등 플러그인 .so 의 x86_64 는 `android/app/build.gradle.kts` 의 release 변형 패키징 제외(`lib/x86_64/**`)로 뺀다. fat APK 하나씩, split-per-abi 안 함
      - `--build-number = github.run_number` (versionCode)
      - 태그 빌드면 `--build-name = 태그에서 v 를 뗀 값` (versionName)
-  10. 결과물 이름: `dist/app-release.apk`(public), `dist/app-full-release.apk`(full)
-  11. **일반판 APK 에 `RECEIVE_SMS`/`READ_SMS` 가 있으면 실패** (aapt 검사)
+  10. 결과물 이름: `dist/app-full-release.apk` + 같은 파일 사본 `dist/app-release.apk`, `dist/app-store-release.aab`
+  11. **APK·AAB 에 `RECEIVE_SMS`/`READ_SMS` 가 없거나 설치 권한이 있으면 실패** (aapt·bundletool 검사, 2.0.x 까지는 일반판에 문자 권한이 있으면 실패)
   12. 태그면 정식 릴리스로 올린다. 같은 태그 릴리스가 있으면 파일만 교체하고, 없으면 `--generate-notes --latest` 로 만든다.
   13. 수동 실행(브랜치에서)이면 `dev` 프리릴리스를 지우고 그 커밋으로 다시 만든다.
 - 정식 링크(`latest`)는 `v*` 태그 릴리스만 가리킨다(`dev` 는 프리릴리스라 latest 가 아님).
@@ -629,8 +633,8 @@
 
 ### 8-2. 고정 링크
 
-- 일반판: `https://github.com/Wani-Jung/card-expense/releases/latest/download/app-release.apk`
-- 전용판: `https://github.com/Wani-Jung/card-expense/releases/latest/download/app-full-release.apk`
+- `https://github.com/Wani-Jung/card-expense/releases/latest/download/app-full-release.apk` (2.1.0~ 판 하나)
+- 옛 일반판 링크 `…/latest/download/app-release.apk` 도 당분간 같은 파일
 - 설치는 이 GitHub Release 링크로만 한다. adb·USB 설치는 쓰지 않는다(프로젝트 규칙, `CLAUDE.md`).
 - v1.15.0 에서 두 링크 모두 익명으로 받아지는 것(HTTP 200)과 서명·권한·versionCode 37 을 CI 후에 확인했다.
 
@@ -651,11 +655,11 @@
 - **자동 확인**: 앱을 켤 때 실행한다. 마지막 확인 후 20시간이 안 지났으면 건너뛴다.
   - 새 버전이 있고, [나중에]로 넘긴 태그가 아니면 다이얼로그를 띄운다.
 - **수동 확인**: 메뉴 > 업데이트 확인. 결과에 따라 다음과 같이 보인다.
-  - 최신이면 '최신 버전이에요 (vX · 판)'
+  - 최신이면 '최신 버전이에요 (vX)' (2.1.0~ 판 표시 없음)
   - 실패하면 '업데이트 정보를 확인하지 못했어요…'
   - 새 버전이 있으면 다이얼로그
 - 다이얼로그 '새 버전 vX가 있어요 / 지금 버전 vY · 판'
-  - [업데이트]: 브라우저로 **자기 판에 맞는** 고정 링크(일반판 → `app-release.apk`, 전용판 → `app-full-release.apk`)를 연다.
+  - [업데이트]: 브라우저로 고정 링크 `app-full-release.apk` 를 연다 (2.0.x 일반판 앱은 `app-release.apk` 를 여는데, 2.1.0~ 은 같은 파일이라 그대로 합친 판으로 올라온다).
   - [나중에]: 그 태그를 `update_skipped_tag` 에 저장한다. 자동 확인에서는 다시 띄우지 않는다.
 - 버전 비교는 major.minor.patch 숫자로만 한다(`isNewerVersion`).
 
@@ -743,7 +747,7 @@
 4. ~~내역 편집 시트의 [삭제]가 한 건만 지워 묶음이 꼬임~~ → v1.20.0 에서 [삭제]를 없앰 ([무시] 사용).
 5. ~~붙여넣기·캡처의 '무시했던 문자 되살리기'가 사유 필드를 남김~~ → v1.19.0 에서 해결 (`_revive` 도 `ignoreReason`·`dupOf`·`ignoredFrom` 을 지운다).
 6. **승인 후 취소**: 분류된 취소 묶음은 [확인했어요]를 누르기 전까지 확인 필요 건수에 계속 들어간다(설계상 동작).
-7. **1년치 불러오기 기간**은 365일로 고정이다. RCS 기업메시지는 기기에 따라 저장소가 막혀 있어 못 읽을 수 있다. 이때 0건 다이얼로그에서 캡처 업로드를 안내한다.
+7. **지난 문자 불러오기 기간**은 사용자가 고른다(2.0.x~, 기본 최근 1년·빠른 선택). RCS 기업메시지는 기기에 따라 저장소가 막혀 있어 못 읽을 수 있다.
 8. **연도 추정**: 문자에 연도가 없어서 받은 시각 기준으로 정한다. 받은 시각을 모르는 붙여넣기는 지금 시각 기준이다.
 9. **네이티브 코드는 자동 테스트가 없다** (9장).
 10. 확인 필요 규칙은 분류된 건만 본다. 대기·무시 건의 중복·날짜 이상은 검사하지 않는다.
