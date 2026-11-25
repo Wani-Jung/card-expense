@@ -1,7 +1,7 @@
 // '버전 정보' 결과 팝업 세 가지 캡처 (REQ-64 보고용). 실제 앱 테마·글꼴로 팝업만 띄워 찍는다.
 //
 //   flutter drive --driver=test_driver/integration_test.dart --target=integration_test/update_dialogs_test.dart \
-//     --flavor full --dart-define=CHANNEL=store
+//     --dart-define=CHANNEL=store
 //
 // 결과: build/store_screenshots/update_*.png (test_driver 가 저장하는 폴더)
 import 'package:card_expense/app_update.dart';

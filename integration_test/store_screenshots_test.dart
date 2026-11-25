@@ -2,7 +2,7 @@
 //
 //   flutter drive --driver=test_driver/integration_test.dart \
 //     --target=integration_test/store_screenshots_test.dart \
-//     --flavor public --dart-define=CHANNEL=store --dart-define=DEMO=true
+//     --dart-define=CHANNEL=store --dart-define=DEMO=true
 //
 // 화면 크기는 1080×1920 (CI: pixel_2 프로필, 로컬: adb shell wm size 1080x1920 · wm density 420).
 // 결과: build/store_screenshots/NN_name.png (위쪽 문구 띠 버전) + plain/NN_name.png (띠 없음).
@@ -126,7 +126,7 @@ void main() {
     await tap(find.text(q['answer'] == true ? 'O' : 'X'));
     await shot('06_quiz', '현장 안전 OX Quiz');
 
-    // ⑦ 지난 문자 불러오기 (기간 지정, 전용판 기능, REQ-60). 문자함 대신 데모 데이터에 맞춘 미리보기:
+    // ⑦ 지난 문자 불러오기 (기간 지정, REQ-60). 문자함 대신 데모 데이터에 맞춘 미리보기:
     // 이번 달 이미 기록된 11건 + 새 3건(③ 분류 대기의 KK주유소·LL분식·OO주유소)
     await start();
     final now = DateTime.now();

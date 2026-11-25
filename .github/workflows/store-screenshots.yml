@@ -1,7 +1,7 @@
 name: Store screenshots
 
 # 플레이스토어 스크린샷 (REQ-53). Actions 탭에서 수동 실행만.
-# 스토어판(public flavor, CHANNEL=store) + 데모 데이터(DEMO=true)를 1080×1920 에뮬레이터(pixel_2)에서 찍어
+# 스토어판(CHANNEL=store) + 데모 데이터(DEMO=true)를 1080×1920 에뮬레이터(pixel_2)에서 찍어
 # 아티팩트 store-screenshots 로 올린다. 받은 PNG 는 store/screenshots/ko-KR/ 에 커밋한다.
 # 이 워크플로의 실행 번호는 release-apk 와 따로라 앱 versionCode 에 영향 없다.
 on:
@@ -57,7 +57,7 @@ jobs:
             adb shell wm size 1080x1920
             adb shell wm density 420
             adb shell service call alarm 3 s16 Asia/Seoul
-            flutter drive --driver=test_driver/integration_test.dart --target=integration_test/store_screenshots_test.dart --flavor public --dart-define=CHANNEL=store --dart-define=DEMO=true
+            flutter drive --driver=test_driver/integration_test.dart --target=integration_test/store_screenshots_test.dart --dart-define=CHANNEL=store --dart-define=DEMO=true
 
       - uses: actions/upload-artifact@v4
         with:

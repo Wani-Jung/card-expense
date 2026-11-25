@@ -1,7 +1,7 @@
 // REQ-66·67 보고용 화면 캡처 (실제 폰 크기 에뮬레이터, 데모 데이터). 저장소 스크린샷이 아니라 확인용.
 //
 //   flutter drive --driver=test_driver/integration_test.dart --target=integration_test/req67_screens_test.dart \
-//     --flavor full --dart-define=CHANNEL=store --dart-define=DEMO=true
+//     --dart-define=CHANNEL=store --dart-define=DEMO=true
 //
 // 결과: build/store_screenshots/r67_*.png
 import 'package:card_expense/demo.dart';
