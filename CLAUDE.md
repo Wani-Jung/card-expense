@@ -45,20 +45,20 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
   - 문자 권한(RECEIVE_SMS·READ_SMS)·`SmsReceiver` 는 `src/main/AndroidManifest.xml`, 문자함 조회는 `SmsInbox.kt`(예전 full `Flavor.kt`)
   - CI 는 APK·AAB 에 문자 권한이 **있어야** 통과(설치 권한은 여전히 없어야 함)
 - 같은 applicationId·서명키(0aab3b…8415, Play 앱 서명 키도 같음) → 예전 일반판·전용판·Play 설치 어느 위에도 덮어 설치되고 데이터 유지
-- Play Protect: 2.1.0 GitHub APK 를 앱이 없는 폰에 새로 설치해 경고·차단 여부를 확인할 것(사용자가 다른 폰으로 확인 예정). 예전엔 '모르는 앱 + 문자 권한'으로 막혔다. 한국은 '강화된 사기 방지'(사이드로드 문자 권한 앱 차단) 적용 국가로 확인되지 않음(2026-11). 개발자 인증(2027 전 세계)은 Play 앱 서명 앱이라 Play Console 에서 자동 인정
+- **문자 권한 APK 는 GitHub 로 배포하지 않는다**: 2026-11-25 앱 없는 실기기(삼성)에서 dev APK(780)를 새로 설치 → 삼성 '앱 설치가 권장되지 않음'(무시 가능) 뒤 **Google Play 프로텍트 '기기 보호를 위해 앱 차단됨'(넘어가는 버튼 없음, 민감한 정보·금융 사기 위험)**. 한국에도 사이드로드 문자 권한 앱 차단이 적용된다. Play 로 받은 앱은 해당 없음 → **2.1.0~ 배포는 플레이스토어만**(사용자 결정: 스토어 사용자의 문자 자동 읽기만 되면 됨). GitHub 릴리스엔 AAB 만, `latest` 로 안 만듦 → 옛 깃허브 앱(일반판·전용판)은 v2.0.3 에서 업데이트 안내 없이 계속 쓴다. APK 는 CI 스모크용으로만 빌드. 개발자 인증(2027 전 세계)은 Play 앱 서명 앱이라 Play Console 에서 자동 인정
 - 표시: 판 이름('전용판'·'일반판')은 앱 어디에도 안 보인다. 메뉴 업데이트 확인/버전 정보 설명은 'v2.1.0' 만. 제작자 표시는 메뉴 맨 아래 'Made by wani'.
 
 ## 두 채널 (v2.0.0~, REQ-43): 깃허브(APK) / 스토어(AAB)
 | 채널 | 빌드 | 파일 | versionCode | 자체 업데이트 |
 |---|---|---|---|---|
-| 깃허브 | `flutter build apk --release` | `app-full-release.apk` (고정 링크) + 같은 파일 사본 `app-release.apk`(옛 일반판 링크·옛 일반판 앱 업데이트 확인용, 당분간 유지) | run_number×10 **+0** | 있음 (링크는 app-full-release.apk) |
+| 깃허브 | `flutter build apk --release` | **2.1.0~ 배포 안 함**(CI 스모크용, Play 프로텍트 차단). 고정 링크·`latest` 는 v2.0.3 그대로 | run_number×10 **+0** | 코드는 남음(배포 안 함) |
 | 스토어 | `flutter build appbundle --release --dart-define=CHANNEL=store` | `app-store-release.aab` (2.1.0~. 2.0.x 는 `app-store-full-release.aab`) | run_number×10 **+2** | 없음 |
 
 - +1(예전 스토어 일반 AAB)은 비워 둔다. 2.0.x 까지 스토어 일반 AAB(+1)는 2.0.1 부터 스토어에 안 냈다
 
 - 채널은 `--dart-define=CHANNEL=store` 로 나눈다 (`lib/flavor.dart` `isStoreChannel`, 컴파일 시점 상수). 이유: 두 채널은 매니페스트·네이티브 차이가 없고(설치 권한은 원래 없음), Dart 상수라 스토어 빌드에서 업데이트 코드(`update_check.dart`, `_checkUpdate`)가 트리셰이킹으로 통째로 빠진다. define 이 없으면 깃허브판.
 - 스토어판: 시작 때 자동 업데이트 확인 안 함. 메뉴 맨 아래 '버전 정보'(REQ-64)를 **누를 때만** Google Play 인앱 업데이트로 확인(`PlayUpdate.kt`, 의존성 `com.google.android.play:app-update:2.1.0`, 채널 `playUpdateCheck`/`playUpdateStart`/`openPlayStore`, Dart `lib/app_update.dart` `checkPlayUpdate`). 결과 공용 팝업 `updateResultDialog`(NoticeDialog): 있음 '새 버전이 있어요'/'지금 v… 쓰는 중이에요.' + [업데이트](유연한 업데이트, 다 받으면 바로 설치·재시작, 못 하면 Play 스토어 앱 페이지)·[나중에] / 최신 '최신 버전이에요'/'v…' / 실패(Play 설치가 아님·오프라인) '지금은 확인할 수 없어요' + [Play 스토어에서 보기]·[닫기]. 스토어판은 Play 밖에서 내려받아 업데이트하지 않는다(정책). 깃허브판 메뉴 '업데이트 확인'도 같은 팝업(새 버전 태그 + [내려받기] 고정 링크, 실패는 [확인]), 시작 때 자동 확인 창은 예전 AlertDialog 그대로. 팝업은 기다리지 않고 띄운다(`unawaited`, 메뉴 스피너가 팝업 뒤에서 계속 돌지 않게). `NoticeDialog` 에 `onOk`(골드 버튼 뒤 할 일)·`cancelLabel`(왼쪽 글자 버튼) 추가. CI 가 스토어 AAB 의 libapp.so 에 GitHub releases API 주소가 있으면 실패시킨다(app_update.dart 는 update_check.dart 를 부르지 않음).
-- 같은 태그 빌드에서 APK 1개(+사본) + AAB 1개를 만들어 같은 GitHub 릴리스에 첨부. AAB 도 같은 키스토어로 서명(Play App Signing 에 이 키를 앱 서명 키로 등록 → `scripts/export_play_key.md`).
+- 같은 태그 빌드에서 APK 1개(스모크용, 첨부 안 함) + AAB 1개를 만들고 GitHub 릴리스엔 AAB 만 첨부(`--latest=false`). AAB 도 같은 키스토어로 서명(Play App Signing 에 이 키를 앱 서명 키로 등록 → `scripts/export_play_key.md`).
 - REQUEST_INSTALL_PACKAGES 같은 설치 권한을 넣지 않는다 (CI 검사).
 - 권한 안내(Prominent Disclosure, `lib/disclosure.dart`): 문자 권한 시스템 창·알림 접근 설정 화면으로 보내기 전에 매번 전체 화면 안내 → [동의하고 계속]일 때만 요청, [나중에]면 아무것도 안 함. 문자 권한 요청은 `requestSmsWithDisclosure`, 알림 접근은 `openNotificationAccessWithDisclosure` 로만 부른다 (`Native.requestSmsPermission`/`openNotificationAccessSettings` 직접 호출 금지). 문자 안내 문구는 REQ-43 지정 문구 그대로.
 - 메뉴 '개인정보처리방침' → 확인 팝업 "개인정보처리방침 페이지(GitHub)를 인터넷 브라우저로 엽니다." [열기]/[취소] → [열기]만 `kPrivacyUrl`(main 의 `PRIVACY.md`) 브라우저로 (스토어 출시 후에도 유지). PRIVACY.md 는 코드와 사실이 맞아야 한다 (기능이 바뀌면 같이 고칠 것).
@@ -221,8 +221,7 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 
 ## 설치 방식 (고정)
 - 폰 설치는 항상 GitHub Release 링크로만 한다 (스토어판은 Play Console 테스트 트랙). adb/USB 설치는 제안하지도 말 것.
-- `https://github.com/Wani-Jung/card-expense/releases/latest/download/app-full-release.apk` (2.1.0~ 판 하나)
-- 예전 일반판 링크 `…/latest/download/app-release.apk` 도 당분간 같은 파일을 받는다(옛 일반판 앱의 업데이트 확인이 이 이름을 받음). 몇 버전 뒤 정리 여부 결정
+- 2.1.0~ 설치·업데이트는 플레이스토어(또는 테스트 트랙)만. GitHub 고정 링크(`…/latest/download/app-release.apk`·`app-full-release.apk`)는 v2.0.3 에 멈춰 있다(문자 권한 APK 는 Play 프로텍트가 차단)
 
 ## 대기 중인 작업
 `NEXT.md`에 다음 요청 때 같이 처리할 일이 쌓여 있다. 새 요청을 받으면 NEXT.md 항목도 함께 처리하고, 끝난 항목은 지운다.

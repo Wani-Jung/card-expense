@@ -160,15 +160,16 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           script: bash tools/smoke_test.sh "$RUNNER_TEMP/bundletool.jar" dist
 
-      # v* 태그: 정식 릴리스 (releases/latest/download/app-full-release.apk·app-release.apk(같은 파일) 가 이걸 가리킴). AAB 도 같이 첨부
+      # v* 태그: 정식 릴리스. 2.1.0~ 은 스토어 AAB 만 첨부하고 latest 로 만들지 않는다(REQ-70).
+      # 문자 권한이 든 APK 는 사이드로드하면 Play 프로텍트가 넘어갈 수 없게 차단한다(2026-11-25 실기기 확인).
+      # 그래서 APK 는 스모크 테스트에만 쓰고 배포하지 않으며, releases/latest(옛 깃허브 앱의 업데이트 확인·고정 링크)는 v2.0.3 에 그대로 둔다.
       - name: Release (tag)
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # 같은 태그 재빌드(정식 출시 전 v2.0.0 재사용): 남아 있는 릴리스(draft 포함)는 지우고 새로 만든다 → 새 커밋·새 파일·latest
           gh release delete "$GITHUB_REF_NAME" --yes >/dev/null 2>&1 || true
-          gh release create "$GITHUB_REF_NAME" dist/*.apk dist/*.aab --title "$GITHUB_REF_NAME" --generate-notes --latest
+          gh release create "$GITHUB_REF_NAME" dist/*.aab --title "$GITHUB_REF_NAME" --generate-notes --latest=false
 
       # 수동 실행(브랜치에서): 'dev' 프리릴리스를 그 커밋으로 갈아끼운다. 정식 링크(latest)에는 영향 없음.
       - name: Release (dev, manual)
@@ -177,7 +178,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete dev --yes --cleanup-tag >/dev/null 2>&1 || true
-          gh release create dev dist/*.apk dist/*.aab \
+          gh release create dev dist/*.aab \
             --prerelease --target "$GITHUB_SHA" \
             --title "개발 빌드 (${GITHUB_REF_NAME} ${GITHUB_SHA::7})" \
             --notes "수동 실행 빌드입니다. 정식 버전은 v* 릴리스를 받으세요."

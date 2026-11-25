@@ -30,7 +30,7 @@ product flavor 는 없다(REQ-70 에서 예전 public(일반판)·full(전용판
 - 문자 권한 `RECEIVE_SMS`·`READ_SMS` 와 SMS 수신 리시버(`SmsReceiver`)는 `src/main/AndroidManifest.xml`, 지난 문자 조회는 `SmsInbox.kt`(SMS·MMS·RCS 후보 저장소, 사용자가 고른 기간).
 - 문자 권한은 앱 안 안내(`lib/disclosure.dart`) → [동의하고 계속] → 시스템 권한 창으로만 켜진다. 거부해도 알림 감지·붙여넣기·공유로 쓸 수 있다.
 - 권한 설정 화면 '문자 읽기' 항목·메뉴 '지난 문자 불러오기'는 항상 보인다. 앱에 '전용판'·'일반판' 표시는 없다.
-- GitHub 릴리스: `app-full-release.apk`(고정 링크) + 같은 파일 사본 `app-release.apk`(옛 일반판 링크·옛 일반판 앱 업데이트 확인용). 스토어: `app-store-release.aab`.
+- 배포는 플레이스토어만(`app-store-release.aab`). 문자 권한 APK 는 사이드로드하면 Play 프로텍트가 차단해서(2026-11-25 실기기) GitHub 로 APK 를 내지 않고, `releases/latest` 는 v2.0.3 에 둔다.
 - 예전(1.2.0~2.0.3)엔 Play Protect 차단 때문에 문자 권한 없는 일반판을 따로 뒀다.
 
 ---|---|---|
@@ -633,8 +633,7 @@ product flavor 는 없다(REQ-70 에서 예전 public(일반판)·full(전용판
 
 ### 8-2. 고정 링크
 
-- `https://github.com/Wani-Jung/card-expense/releases/latest/download/app-full-release.apk` (2.1.0~ 판 하나)
-- 옛 일반판 링크 `…/latest/download/app-release.apk` 도 당분간 같은 파일
+- 2.1.0~ GitHub APK 배포 없음. 고정 링크는 v2.0.3 그대로(옛 깃허브 사용자용)
 - 설치는 이 GitHub Release 링크로만 한다. adb·USB 설치는 쓰지 않는다(프로젝트 규칙, `CLAUDE.md`).
 - v1.15.0 에서 두 링크 모두 익명으로 받아지는 것(HTTP 200)과 서명·권한·versionCode 37 을 CI 후에 확인했다.
 
