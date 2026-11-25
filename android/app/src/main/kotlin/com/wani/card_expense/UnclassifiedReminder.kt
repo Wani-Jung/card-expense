@@ -18,7 +18,7 @@ import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 
 /**
- * 미분류 7일 알림. 이 앱이 띄우는 유일한 상태바 알림이다 (사용자 결정 2026-11). 판정은 [ReminderRule].
+ * 미분류 알림 (이번 달·지난달(1~15일) 미분류가 7일 넘게 남았을 때). 이 앱이 띄우는 유일한 상태바 알림이다 (사용자 결정 2026-11). 판정은 [ReminderRule].
  *
  * 앱이 꺼져 있어도 판정해야 하므로 Flutter 가 미분류 내역 시각을 네이티브 저장소에 넣어 두고([sync]),
  * WorkManager 가 평일 오후 5시쯤 깨어나 확인한다. 재부팅해도 WorkManager 가 예약을 되살린다.
@@ -34,14 +34,20 @@ object UnclassifiedReminder {
 
     private const val PREFS = "card_expense_reminder"
     private const val KEY_TIMES = "times"
+    private const val KEY_DATES = "dates"
     private const val KEY_ENABLED = "enabled"
     private const val KEY_LAST_SENT = "last_sent"
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    /** Flutter → 네이티브: 미분류 내역 시각과 스위치. 켜져 있으면 예약이 살아 있게, 꺼지면 예약 취소 */
-    fun sync(ctx: Context, times: List<Long>, enabled: Boolean) {
-        prefs(ctx).edit().putString(KEY_TIMES, JSONArray(times).toString()).putBoolean(KEY_ENABLED, enabled).apply()
+    /** Flutter → 네이티브: 미분류 내역의 미분류 시작 시각([times])·승인 일시([dates], 같은 순서)와 스위치.
+     *  켜져 있으면 예약이 살아 있게, 꺼지면 예약 취소 */
+    fun sync(ctx: Context, times: List<Long>, dates: List<Long>, enabled: Boolean) {
+        prefs(ctx).edit()
+            .putString(KEY_TIMES, JSONArray(times).toString())
+            .putString(KEY_DATES, JSONArray(dates).toString())
+            .putBoolean(KEY_ENABLED, enabled)
+            .apply()
         val wm = WorkManager.getInstance(ctx)
         if (enabled) schedule(ctx, ExistingWorkPolicy.KEEP) else wm.cancelUniqueWork(WORK_NAME)
     }
@@ -59,12 +65,16 @@ object UnclassifiedReminder {
     private fun check(ctx: Context) {
         val p = prefs(ctx)
         val saved = JSONArray(p.getString(KEY_TIMES, "[]"))
-        // 앱을 안 연 동안 들어온 문자(네이티브 inbox)도 미분류다
-        val times = List(saved.length()) { saved.getLong(it) } + CardSms.inboxTimes(ctx)
+        // 승인 일시가 없는 예전 저장값(2.0.2 이하)은 미분류 시작 시각을 승인 일시로 본다
+        val dates = JSONArray(p.getString(KEY_DATES, "[]")).let { d -> List(d.length()) { d.getLong(it) } }
+        val items = List(saved.length()) {
+            val t = saved.getLong(it)
+            ReminderRule.Item(dates.getOrElse(it) { t }, t)
+        } + CardSms.inboxTimes(ctx).map { ReminderRule.Item(it, it) } // 앱을 안 연 동안 들어온 문자(네이티브 inbox)도 미분류
         val now = System.currentTimeMillis()
-        if (!ReminderRule.shouldSend(p.getBoolean(KEY_ENABLED, false), times, p.getLong(KEY_LAST_SENT, 0), now)) return
+        if (!ReminderRule.shouldSend(p.getBoolean(KEY_ENABLED, false), items, p.getLong(KEY_LAST_SENT, 0), now)) return
         if (!canNotify(ctx)) return
-        notify(ctx, ReminderRule.overdueCount(times, now))
+        notify(ctx, ReminderRule.message(ReminderRule.scope(items, now)))
         p.edit().putLong(KEY_LAST_SENT, now).apply()
     }
 
@@ -78,7 +88,7 @@ object UnclassifiedReminder {
         return ctx.getSystemService(NotificationManager::class.java).areNotificationsEnabled()
     }
 
-    private fun notify(ctx: Context, n: Int) {
+    private fun notify(ctx: Context, title: String) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
             nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT))
@@ -98,7 +108,7 @@ object UnclassifiedReminder {
             builder
                 .setSmallIcon(R.drawable.ic_stat_card)
                 .setColor(0xFF1F3A68.toInt())
-                .setContentTitle(ReminderRule.message(n))
+                .setContentTitle(title)
                 .setContentIntent(open)
                 .setAutoCancel(true)
                 .build(),

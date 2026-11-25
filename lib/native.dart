@@ -100,9 +100,10 @@ class Native {
   /// Play 스토어 앱의 이 앱 페이지
   static Future<void> openPlayStore() => _ch.invokeMethod('openPlayStore');
 
-  /// 미분류 7일 알림: 미분류 내역 시각과 스위치를 네이티브에 넘긴다 (앱이 꺼져 있어도 판정하도록)
-  static Future<void> syncReminder(List<int> times, {required bool enabled}) =>
-      _ch.invokeMethod('syncReminder', {'times': times, 'enabled': enabled});
+  /// 미분류 알림: 미분류 내역의 미분류 시작 시각([times])·승인 일시([dates], 같은 순서, 이번 달·지난달 판정용)와
+  /// 스위치를 네이티브에 넘긴다 (앱이 꺼져 있어도 판정하도록)
+  static Future<void> syncReminder(List<int> times, {required List<int> dates, required bool enabled}) =>
+      _ch.invokeMethod('syncReminder', {'times': times, 'dates': dates, 'enabled': enabled});
 
   /// 알림을 눌러 앱이 열렸으면 열 화면 ('unclassified'). 가져가면 비워진다.
   static Future<String?> takeOpenTarget() => _ch.invokeMethod<String>('takeOpenTarget');

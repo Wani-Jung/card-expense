@@ -24,8 +24,12 @@ class ReminderRuleTest {
     private val fri = at(2026, 11, 6)
     private val sat = at(2026, 11, 7)
 
+    /** 기존 규칙 테스트용: 승인 일시는 지금(이번 달), 미분류 시작만 [times] */
     private fun send(times: List<Long>, now: Long, lastSent: Long = 0, enabled: Boolean = true) =
-        ReminderRule.shouldSend(enabled, times, lastSent, now, tz)
+        ReminderRule.shouldSend(enabled, times.map { ReminderRule.Item(now, it) }, lastSent, now, tz)
+
+    private fun item(date: Long, pending: Long = date) = ReminderRule.Item(date, pending)
+    private fun sendItems(items: List<ReminderRule.Item>, now: Long) = ReminderRule.shouldSend(true, items, 0, now, tz)
 
     @Test fun `7일 경계 - 6일 23시간은 미발송, 딱 7일도 미발송, 7일 초과는 발송`() {
         assertFalse(send(listOf(mon - (6 * 24 + 23) * hour), mon))
@@ -34,7 +38,8 @@ class ReminderRuleTest {
     }
 
     @Test fun `건수는 7일 초과만 센다`() {
-        assertEquals(2, ReminderRule.overdueCount(listOf(mon - week - 1, mon - 8 * 24 * hour, mon - hour, mon - week), mon))
+        val items = listOf(mon - week - 1, mon - 8 * 24 * hour, mon - hour, mon - week).map { item(mon, it) }
+        assertEquals(2, ReminderRule.overdueCount(items, mon, tz))
     }
 
     @Test fun `0건이면 미발송`() {
@@ -94,7 +99,61 @@ class ReminderRuleTest {
         assertEquals(at(2026, 11, 9), ReminderRule.nextCheck(sunday + 1, sunday, tz))
     }
 
-    @Test fun `문구`() {
-        assertEquals("미분류 내역 3건이 일주일 넘게 남아 있어요", ReminderRule.message(3))
+    @Test fun `대상 - 이번 달은 늘, 지난달은 1~15일만, 그보다 오래된 건 빠짐`() {
+        fun m(date: Long, now: Long) = ReminderRule.monthOf(date, now, tz)
+        val oct = at(2026, 10, 20, 12)
+        assertEquals(0, m(at(2026, 11, 1, 0), at(2026, 11, 1, 17)))
+        assertEquals(1, m(oct, at(2026, 11, 1))) // 1일
+        assertEquals(1, m(oct, at(2026, 11, 15, 20, 59))) // 15일
+        assertEquals(null, m(oct, at(2026, 11, 16))) // 16일부터 지난달 제외
+        assertEquals(null, m(oct, at(2026, 11, 30))) // 월말
+        assertEquals(0, m(at(2026, 11, 2), at(2026, 11, 30)))
+        assertEquals(null, m(at(2026, 9, 30), at(2026, 11, 1))) // 두 달 전
+        assertEquals(null, m(at(2026, 12, 1), at(2026, 11, 30))) // 다음 달(미래)
+        // 연말 → 연초
+        assertEquals(1, m(at(2026, 12, 31, 23, 59), at(2027, 1, 4)))
+        assertEquals(null, m(at(2026, 12, 31), at(2027, 1, 18)))
+        assertEquals(null, m(at(2026, 1, 10), at(2027, 1, 4))) // 1년 전 같은 달
+        assertEquals(0, m(at(2027, 1, 1, 0), at(2027, 1, 4)))
+    }
+
+    @Test fun `지난달 건 - 15일까지는 발송, 16일부터는 미발송`() {
+        val oct = item(at(2026, 10, 20, 12))
+        assertTrue(sendItems(listOf(oct), at(2026, 11, 13))) // 금 13일
+        assertFalse(sendItems(listOf(oct), at(2026, 11, 16))) // 월 16일
+        // 이번 달 건이 7일 안 됐으면 지난달 건이 빠진 16일엔 미발송
+        assertFalse(sendItems(listOf(oct, item(at(2026, 11, 12))), at(2026, 11, 16)))
+        assertTrue(sendItems(listOf(oct, item(at(2026, 11, 2, 9))), at(2026, 11, 16)))
+    }
+
+    @Test fun `1년치 불러온 경우 - 오래된 건 때문에 알림이 가지 않음`() {
+        val now = at(2026, 11, 24) // 화
+        val importedAt = now - 10 * 24 * hour // 열흘 전에 1~10월·작년 12월 문자를 불러옴 → 미분류 10일
+        val old = (1..10).map { item(at(2026, it, 10, 12), importedAt) } + item(at(2025, 12, 10), importedAt)
+        assertEquals(0, ReminderRule.overdueCount(old, now, tz))
+        assertFalse(sendItems(old, now))
+        // 이번 달 건이 하나라도 7일 넘으면 그때만 발송, 문구 숫자도 이번 달만
+        val withThis = old + item(at(2026, 11, 3, 12))
+        assertTrue(sendItems(withThis, now))
+        assertEquals("이번 달 미분류 1건이 남아 있어요", ReminderRule.message(ReminderRule.scope(withThis, now, tz)))
+    }
+
+    @Test fun `연말에서 연초 - 12월 건은 1월 15일까지 대상`() {
+        val dec = item(at(2026, 12, 20, 12))
+        assertTrue(sendItems(listOf(dec), at(2027, 1, 15))) // 금
+        assertFalse(sendItems(listOf(dec), at(2027, 1, 18))) // 월
+    }
+
+    @Test fun `문구 - 이번 달만, 지난달만, 둘 다`() {
+        assertEquals("이번 달 미분류 3건이 남아 있어요", ReminderRule.message(ReminderRule.Scope(3, 0)))
+        assertEquals("지난달 미분류 2건이 남아 있어요", ReminderRule.message(ReminderRule.Scope(0, 2)))
+        assertEquals("이번 달 3건 · 지난달 2건 미분류가 남아 있어요", ReminderRule.message(ReminderRule.Scope(3, 2)))
+        val now = at(2026, 11, 10)
+        val s = ReminderRule.scope(
+            listOf(item(at(2026, 11, 1)), item(at(2026, 10, 3)), item(at(2026, 10, 31)), item(at(2026, 8, 1))),
+            now,
+            tz,
+        )
+        assertEquals(ReminderRule.Scope(1, 2), s)
     }
 }

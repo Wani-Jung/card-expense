@@ -430,15 +430,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// 미분류 내역 시각·스위치를 네이티브에 넘긴다. 바뀌었을 때만.
   void _syncReminder() {
-    final times = [
-      for (final e in _items)
-        if (e.category == null) e.pendingFrom.millisecondsSinceEpoch,
-    ];
+    final pending = [for (final e in _items) if (e.category == null) e];
+    final times = [for (final e in pending) e.pendingFrom.millisecondsSinceEpoch];
+    final dates = [for (final e in pending) e.dateTime.millisecondsSinceEpoch];
     final on = widget.store.remindOn;
-    final key = '$on|${times.join(',')}';
+    final key = '$on|${times.join(',')}|${dates.join(',')}';
     if (key == _reminderSent) return;
     _reminderSent = key;
-    Native.syncReminder(times, enabled: on);
+    Native.syncReminder(times, dates: dates, enabled: on);
   }
 
   /// 첫 실행 뒤 한 번만 알림 권한을 묻는다. 거부하면 스위치 OFF + 메뉴에 안내 한 줄.

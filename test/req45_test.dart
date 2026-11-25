@@ -100,6 +100,8 @@ void main() {
       final sync = named('syncReminder').last.arguments as Map;
       expect(sync['enabled'], isTrue);
       expect(sync['times'], [old.millisecondsSinceEpoch, added.millisecondsSinceEpoch]);
+      // 2.0.3: 이번 달·지난달 판정용 승인 일시 (같은 순서)
+      expect(sync['dates'], [old.millisecondsSinceEpoch, DateTime(2025, 12, 1).millisecondsSinceEpoch]);
     });
 
     test('pendingSince 저장·읽기, 없으면 승인 일시부터', () {

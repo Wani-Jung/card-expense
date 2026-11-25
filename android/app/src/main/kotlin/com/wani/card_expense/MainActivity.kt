@@ -132,7 +132,8 @@ class MainActivity : FlutterActivity() {
                 "cacheDir" -> result.success(cacheDir.absolutePath)
                 "syncReminder" -> {
                     val times = call.argument<List<Number>>("times").orEmpty().map { it.toLong() }
-                    UnclassifiedReminder.sync(this, times, call.argument<Boolean>("enabled") ?: true)
+                    val dates = call.argument<List<Number>>("dates")?.map { it.toLong() } ?: times
+                    UnclassifiedReminder.sync(this, times, dates, call.argument<Boolean>("enabled") ?: true)
                     result.success(null)
                 }
                 "takeOpenTarget" -> {
