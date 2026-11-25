@@ -70,7 +70,7 @@ void main() {
   });
 
   test('네이티브: 날짜 칸이 없는 저장소는 건너뛰고(지금으로 치지 않음) 단위는 InboxDate 로', () {
-    final flavor = File('android/app/src/full/kotlin/com/wani/card_expense/Flavor.kt').readAsStringSync();
+    final flavor = File('android/app/src/main/kotlin/com/wani/card_expense/SmsInbox.kt').readAsStringSync();
     expect(flavor.contains('System.currentTimeMillis()'), isFalse);
     expect(flavor.contains('InboxDate.inRange'), isTrue);
   });

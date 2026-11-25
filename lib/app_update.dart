@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'flavor.dart';
 import 'native.dart';
 import 'notice_dialog.dart';
 
@@ -58,7 +57,7 @@ Widget updateResultDialog(
   UpdateStatus.latest => NoticeDialog(
     icon: const NoticeInfoIcon(),
     title: kUpdateLatestTitle,
-    body: 'v${c.current} · $editionLabel',
+    body: 'v${c.current}',
   ),
   UpdateStatus.failed => NoticeDialog(
     icon: const NoticeInfoIcon(),

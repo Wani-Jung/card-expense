@@ -37,7 +37,7 @@ class Expense {
   /// '취소로 상쇄'로 무시하기 전 카테고리. [되살리기] 하면 이걸로 돌린다.
   String? ignoredFrom;
 
-  /// 미분류가 된 시각 (미분류 7일 알림). 1년치 불러오기·붙여넣기 등으로 넣은 때, 무시에서 되살린 때.
+  /// 미분류가 된 시각 (미분류 7일 알림). 지난 문자 불러오기·붙여넣기 등으로 넣은 때, 무시에서 되살린 때.
   /// null 이면 승인 일시부터 센다 (실시간으로 들어온 문자, 예전 데이터).
   DateTime? pendingSince;
 
@@ -148,7 +148,6 @@ class Store {
   static const _kDigits = 'card_digits';
   static const _kSender = 'sender_number';
   static const _kBudgets = 'budgets_v1';
-  static const _kAutoImported = 'auto_import_done';
   static const _kUpdateChecked = 'update_checked_at';
   static const _kUpdateSkipped = 'update_skipped_tag';
 
@@ -160,16 +159,11 @@ class Store {
   String? get cardDigits => _prefs.getString(_kDigits);
   String? get senderNumber => _prefs.getString(_kSender);
 
-  /// 카드번호·발신번호 저장. 하나라도 바뀌면 (전용판) 1년치 자동 불러오기를 다시 하게 한다.
+  /// 카드번호·발신번호 저장.
   Future<void> setSettings(String digits, String sender) async {
-    if (digits != cardDigits || sender != senderNumber) await _prefs.remove(_kAutoImported);
     await _prefs.setString(_kDigits, digits);
     await _prefs.setString(_kSender, sender);
   }
-
-  /// (전용판) 현재 설정으로 1년치 자동 불러오기를 했는지.
-  bool get autoImported => _prefs.getBool(_kAutoImported) ?? false;
-  Future<void> setAutoImported() => _prefs.setBool(_kAutoImported, true);
 
   /// v1.14 취소·재결제 1회 바로잡기를 했는지
   bool get cancelFixDone => _prefs.getBool('cancel_fix_v1') ?? false;

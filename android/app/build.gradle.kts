@@ -37,18 +37,11 @@ android {
         versionName = flutter.versionName
     }
 
-    // 두 판: public(일반판, 문자 권한 없음) / full(전용판, 문자 권한 + 지난 문자 불러오기).
-    // 같은 applicationId·서명키라 서로 덮어 설치해도 데이터가 유지된다.
-    // 문자 권한·리시버는 src/full/ 에만 둔다. public 에는 절대 넣지 말 것.
+    // 판은 하나(REQ-70, 2.1.0): 예전 public(일반판)·full(전용판) flavor 를 합쳤다. 문자 권한은 main 매니페스트.
+    // 같은 applicationId·서명키라 예전 두 판 어느 쪽 위에도 덮어 설치되고 데이터가 유지된다.
     // 앱 문자열 리소스는 한국어·영어만 (라이브러리가 넣는 다른 언어 번역 제외, REQ-47)
     androidResources {
         localeFilters += listOf("ko", "en")
-    }
-
-    flavorDimensions += "edition"
-    productFlavors {
-        create("public") { dimension = "edition" }
-        create("full") { dimension = "edition" }
     }
 
     signingConfigs {

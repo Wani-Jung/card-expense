@@ -1,5 +1,4 @@
 import 'package:card_expense/app_update.dart';
-import 'package:card_expense/flavor.dart';
 import 'package:card_expense/layout.dart';
 import 'package:card_expense/notice_dialog.dart';
 import 'package:flutter/material.dart';
@@ -68,7 +67,7 @@ void main() {
     testWidgets('최신: 버전·판, [확인] 하나', (tester) async {
       await open(tester, updateResultDialog(const UpdateCheck(UpdateStatus.latest, '2.0.1'), store: true));
       expect(find.text('최신 버전이에요'), findsOneWidget);
-      expect(find.text(keepWords('v2.0.1 · $editionLabel')), findsOneWidget);
+      expect(find.text(keepWords('v2.0.1')), findsOneWidget);
       expect(find.widgetWithText(FilledButton, '확인'), findsOneWidget);
       expect(find.byType(TextButton), findsOneWidget); // '열기' 버튼만 (팝업엔 보조 버튼 없음)
     });

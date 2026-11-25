@@ -7,7 +7,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 알림 리스너(두 판 공통)와 SMS 리시버(전용판)가 잡은 승인 문자를 처리하는 곳.
+ * 알림 리스너와 SMS 리시버가 잡은 승인 문자를 처리하는 곳.
  *
  * 앱이 꺼져 있어도 동작해야 하므로 Flutter 쪽 저장소를 쓰지 않고
  * 네이티브 SharedPreferences 에 "받은 편지함(inbox)"을 쌓아 둔다.

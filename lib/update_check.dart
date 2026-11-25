@@ -1,14 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'flavor.dart';
 
 const _latestApi = 'https://api.github.com/repos/Wani-Jung/card-expense/releases/latest';
 const _downloadBase = 'https://github.com/Wani-Jung/card-expense/releases/latest/download';
 
 /// 판에 맞는 최신 APK 고정 링크.
 String get latestApkUrl =>
-    '$_downloadBase/${isFullEdition ? 'app-full-release.apk' : 'app-release.apk'}';
+    '$_downloadBase/app-full-release.apk';
 
 /// "v1.4.0", "1.4.0", "1.4.0+12" → [1, 4, 0]. 형식이 아니면 null.
 List<int>? parseVersion(String v) {

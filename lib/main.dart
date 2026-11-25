@@ -834,7 +834,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ..showSnackBar(appSnackBar(content: Text(msg)));
   }
 
-  // ---------------- (전용판) 지난 문자 불러오기 ----------------
+  // ---------------- 지난 문자 불러오기 ----------------
 
   /// 메뉴 > 결제내역 입력 > 지난 문자 불러오기: 권한 확인 → 기간 고르기·미리보기 화면 → [불러오기]
   Future<void> _importInbox() async {
@@ -933,7 +933,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('새 버전 $latest가 있어요'),
-        content: Text(keepWords('지금 버전 v$current · $editionLabel\n[업데이트]를 누르면 브라우저에서 APK를 받아요.')),
+        content: Text(keepWords('지금 버전 v$current\n[업데이트]를 누르면 브라우저에서 APK를 받아요.')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('나중에')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('업데이트')),
@@ -1220,13 +1220,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     String part(String name, bool use, bool granted) => use ? (granted ? '$name 켜짐' : '$name 권한 필요') : '$name 꺼짐';
     return [
       part('알림 감지', widget.store.useListener, _perms.listener),
-      if (isFullEdition) part('문자 읽기', widget.store.useSms, _perms.sms == true),
+      part('문자 읽기', widget.store.useSms, _perms.sms == true),
     ].join(' · ');
   }
 
   /// 메인 권한 배너: '앱에서 사용'이 켜져 있는데 시스템 권한이 꺼진 것만
   bool get _needListener => widget.store.useListener && !_perms.listener;
-  bool get _needSms => isFullEdition && widget.store.useSms && _perms.sms == false;
+  bool get _needSms => widget.store.useSms && _perms.sms == false;
 
   Future<void> _openSettings() => Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => SettingsScreen(

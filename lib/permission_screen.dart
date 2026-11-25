@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'disclosure.dart';
 import 'expense.dart';
-import 'flavor.dart';
 import 'layout.dart';
 import 'native.dart';
 
@@ -149,33 +148,32 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
                   granted: p.listener,
                   action: _smallButton('설정 열기', () => openNotificationAccessWithDisclosure(context)),
                 ),
-                if (isFullEdition)
-                  _card(
-                    title: '문자 읽기',
-                    desc: '문자함에서 카드 승인 문자를 읽고, 새 문자를 바로 받아요',
-                    use: s.useSms,
-                    onUse: _setSms,
-                    granted: smsGranted,
-                    action: smsGranted
-                        ? null
-                        : p.smsBlocked
-                            ? _smallButton('설정 열기', Native.openAppSettings)
-                            : _smallButton('권한 요청', () => requestSmsWithDisclosure(context)),
-                    footer: Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Row(children: [
-                        const Text('권한 자체를 끄려면', style: TextStyle(fontSize: 12, color: Color(0xFF80868B))),
-                        TextButton(
-                          style: TextButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                            textStyle: const TextStyle(fontSize: 12),
-                          ),
-                          onPressed: Native.openAppSettings,
-                          child: const Text('휴대폰 설정 열기'),
+                _card(
+                  title: '문자 읽기',
+                  desc: '문자함에서 카드 승인 문자를 읽고, 새 문자를 바로 받아요',
+                  use: s.useSms,
+                  onUse: _setSms,
+                  granted: smsGranted,
+                  action: smsGranted
+                      ? null
+                      : p.smsBlocked
+                          ? _smallButton('설정 열기', Native.openAppSettings)
+                          : _smallButton('권한 요청', () => requestSmsWithDisclosure(context)),
+                  footer: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(children: [
+                      const Text('권한 자체를 끄려면', style: TextStyle(fontSize: 12, color: Color(0xFF80868B))),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          textStyle: const TextStyle(fontSize: 12),
                         ),
-                      ]),
-                    ),
+                        onPressed: Native.openAppSettings,
+                        child: const Text('휴대폰 설정 열기'),
+                      ),
+                    ]),
                   ),
+                ),
               ],
             ),
           );

@@ -9,7 +9,7 @@ class RawSms {
   RawSms(this.body, this.receivedAt, {this.bySender = false});
 }
 
-/// (전용판) 문자함 불러오기 결과: 카드 승인·취소 후보 문자와 진단용 주소 형식.
+/// 문자함 불러오기 결과: 카드 승인·취소 후보 문자와 진단용 주소 형식.
 /// 문자함 전체를 몇 건 봤는지는 받지도, 어디에 보여 주지도 않는다 (REQ-66 B).
 class InboxScan {
   /// SMS·MMS·RCS 후보 저장소 모두 같은 조건: '승인'·'취소'가 있고 (발신번호 일치 또는 카드번호+승인·취소)
@@ -24,7 +24,7 @@ class PermStatus {
   /// 알림 접근(메시지 앱 알림 읽기). 이 앱은 상태바 알림을 띄우지 않으므로 알림 표시 권한은 없다.
   final bool listener;
 
-  /// 문자 권한. 일반판은 문자 권한이 아예 없어서 null.
+  /// 문자 권한 (상태를 못 읽었으면 null).
   final bool? sms;
 
   /// 문자 권한을 영구 거부해서 다시 요청 창이 안 뜨는 상태 (앱 정보 화면에서 켜야 함)
@@ -59,7 +59,7 @@ class Native {
   static Future<List<String>> takeShared() async =>
       await _ch.invokeListMethod<String>('takeShared') ?? [];
 
-  /// (전용판) 문자함(SMS + MMS + RCS 후보)에서 [from] 이상 [to] 미만 기간의 카드 승인·취소 후보 문자를 읽는다.
+  /// 문자함(SMS + MMS + RCS 후보)에서 [from] 이상 [to] 미만 기간의 카드 승인·취소 후보 문자를 읽는다.
   static Future<InboxScan> readSmsInbox(DateTime from, DateTime to) async {
     final m = await _ch.invokeMapMethod<String, dynamic>(
           'readSmsInbox',

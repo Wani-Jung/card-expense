@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 켜 둔 에뮬레이터에 릴리스 산출물 4개(APK 2 + AAB 2)를 설치해 실행하고, 크래시 없이 살아 있는지 본다 (REQ-46).
+# 켜 둔 에뮬레이터에 릴리스 산출물(APK + 스토어 AAB, REQ-70 부터 판 하나)을 설치해 실행하고, 크래시 없이 살아 있는지 본다 (REQ-46).
 # R8·매니페스트 문제는 단위 테스트로 안 잡히고 실행해 봐야만 드러난다.
 # 사용: tools/smoke_test.sh <bundletool.jar> <dist 폴더> (폴더에 없는 파일은 건너뜀)
 set -u
@@ -44,11 +44,12 @@ launch() {
 }
 
 "$ADB" uninstall "$PKG" >/dev/null 2>&1
-for f in app-release.apk app-full-release.apk; do
+# app-release.apk 는 app-full-release.apk 와 같은 파일(옛 링크용 사본)이라 하나만 돌린다
+for f in app-full-release.apk; do
   [ -f "$DIST/$f" ] || continue
   if "$ADB" install -r "$DIST/$f" >/dev/null; then launch "$f"; else echo "::error::$f 설치 실패"; fail=1; fi
 done
-for f in app-store-public-release.aab app-store-full-release.aab; do
+for f in app-store-release.aab; do
   [ -f "$DIST/$f" ] || continue
   # 스토어와 같은 분할 설치 (base + ABI + 언어 + 화면 밀도)
   if java -jar "$BUNDLETOOL" build-apks --bundle="$DIST/$f" --output="$WORK/$f.apks" --connected-device --adb="$(command -v "$ADB")" --overwrite >/dev/null &&

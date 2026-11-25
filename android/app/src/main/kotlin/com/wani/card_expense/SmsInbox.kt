@@ -4,8 +4,8 @@ import android.Manifest
 import android.content.Context
 import android.net.Uri
 
-/** 전용판: 문자 권한으로 실시간 수신(SmsReceiver)과 지난 문자 불러오기를 한다. */
-object Flavor {
+/** 문자 권한으로 실시간 수신(SmsReceiver)과 지난 문자 불러오기를 한다. */
+object SmsInbox {
     private const val MMS_FROM = 137 // content://mms/{id}/addr 의 type: 보낸 사람
 
     val smsPermissions = arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS)
@@ -17,7 +17,7 @@ object Flavor {
      * [Web발신] 장문(LMS)은 MMS 테이블, 삼성 RCS 기업메시지는 SMS/MMS 밖 저장소(im/chat 등)에 있다.
      * 문자함 전체를 몇 건 봤는지는 돌려주지 않는다(REQ-66 B: 어디에도 표시 금지). 진단은 찾은 문자의 발신번호 일치 여부·주소 형식만.
      */
-    fun readInbox(ctx: Context, fromMs: Long, toMs: Long): Map<String, Any>? {
+    fun readInbox(ctx: Context, fromMs: Long, toMs: Long): Map<String, Any> {
         val sender = CardSms.sender(ctx)
         val digits = CardSms.digits(ctx)
         val items = ArrayList<Map<String, Any>>()

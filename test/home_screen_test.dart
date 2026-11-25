@@ -151,7 +151,7 @@ void main() {
     expect(find.ancestor(of: credit, matching: find.byType(ListTile)), findsNothing);
     expect(find.text('안전 OX Quiz · 법령 Quiz 4종'), findsOneWidget);
     expect(find.text('카드 0000 · 발신 1588-1600'), findsOneWidget);
-    expect(find.text('알림 감지 권한 필요'), findsOneWidget);
+    expect(find.text('알림 감지 권한 필요 · 문자 읽기 권한 필요'), findsOneWidget); // 판 하나(REQ-70): 문자 읽기도 항상
 
     // 확인 필요 0건이면 내역 관리는 접힌 채 시작
     expect(find.text('미분류 내역'), findsNothing);
@@ -185,13 +185,13 @@ void main() {
     await tester.tap(find.text('권한 설정'));
     await tester.pumpAndSettle();
     expect(find.text('알림 감지'), findsOneWidget);
-    expect(find.text('꺼짐'), findsOneWidget);
+    expect(find.text('꺼짐'), findsNWidgets(2)); // 알림 감지·문자 읽기 (판 하나, REQ-70)
     await tester.tap(find.byType(Switch).first);
     await tester.pumpAndSettle();
     expect((await SharedPreferences.getInstance()).getBool('use_listener_v1'), isFalse);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.text('알림 감지 꺼짐'), findsOneWidget);
+    expect(find.text('알림 감지 꺼짐 · 문자 읽기 권한 필요'), findsOneWidget);
   });
 
   testWidgets('무시한 내역에서 차량비 고르면 같은 업체 무시·대기 건 일괄 정리, 되돌리기', (tester) async {

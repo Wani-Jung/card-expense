@@ -106,7 +106,7 @@ void main() {
       expect(find.text('카드 승인 문자 읽기 권한 안내'), findsOneWidget);
       expect(find.textContaining(keepWords('카드 문자가 아닌 일반 문자는 저장하지 않으며')), findsOneWidget);
       expect(
-        find.textContaining(keepWords("'지난 문자 불러오기'를 실행하면 고른 기간(처음엔 최근 1년)의 문자에서 카드 문자만 찾아 가져옵니다.")),
+        find.textContaining(keepWords("'지난 문자 불러오기'를 실행하면 고른 기간의 문자에서 카드 문자만 찾아 가져옵니다.")),
         findsOneWidget,
       );
       expect(calls, isNot(contains('requestSmsPermission')));

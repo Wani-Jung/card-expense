@@ -392,7 +392,7 @@ void main() {
       expect(store.cardDigits, '0000');
       expect(store.senderNumber, kDefaultSender);
       expect(find.text('3 / 3'), findsOneWidget);
-      expect(find.text('지난 결제 넣기'), findsOneWidget); // 일반판 (테스트는 flavor 없음)
+      expect(find.text('지난 결제 불러오기'), findsOneWidget); // 판 하나(REQ-70): 3단계는 기간 지정 불러오기
       await tester.tap(find.text('시작하기'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('메뉴'), findsOneWidget);

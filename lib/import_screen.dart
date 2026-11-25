@@ -11,7 +11,7 @@ import 'native.dart';
 import 'notice_dialog.dart';
 import 'sms_parser.dart';
 
-/// (전용판) 지난 문자 불러오기: 기간을 고르고 → 미리보기('이 기간 승인 문자 n건 (새 n · 중복 n)') → [불러오기].
+/// 지난 문자 불러오기: 기간을 고르고 → 미리보기('이 기간 승인 문자 n건 (새 n · 중복 n)') → [불러오기].
 /// SMS·MMS·RCS 후보 저장소 공통. 기간은 시작일 0시 ~ 종료일 다음 날 0시(미포함).
 /// 메뉴의 [ImportRangeScreen] 과 사전입력사항 3단계(REQ-54)가 같은 [ImportRangePanel]·[previewImportRange] 를 쓴다.
 

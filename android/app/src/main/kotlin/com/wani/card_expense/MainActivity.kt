@@ -84,23 +84,18 @@ class MainActivity : FlutterActivity() {
                     val status = mutableMapOf<String, Boolean>(
                         "listener" to listenerEnabled(),
                     )
-                    // 문자 권한은 전용판에만 있다. 일반판은 키 자체를 넣지 않는다.
-                    if (Flavor.smsPermissions.isNotEmpty()) {
-                        val granted = Flavor.smsPermissions.all {
-                            checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
-                        }
-                        status["sms"] = granted
-                        // 요청한 적이 있는데 다시 물을 수 없으면 영구 거부 → 앱 정보 화면에서 켜야 한다
-                        status["smsBlocked"] = !granted && CardSms.smsRequested(this) &&
-                            Flavor.smsPermissions.none { shouldShowRequestPermissionRationale(it) }
+                    val granted = SmsInbox.smsPermissions.all {
+                        checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
                     }
+                    status["sms"] = granted
+                    // 요청한 적이 있는데 다시 물을 수 없으면 영구 거부 → 앱 정보 화면에서 켜야 한다
+                    status["smsBlocked"] = !granted && CardSms.smsRequested(this) &&
+                        SmsInbox.smsPermissions.none { shouldShowRequestPermissionRationale(it) }
                     result.success(status)
                 }
                 "requestSmsPermission" -> {
-                    if (Flavor.smsPermissions.isNotEmpty()) {
-                        CardSms.markSmsRequested(this)
-                        requestPermissions(Flavor.smsPermissions, 1)
-                    }
+                    CardSms.markSmsRequested(this)
+                    requestPermissions(SmsInbox.smsPermissions, 1)
                     result.success(null)
                 }
                 "readSmsInbox" -> {
@@ -109,10 +104,9 @@ class MainActivity : FlutterActivity() {
                     val to = call.argument<Number>("to")?.toLong() ?: System.currentTimeMillis()
                     thread {
                         try {
-                            val map = Flavor.readInbox(this, from, to)
+                            val map = SmsInbox.readInbox(this, from, to)
                             runOnUiThread {
-                                if (map == null) result.error("UNSUPPORTED", "일반판에는 없는 기능", null)
-                                else result.success(map)
+                                result.success(map)
                             }
                         } catch (e: SecurityException) {
                             runOnUiThread { result.error("NO_PERMISSION", e.message, null) }

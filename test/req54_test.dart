@@ -124,7 +124,6 @@ void main() {
 
     Future<void> pumpGuide(
       WidgetTester tester, {
-      required bool full,
       bool smsOk = true,
       List<(DateTime, DateTime)>? asked,
       List<OnboardingAction>? done,
@@ -135,7 +134,6 @@ void main() {
         MaterialApp(
           home: OnboardingScreen(
             firstRun: false,
-            fullEdition: full,
             clock: () => clock,
             budget: const MonthBudget(),
             digits: '0000',
@@ -160,17 +158,10 @@ void main() {
       expect(find.text('3 / 3'), findsOneWidget);
     }
 
-    testWidgets('일반판: 붙여넣기·공유 안내 그대로', (tester) async {
-      await pumpGuide(tester, full: false);
-      expect(find.text('지난 결제 넣기'), findsOneWidget);
-      expect(find.text('지금 문자 붙여넣기'), findsOneWidget);
-      expect(find.text('이 기간 문자 확인'), findsNothing);
-    });
-
-    testWidgets('전용판: 기본 이번 달 1일~오늘, 빠른 선택, 미리보기 → 넣기 → 결과 한 줄 → [닫기]', (tester) async {
+    testWidgets('3단계: 기본 이번 달 1일~오늘, 빠른 선택, 미리보기 → 넣기 → 결과 한 줄 → [닫기]', (tester) async {
       final asked = <(DateTime, DateTime)>[];
       final done = <OnboardingAction>[];
-      await pumpGuide(tester, full: true, asked: asked, done: done);
+      await pumpGuide(tester, asked: asked, done: done);
       expect(find.text('지난 결제 불러오기'), findsOneWidget);
       expect(find.text('2026.11.01'), findsOneWidget);
       expect(find.text('2026.11.19'), findsOneWidget);
@@ -198,10 +189,10 @@ void main() {
       expect(done, [OnboardingAction.none]);
     });
 
-    testWidgets('전용판: 문자 권한을 못 받으면 미리보기 없이 붙여넣기·공유 안내를 대신', (tester) async {
+    testWidgets('3단계: 문자 권한을 못 받으면 미리보기 없이 붙여넣기·공유 안내를 대신', (tester) async {
       final asked = <(DateTime, DateTime)>[];
       final done = <OnboardingAction>[];
-      await pumpGuide(tester, full: true, smsOk: false, asked: asked, done: done);
+      await pumpGuide(tester, smsOk: false, asked: asked, done: done);
       await tester.tap(find.text('이 기간 문자 확인'));
       await tester.pumpAndSettle();
       expect(asked, isEmpty);
@@ -213,8 +204,8 @@ void main() {
       expect(done, [OnboardingAction.paste]);
     });
 
-    testWidgets('전용판: 새로 넣을 문자가 없으면 그렇게 알려 줌', (tester) async {
-      await pumpGuide(tester, full: true, fresh: 0);
+    testWidgets('3단계: 새로 넣을 문자가 없으면 그렇게 알려 줌', (tester) async {
+      await pumpGuide(tester, fresh: 0);
       await tester.tap(find.text('이 기간 문자 확인'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(OutlinedButton, '닫기'));

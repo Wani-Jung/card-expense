@@ -21,7 +21,7 @@ class MenuScreen extends StatefulWidget {
   /// null(스토어판)이면 '업데이트 확인' 대신 누를 수 없는 '버전 정보'만 보인다.
   final Future<void> Function()? onUpdate;
 
-  /// (전용판) 권한 설정에서 문자 읽기를 끄면 지난 문자 불러오기를 흐리게
+  /// 권한 설정에서 문자 읽기를 끄면 지난 문자 불러오기를 흐리게
   final bool Function() importEnabled;
 
   /// 카드 문자 설정 (카드번호·발신번호). 저장하고 돌아오면 설명의 현재 값을 다시 읽는다.
@@ -178,13 +178,12 @@ class _MenuScreenState extends State<MenuScreen> {
           item(
             Icons.add_card,
             '결제내역 입력',
-            isFullEdition ? '지난 문자 불러오기 · 붙여넣기' : '문자 붙여넣기 · 공유하기',
+            '지난 문자 불러오기 · 붙여넣기',
             () => _toggle('input'),
             trailing: chevron(_expanded == 'input'),
           ),
           if (_expanded == 'input') ...[
-            if (isFullEdition)
-              sub(Icons.history, '지난 문자 불러오기', importOn ? openThen(w.onImport) : null),
+            sub(Icons.history, '지난 문자 불러오기', importOn ? openThen(w.onImport) : null),
             sub(Icons.content_paste, '문자 붙여넣기', openThen(w.onPaste)),
           ],
           line,
@@ -253,7 +252,7 @@ class _MenuScreenState extends State<MenuScreen> {
           line,
           item(Icons.shield_outlined, '권한 설정', w.permSummary(), openThen(w.onPermissions)),
           line,
-          item(Icons.menu_book_outlined, '사전입력사항', isFullEdition ? '수립 금액 · 카드 문자 설정 · 지난 결제 불러오기' : '수립 금액 · 카드 문자 설정 · 지난 결제 넣기', openThen(w.onGuide)),
+          item(Icons.menu_book_outlined, '사전입력사항', '수립 금액 · 카드 문자 설정 · 지난 결제 불러오기', openThen(w.onGuide)),
           line,
           item(
             Icons.science_outlined,
@@ -267,7 +266,7 @@ class _MenuScreenState extends State<MenuScreen> {
           FutureBuilder<PackageInfo>(
             future: _info,
             builder: (_, snap) {
-              final version = '${snap.hasData ? 'v${snap.data!.version}' : ''} · $editionLabel';
+              final version = snap.hasData ? 'v${snap.data!.version}' : '';
               final onUpdate = w.onUpdate;
               if (onUpdate == null) return item(Icons.info_outline, '버전 정보', version, null);
               // 스토어판은 '버전 정보'(누르면 Play 인앱 업데이트 확인, REQ-64), 깃허브판은 '업데이트 확인'
