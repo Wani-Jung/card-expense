@@ -1,0 +1,62 @@
+# 개인정보처리방침 단독 페이지 (GitHub Pages, REQ-71 후속)
+# Play Console 이 GitHub 파일 보기 화면(blob)을 '간접 링크'로 거부해서(2026-11-26),
+# PRIVACY.md 를 HTML 한 장으로 만들어 https://wani-jung.github.io/card-expense/ 에 올린다.
+# PRIVACY.md 를 고쳐 main 에 push 하면 자동으로 다시 올라간다(수동 실행도 가능).
+name: Privacy page
+
+on:
+  push:
+    branches: [main]
+    paths: [PRIVACY.md, .github/workflows/privacy-page.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render PRIVACY.md to HTML
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p site
+          body=$(jq -Rs '{text: ., mode: "gfm"}' PRIVACY.md | gh api /markdown --input -)
+          cat > site/index.html <<EOF
+          <!doctype html>
+          <html lang="ko">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>공감카드 관리 개인정보처리방침</title>
+          <style>
+            body { margin: 0; background: #fff; color: #202124; font: 16px/1.7 -apple-system, "Noto Sans KR", "Malgun Gothic", sans-serif; }
+            main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; word-break: keep-all; }
+            h1 { font-size: 1.6em; color: #1F3A68; }
+            h2 { font-size: 1.2em; margin-top: 2em; color: #1F3A68; }
+            a { color: #1F3A68; }
+          </style>
+          </head>
+          <body><main>
+          $body
+          </main></body>
+          </html>
+          EOF
+          touch site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
