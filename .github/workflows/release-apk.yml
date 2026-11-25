@@ -127,7 +127,7 @@ jobs:
             if grep -q "permission.FOREGROUND_SERVICE" "$f"; then echo "::error::$f 에 포그라운드 서비스 권한이 들어 있습니다"; fail=1; fi
           done
           # versionCode·versionName·targetSdk 기록
-          for f in p-aab-*.txt; do
+          for f in p-aab*.txt; do
             echo "$f: $(grep -oE 'android:(versionCode|versionName|targetSdkVersion)="[^"]*"' "$f" | tr '\n' ' ')"
           done
           exit $fail
