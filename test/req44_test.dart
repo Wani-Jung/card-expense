@@ -84,7 +84,7 @@ void main() {
       await tester.pumpAndSettle();
       final launch = launches.where((c) => c.method == 'launch').toList();
       expect(launch, hasLength(1));
-      expect((launch.single.arguments as Map)['url'], 'https://github.com/Wani-Jung/card-expense/blob/main/PRIVACY.md');
+      expect((launch.single.arguments as Map)['url'], 'https://wani-jung.github.io/card-expense/');
     });
   });
 

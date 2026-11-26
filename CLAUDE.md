@@ -14,7 +14,7 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 출시 전엔 화면 최종 점검을 먼저 제안: 사용자의 `app-ui-copy-review` 스킬(폰 캡처 묶음 → 문구·줄바꿈·디자인 점검 → 번호 메모 → REQ 하나로)
 - 삭제 기능은 항상 확인 팝업 + 되돌리기
 - 회사 내부 규정(여비규정·공사감독업무지침 등)은 앱에 넣지 않는다. 공개 법령만
-- 저장소 card-expense 는 공개 유지(스토어 개인정보처리방침 링크가 PRIVACY.md, 옛 깃허브 앱의 업데이트 확인이 익명 조회). 사용자의 다른 새 저장소는 기본 비공개
+- 저장소 card-expense 는 공개 유지(개인정보처리방침 페이지가 이 저장소의 GitHub Pages, 옛 깃허브 앱의 업데이트 확인이 익명 조회). 사용자의 다른 새 저장소는 기본 비공개
 
 ## 고정 규칙 요약 (REQ-71)
 - 설치·배포는 **Play 스토어만**(테스트도 Play 테스트 트랙). GitHub 는 코드 공개용. 문자 권한 APK 는 Play 프로텍트가 사이드로드를 차단(2026-11-25 실기기)해서 GitHub 로 APK 를 내지 않는다. adb·USB 설치는 제안하지 않는다
@@ -78,7 +78,7 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
 - 같은 태그 빌드에서 APK 1개(스모크용, 첨부 안 함) + AAB 1개를 만들고 GitHub 릴리스엔 AAB 만 첨부(`--latest=false`). AAB 도 같은 키스토어로 서명(Play App Signing 에 이 키를 앱 서명 키로 등록 → `scripts/export_play_key.md`).
 - REQUEST_INSTALL_PACKAGES 같은 설치 권한을 넣지 않는다 (CI 검사).
 - 권한 안내(Prominent Disclosure, `lib/disclosure.dart`): 문자 권한 시스템 창·알림 접근 설정 화면으로 보내기 전에 매번 전체 화면 안내 → [동의하고 계속]일 때만 요청, [나중에]면 아무것도 안 함. 문자 권한 요청은 `requestSmsWithDisclosure`, 알림 접근은 `openNotificationAccessWithDisclosure` 로만 부른다 (`Native.requestSmsPermission`/`openNotificationAccessSettings` 직접 호출 금지). 문자 안내 문구는 REQ-43 지정 문구 그대로.
-- 메뉴 '개인정보처리방침' → 확인 팝업 "개인정보처리방침 페이지(GitHub)를 인터넷 브라우저로 엽니다." [열기]/[취소] → [열기]만 `kPrivacyUrl`(main 의 `PRIVACY.md`) 브라우저로 (스토어 출시 후에도 유지). PRIVACY.md 는 코드와 사실이 맞아야 한다 (기능이 바뀌면 같이 고칠 것).
+- 메뉴 '개인정보처리방침' → 확인 팝업 "개인정보처리방침 페이지(GitHub)를 인터넷 브라우저로 엽니다." [열기]/[취소] → [열기]만 `kPrivacyUrl` 브라우저로. **개인정보처리방침 주소는 `https://wani-jung.github.io/card-expense/`**(GitHub Pages 단독 페이지, gh-pages 브랜치. PRIVACY.md 를 고쳐 main 에 push 하면 `.github/workflows/privacy-page.yml` + `tools/privacy_page.py` 가 다시 올림). 2026-11-26 Play 가 GitHub 파일 보기 주소(blob)를 '간접 링크'로 거부해서 바꿨다 → 콘솔 앱 콘텐츠 > 개인정보처리방침도 이 주소. 앱 안 `kPrivacyUrl` 은 코드만 바꿨고 다음 업데이트부터 반영(2.1.0 은 옛 blob 주소). PRIVACY.md 는 코드와 사실이 맞아야 한다 (기능이 바뀌면 같이 고칠 것)
 
 ## 구조
 - `lib/sms_parser.dart` — `parseSms()` 문자 파싱 (카드번호+승인 판정, 한 줄 형식, 승인취소, 연도 추정), `splitMessages()` 여러 건 쪼개기([Web발신]·카드번호+승인 단위), `senderMatches()` 발신번호 끝자리 비교

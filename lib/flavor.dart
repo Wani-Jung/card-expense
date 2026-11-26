@@ -17,4 +17,4 @@ const kShowRuralQuiz = !isStoreChannel || kRuralQuizInStore;
 const kAppName = '공감카드 관리';
 
 /// 개인정보처리방침 (메뉴 > 개인정보처리방침, 모든 판 공통)
-const kPrivacyUrl = 'https://github.com/Wani-Jung/card-expense/blob/main/PRIVACY.md';
+const kPrivacyUrl = 'https://wani-jung.github.io/card-expense/';
