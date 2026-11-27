@@ -19,6 +19,7 @@ import 'ingest.dart';
 import 'lab_screen.dart';
 import 'layout.dart';
 import 'menu_screen.dart';
+import 'money_input.dart';
 import 'native.dart';
 import 'notice_dialog.dart';
 import 'onboarding_screen.dart';
@@ -1250,7 +1251,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.numberWithOptions(decimal: unit == MoneyUnit.man),
-          inputFormatters: [FilteringTextInputFormatter.allow(moneyInputChars(unit))],
+          inputFormatters: [MoneyCommaFormatter(unit)],
           decoration: InputDecoration(
             suffixText: unit.label,
             // 두 줄로, 말줄임 없이 (REQ-67 2)

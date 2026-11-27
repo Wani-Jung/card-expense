@@ -116,7 +116,7 @@ void main() {
       expect(parseMoney('', MoneyUnit.won), isNull);
       expect(() => parseMoney('34.5', MoneyUnit.thousand), throwsFormatException);
       expect(() => parseMoney('1.5', MoneyUnit.won), throwsFormatException);
-      expect(moneyInputText(1234000, MoneyUnit.thousand), '1234');
+      expect(moneyInputText(1234000, MoneyUnit.thousand), '1,234');
       expect(moneyInputText(342500, MoneyUnit.man), '34.25');
       expect(MoneyUnit.byName(null), MoneyUnit.won); // REQ-52: 기본 원
       expect(MoneyUnit.byName('won'), MoneyUnit.won);
@@ -162,7 +162,7 @@ void main() {
       await tester.tap(find.text('1,000').first); // 수립 칸 (잔여 칸도 1,000)
       await tester.pumpAndSettle();
       expect(find.text('천원'), findsWidgets); // 입력칸 단위
-      expect(find.widgetWithText(TextField, '1000'), findsOneWidget);
+      expect(find.widgetWithText(TextField, '1,000'), findsOneWidget);
       await tester.enterText(find.byType(TextField), '343');
       await tester.tap(find.text('저장'));
       await tester.pumpAndSettle();
@@ -176,7 +176,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('사전입력사항'));
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(TextField, '1000000'), findsOneWidget);
+      expect(find.widgetWithText(TextField, '1,000,000'), findsOneWidget);
       expect(find.text('원'), findsWidgets);
     });
   });

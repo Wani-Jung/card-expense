@@ -168,10 +168,10 @@ void main() {
       expect(find.text('지금 문자 붙여넣기'), findsNothing); // 붙여넣기 안내 대신
       expect(find.text('문자 붙여넣기·공유로도 넣을 수 있어요 ›'), findsOneWidget);
       // 빠른 선택
-      await tester.tap(find.text('지난달'));
+      expect(find.text('지난달'), findsNothing); // 2.1.1: 빠른 선택 3개
+      await tester.tap(find.text('최근 3개월'));
       await tester.pumpAndSettle();
-      expect(find.text('2026.10.01'), findsOneWidget);
-      expect(find.text('2026.10.31'), findsOneWidget);
+      expect(find.text('2026.08.19'), findsOneWidget);
       await tester.tap(find.text('이번 달'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('이 기간 문자 확인'));

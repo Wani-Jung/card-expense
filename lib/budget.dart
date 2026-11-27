@@ -185,9 +185,22 @@ int? parseMoney(String input, MoneyUnit u) {
 /// 입력칸에서 받는 글자 (만원은 소수점 허용)
 RegExp moneyInputChars(MoneyUnit u) => u == MoneyUnit.man ? RegExp(r'[0-9.]') : RegExp(r'[0-9,]');
 
-/// 입력칸 처음 값 (쉼표 없이)
-/// 편집칸에 미리 채우는 값: 만원은 반올림하지 않은 원래 값(끝자리 0 생략, 34.25), 천원·원은 쉼표 없이
-String moneyInputText(int won, MoneyUnit u) => u == MoneyUnit.man ? manwon(won) : money(won, u).replaceAll(',', '');
+/// 편집칸에 미리 채우는 값: 만원은 반올림하지 않은 원래 값(끝자리 0 생략, 34.25), 천원·원은 정수.
+/// 2.1.1 부터 입력칸은 쉼표를 넣어 보여 준다([withCommas], 입력칸 `MoneyCommaFormatter`)
+String moneyInputText(int won, MoneyUnit u) => withCommas(u == MoneyUnit.man ? manwon(won) : money(won, u).replaceAll(',', ''));
+
+/// '350000' → '350,000', '1234.5' → '1,234.5' (정수 부분만)
+String withCommas(String raw) {
+  final dot = raw.indexOf('.');
+  final intPart = dot < 0 ? raw : raw.substring(0, dot);
+  final rest = dot < 0 ? '' : raw.substring(dot);
+  final b = StringBuffer();
+  for (var i = 0; i < intPart.length; i++) {
+    if (i > 0 && (intPart.length - i) % 3 == 0) b.write(',');
+    b.write(intPart[i]);
+  }
+  return '$b$rest';
+}
 
 /// 합계·차량비 상태. 여유: 사용 < 수립의 80% / 주의: 80% 이상 ~ 100% 이하 / 초과: 100% 초과.
 enum BudgetLevel { ok, warn, over }

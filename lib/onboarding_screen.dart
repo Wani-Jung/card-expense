@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'budget.dart';
+import 'money_input.dart';
 import 'flavor.dart';
 import 'import_screen.dart';
 import 'layout.dart';
@@ -171,7 +172,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     child: TextField(
       controller: c,
       keyboardType: TextInputType.numberWithOptions(decimal: widget.unit == MoneyUnit.man),
-      inputFormatters: [FilteringTextInputFormatter.allow(moneyInputChars(widget.unit))],
+      inputFormatters: [MoneyCommaFormatter(widget.unit)],
       decoration: InputDecoration(labelText: label, suffixText: widget.unit.label, border: const OutlineInputBorder()),
       onChanged: (_) => setState(() {}), // 아래 운영비 안내 다시 계산
     ),
@@ -332,6 +333,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ],
   ];
 
+  bool get _fullImportPage => widget.previewImport != null && widget.applyImport != null;
+
   Widget _historyPage() => ListView(
     padding: EdgeInsets.fromLTRB(24, 24, 24, listBottomPad(context)),
     children: widget.previewImport != null && widget.applyImport != null
@@ -409,10 +412,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 const Spacer(),
                 if (_page > 0) TextButton(onPressed: () => _go(_page - 1), child: const Text('이전')),
                 const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: canNext ? _next : null,
-                  child: Text(last ? (widget.firstRun ? '시작하기' : '완료') : '다음'),
-                ),
+                // 3단계(기간 지정 불러오기)엔 마지막 버튼이 없다: 불러온 뒤 화면 안 [완료]로 끝내고, 원치 않으면 건너뛰기 (2.1.1)
+                if (!(last && _fullImportPage))
+                  FilledButton(
+                    onPressed: canNext ? _next : null,
+                    child: Text(last ? (widget.firstRun ? '시작하기' : '완료') : '다음'),
+                  ),
               ],
             ),
           ),

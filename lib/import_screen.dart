@@ -49,7 +49,6 @@ DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
 
 enum QuickRange {
   thisMonth('이번 달'),
-  lastMonth('지난달'),
   months3('최근 3개월'),
   year1('최근 1년');
 
@@ -61,7 +60,6 @@ enum QuickRange {
     final today = _day(now);
     return switch (this) {
       thisMonth => (from: DateTime(now.year, now.month, 1), to: today),
-      lastMonth => (from: DateTime(now.year, now.month - 1, 1), to: DateTime(now.year, now.month, 0)),
       months3 => (from: DateTime(now.year, now.month - 3, now.day), to: today),
       year1 => defaultImportRange(now),
     };
@@ -307,18 +305,28 @@ class _ImportRangePanelState extends State<ImportRangePanel> {
           ],
         ),
         const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
+        // 빠른 선택 3개는 어느 폰에서도 한 줄 (2.1.1: '지난달' 뺌, 칸을 똑같이 나누고 글자는 줄여서라도 한 줄)
+        Row(
           children: [
-            for (final q in QuickRange.values)
-              ActionChip(
-                label: Text(q.label),
-                onPressed: () {
-                  final x = q.range(now);
-                  _set(x.from, x.to);
-                },
+            for (final q in QuickRange.values) ...[
+              if (q != QuickRange.values.first) const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    foregroundColor: const Color(0xFF1F1F1F),
+                    side: const BorderSide(color: Color(0xFFDADCE0)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    final x = q.range(now);
+                    _set(x.from, x.to);
+                  },
+                  child: FittedBox(fit: BoxFit.scaleDown, child: Text(q.label, maxLines: 1)),
+                ),
               ),
+            ],
           ],
         ),
         if (error != null)

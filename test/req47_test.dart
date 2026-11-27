@@ -64,12 +64,11 @@ void main() {
     test('빠른 선택', () {
       ({DateTime from, DateTime to}) r(QuickRange q) => q.range(now);
       expect(r(QuickRange.thisMonth), (from: DateTime(2026, 11, 1), to: DateTime(2026, 11, 10)));
-      expect(r(QuickRange.lastMonth), (from: DateTime(2026, 10, 1), to: DateTime(2026, 10, 31)));
       expect(r(QuickRange.months3), (from: DateTime(2026, 8, 10), to: DateTime(2026, 11, 10)));
       expect(r(QuickRange.year1), (from: DateTime(2025, 11, 10), to: DateTime(2026, 11, 10)));
       expect(defaultImportRange(now), r(QuickRange.year1));
-      // 1월의 지난달 = 작년 12월
-      expect(QuickRange.lastMonth.range(DateTime(2027, 1, 5)), (from: DateTime(2026, 12, 1), to: DateTime(2026, 12, 31)));
+      // 2.1.1: 빠른 선택은 이번 달·최근 3개월·최근 1년 세 개('지난달' 뺌)
+      expect(QuickRange.values.map((q) => q.label), ['이번 달', '최근 3개월', '최근 1년']);
     });
 
     test('기간 경계: 시작>종료·미래 막기, 1년보다 이른 시작 허용, 종료일 그날 끝까지', () {
@@ -111,14 +110,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('2025.11.10'), findsOneWidget);
       expect(find.text('2026.11.10'), findsOneWidget);
-      await tester.tap(find.text('지난달'));
+      await tester.tap(find.text('최근 3개월'));
       await tester.pumpAndSettle();
-      expect(find.text('2026.10.01'), findsOneWidget);
-      expect(find.text('2026.10.31'), findsOneWidget);
+      expect(find.text('2026.08.10'), findsOneWidget);
+      expect(find.text('2026.11.10'), findsOneWidget);
       await tester.tap(find.text('이 기간 문자 확인'));
       await tester.pumpAndSettle();
-      expect(start, DateTime(2026, 10, 1));
-      expect(end, DateTime(2026, 11, 1));
+      expect(start, DateTime(2026, 8, 10));
+      expect(end, DateTime(2026, 11, 11));
       expect(find.text('이 기간 승인 문자 3건'), findsOneWidget);
       expect(find.text('새로 넣을 문자 2건'), findsOneWidget); // REQ-66 C: 항목별 한 줄
       expect(find.text('이미 있는 문자 1건'), findsOneWidget);
@@ -393,7 +392,9 @@ void main() {
       expect(store.senderNumber, kDefaultSender);
       expect(find.text('3 / 3'), findsOneWidget);
       expect(find.text('지난 결제 불러오기'), findsOneWidget); // 판 하나(REQ-70): 3단계는 기간 지정 불러오기
-      await tester.tap(find.text('시작하기'));
+      // 2.1.1: 3단계엔 '시작하기'가 없다 → 불러오기 뒤 [완료] 또는 건너뛰기로 끝냄
+      expect(find.text('시작하기'), findsNothing);
+      await tester.tap(find.text('건너뛰기'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('메뉴'), findsOneWidget);
       expect(find.text('카드 문자 설정'), findsNothing); // 따로 또 묻지 않음
