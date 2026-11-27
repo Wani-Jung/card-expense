@@ -154,4 +154,27 @@ void main() {
     expect(find.text('분류 대기 2건'), findsOneWidget);
     expect(find.textContaining('다른 달 미분류'), findsNothing);
   });
+
+  testWidgets('2.1.1 그 기간에 미분류가 있으면 요약표 대신 안내, 다 분류하면 표', (tester) async {
+    await pumpHome(tester);
+    // 이번 달 대기 2건 → 안내가 덮고 표는 숨김(자리는 유지)
+    expect(find.byType(PendingCover), findsOneWidget);
+    expect(find.text(kPendingCoverText), findsOneWidget);
+    expect(find.text('수립').hitTestable(), findsNothing);
+    // 단위·보기 기간 줄은 그대로 누를 수 있음
+    expect(find.text('1개월 ▾').hitTestable(), findsOneWidget);
+    // 미분류가 없는 달(두 달 전)은 표
+    await tester.tap(find.byTooltip('이전'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('이전'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PendingCover), findsNothing);
+    expect(find.text('수립').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('2.1.1 다른 달에만 미분류가 있으면 이번 달 표는 보임', (tester) async {
+    await pumpHome(tester, [items[2], items[4]]);
+    expect(find.byType(PendingCover), findsNothing);
+    expect(find.text('수립').hitTestable(), findsOneWidget);
+  });
 }

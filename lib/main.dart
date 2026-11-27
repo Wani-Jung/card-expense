@@ -1342,6 +1342,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   childKey: '${_period.name}|${_view.title(_period)}',
                   child: _BudgetTable(
                 unit: _unit,
+                pendingCount: pending.length,
                 onUnit: (u) async {
                   setState(() => _unit = u);
                   await widget.store.setMoneyUnit(u);
@@ -1989,8 +1990,12 @@ class _BudgetTable extends StatelessWidget {
   /// 표시 단위 (표 위 '단위: 만원 ▾' 드롭다운, 기기에 저장)
   final MoneyUnit unit;
   final ValueChanged<MoneyUnit> onUnit;
+
+  /// 보고 있는 기간의 미분류 건수. 1 이상이면 표 숫자를 가리고 분류 안내를 덮는다 (2.1.1)
+  final int pendingCount;
   const _BudgetTable({
     required this.unit,
+    this.pendingCount = 0,
     required this.onUnit,
     required this.budget,
     required this.usage,
@@ -2173,7 +2178,14 @@ class _BudgetTable extends StatelessWidget {
           _modeButton(context),
         ]),
         const SizedBox(height: 2),
-        Table(
+        // 미분류가 남아 있으면 숫자가 틀린 채로 보이지 않게 표를 가리고 안내를 덮는다 (2.1.1, 크기는 그대로 둬서 화면이 안 출렁임)
+        Stack(children: [
+          Visibility(
+            visible: pendingCount == 0,
+            maintainSize: true,
+            maintainAnimation: true,
+            maintainState: true,
+            child: Table(
           border: TableBorder.all(color: kLine, borderRadius: BorderRadius.circular(6)),
           columnWidths: const {
             0: FlexColumnWidth(1.0),
@@ -2212,7 +2224,10 @@ class _BudgetTable extends StatelessWidget {
               _cell('', bg: Colors.white), // 운영비 잔여는 항상 빈 흰 칸
             ]),
           ],
-        ),
+            ),
+          ),
+          if (pendingCount > 0) const Positioned.fill(child: PendingCover()),
+        ]),
         if (budget.opsInvalid)
           const Padding(
             padding: EdgeInsets.only(top: 4),
@@ -2222,6 +2237,38 @@ class _BudgetTable extends StatelessWidget {
     );
   }
 }
+
+/// 요약표 자리에 덮는 안내 (2.1.1): 보고 있는 기간에 미분류가 있으면 표 대신
+class PendingCover extends StatelessWidget {
+  const PendingCover({super.key});
+
+  static const color = Color(0xFF2F80ED); // 앱 아이콘과 같은 밝은 파랑
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: kLine),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Container(
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(16)),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              kPendingCoverText,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600, height: 1.5),
+            ),
+          ),
+        ),
+      );
+}
+
+const kPendingCoverText = '미분류 내역이 있어요\n↓ 차량비 / 운영비로 구분해 주세요 ↓';
 
 class _ExpenseTile extends StatelessWidget {
   final Expense e;
