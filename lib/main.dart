@@ -1422,15 +1422,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           );
         }
+        // 틀고정: 아래 목록은 휴대폰 하단 버튼(내비게이션 바) 위에서 끝난다 → 버튼 뒤로 카드가 깔리지 않게 (2.1.1)
+        final navBar = MediaQuery.of(context).viewPadding.bottom;
         return Column(children: [
           Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 6), child: fixed),
           line,
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: _onResume,
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(12, 8, 12, listBottomPad(context)),
-                children: below,
+            child: Padding(
+              padding: EdgeInsets.only(bottom: navBar),
+              child: RefreshIndicator(
+                onRefresh: _onResume,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                  children: below,
+                ),
               ),
             ),
           ),
@@ -1601,6 +1606,9 @@ class _CategoryButton extends StatelessWidget {
   final bool dim;
   final String? badge;
   final bool small;
+
+  /// 메인 분류 대기 한 줄 카드용 (높이 40, 글자 15). 추천 표시는 [small] 아닌 것과 같이 버튼 위 말풍선
+  final bool compact;
   const _CategoryButton({
     required this.label,
     required this.bg,
@@ -1609,11 +1617,12 @@ class _CategoryButton extends StatelessWidget {
     this.dim = false,
     this.badge,
     this.small = false,
+    this.compact = false,
   });
 
   /// [rec] 기준으로 [category] 버튼을 만든다.
   factory _CategoryButton.of(String category, Recommendation? rec, VoidCallback onPressed,
-      {bool small = false, String? label}) {
+      {bool small = false, bool compact = false, String? label}) {
     final car = category == kCar;
     return _CategoryButton(
       label: label ?? categoryLabel(category),
@@ -1623,6 +1632,7 @@ class _CategoryButton extends StatelessWidget {
       dim: rec != null && rec.category != category,
       badge: rec != null && rec.category == category ? rec.badge : null,
       small: small,
+      compact: compact,
     );
   }
 
@@ -1635,10 +1645,15 @@ class _CategoryButton extends StatelessWidget {
           backgroundColor: bg,
           foregroundColor: fg,
           elevation: dim ? 0 : null,
-          minimumSize: small ? const Size(0, 30) : const Size.fromHeight(52),
-          padding: small ? const EdgeInsets.symmetric(horizontal: 10) : null,
+          minimumSize: small
+              ? const Size(0, 30)
+              : compact
+                  ? const Size.fromHeight(40)
+                  : const Size.fromHeight(52),
+          padding: small || compact ? const EdgeInsets.symmetric(horizontal: 6) : null,
+          tapTargetSize: compact ? MaterialTapTargetSize.shrinkWrap : null,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(small ? 4 : 6)),
-          textStyle: TextStyle(fontSize: small ? 12 : 18, fontWeight: FontWeight.bold),
+          textStyle: TextStyle(fontSize: small ? 12 : (compact ? 15 : 18), fontWeight: FontWeight.bold),
         ),
         onPressed: onPressed,
         child: small && badge != null
@@ -1664,8 +1679,8 @@ class _CategoryButton extends StatelessWidget {
       children: [
         button,
         Positioned(
-          top: small ? -9 : -10,
-          right: 4,
+          top: small ? -9 : (compact ? -9 : -10),
+          right: compact ? -2 : 4,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
@@ -1705,37 +1720,47 @@ class _PendingCard extends StatelessWidget {
     required this.onIgnore,
   });
 
+  /// 한 줄 카드 (2.1.1): [가맹점 / 금액·일시] [차량비] [운영비] [무시]. 문자 원문은 안 보여 준다
+  /// (원문은 내역 편집 시트·미분류 내역 화면에서 볼 수 있음). 추천 표시는 버튼 위 말풍선.
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
       child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Expanded(
-                child: merchantText(e.merchant, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-              ),
-              Text(
-                e.isCancel ? '승인취소 ${won(e.signedAmount)}' : won(e.amount),
-                style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold, color: e.isCancel ? Colors.red : null),
+        padding: const EdgeInsets.fromLTRB(12, 12, 4, 8),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              merchantText(e.merchant, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 2),
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(
+                    text: e.isCancel ? '취소 ${won(e.signedAmount)}' : won(e.amount),
+                    style: TextStyle(fontWeight: FontWeight.bold, color: e.isCancel ? Colors.red : kText),
+                  ),
+                  TextSpan(text: '  ${fmtShortDateTime(e.dateTime)}', style: const TextStyle(color: Colors.black54)),
+                ]),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13),
               ),
             ]),
-            Text(fmtDateTime(e.dateTime), style: const TextStyle(color: Colors.black54)),
-            const SizedBox(height: 8),
-            _RawBox(e.raw),
-            const SizedBox(height: 14),
-            Row(children: [
-              Expanded(child: _CategoryButton.of(kCar, rec, onCar)),
-              const SizedBox(width: 8),
-              Expanded(child: _CategoryButton.of(kOps, rec, onOps)),
-              const SizedBox(width: 4),
-              TextButton(onPressed: onIgnore, child: const Text('무시')),
-            ]),
-          ],
-        ),
+          ),
+          const SizedBox(width: 6),
+          SizedBox(width: 64, child: _CategoryButton.of(kCar, rec, onCar, compact: true)),
+          const SizedBox(width: 6),
+          SizedBox(width: 64, child: _CategoryButton.of(kOps, rec, onOps, compact: true)),
+          TextButton(
+            style: TextButton.styleFrom(
+              minimumSize: const Size(44, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: onIgnore,
+            child: const Text('무시'),
+          ),
+        ]),
       ),
     );
   }
@@ -2027,8 +2052,8 @@ class _BudgetTable extends StatelessWidget {
       {Color? bg, Color? fg, bool bold = false, double size = 16, VoidCallback? onTap, double hPad = 8}) {
     Widget child = Container(
       color: bg,
-      constraints: const BoxConstraints(minHeight: 48),
-      padding: EdgeInsets.symmetric(vertical: 12, horizontal: hPad),
+      constraints: const BoxConstraints(minHeight: 42),
+      padding: EdgeInsets.symmetric(vertical: 9, horizontal: hPad),
       alignment: Alignment.center,
       child: FittedBox(
         fit: BoxFit.scaleDown,

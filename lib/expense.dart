@@ -283,3 +283,6 @@ String two(int n) => n.toString().padLeft(2, '0');
 
 String fmtDateTime(DateTime d) =>
     '${d.year}.${two(d.month)}.${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
+
+/// 짧은 일시 'MM.dd HH:mm' (메인 분류 대기 한 줄 카드)
+String fmtShortDateTime(DateTime d) => '${two(d.month)}.${two(d.day)} ${two(d.hour)}:${two(d.minute)}';

@@ -6,6 +6,7 @@ import 'package:card_expense/layout.dart';
 import 'package:card_expense/main.dart';
 import 'package:card_expense/quiz.dart';
 import 'package:card_expense/review_screens.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -110,6 +111,26 @@ void main() {
     await tester.tap(other(want.others));
     await tester.pumpAndSettle();
     expect(find.text('미분류 내역 (4건)'), findsOneWidget);
+  });
+
+  testWidgets('2.1.1 한 줄 카드: 문자 원문 없이 가맹점·금액 + [차량비][운영비][무시], 높이 작게', (tester) async {
+    await pumpHome(tester, [items[0]]);
+    expect(find.text('분류 대기 1건'), findsOneWidget);
+    expect(find.textContaining('NH기업0000승인'), findsNothing); // 원문은 메인에 안 보임
+    final name = find.text(keepWords('가식당'));
+    expect(name, findsOneWidget);
+    final card = find.ancestor(of: name, matching: find.byType(Card)).first;
+    expect(tester.getSize(card).height, lessThan(90));
+    for (final t in ['차량비', '운영비', '무시']) {
+      final b = find.descendant(of: card, matching: find.text(t));
+      expect(b, findsOneWidget, reason: t);
+      // 버튼이 가맹점 이름과 같은 줄(오른쪽)에 있다
+      expect(tester.getCenter(b).dx, greaterThan(tester.getCenter(name).dx), reason: t);
+      expect((tester.getCenter(b).dy - tester.getCenter(card).dy).abs(), lessThan(20), reason: t);
+    }
+    // 차량비 → 운영비 → 무시 순서
+    final xs = [for (final t in ['차량비', '운영비', '무시']) tester.getCenter(find.descendant(of: card, matching: find.text(t))).dx];
+    expect(xs[0] < xs[1] && xs[1] < xs[2], isTrue);
   });
 
   testWidgets('다른 달 미분류가 없으면 한 줄 없음', (tester) async {
