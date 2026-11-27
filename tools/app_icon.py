@@ -1,0 +1,111 @@
+"""앱 아이콘 그리기 (2.1.1): 흰 배경 + 네이비 '공감' 글자 + 카드 모양. 예전 아이콘의 원형 테두리는 없앴다.
+
+사용:
+  python tools/app_icon.py preview <out_dir>   # 시안 미리보기(512, 홈 화면 원형·둥근 사각 잘림)
+  python tools/app_icon.py build               # android mipmap·적응형 전경·스토어 512 를 다시 만든다
+
+글꼴은 Windows 의 맑은 고딕 굵게(malgunbd.ttf). 다른 PC 에선 FONT 경로를 바꾼다.
+"""
+import os
+import sys
+
+from PIL import Image, ImageDraw, ImageFont
+
+NAVY = (31, 58, 104, 255)  # #1F3A68 (앱 포인트 네이비)
+WHITE = (255, 255, 255, 255)
+FONT = r'C:\Windows\Fonts\malgunbd.ttf'
+
+
+def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline') -> Image.Image:
+    """투명 배경 위에 '공감' + 카드. [scale] 은 내용 크기(적응형 아이콘 안전 영역에 맞출 때 줄임)."""
+    s = size / 512 * scale
+    im = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    cx = size / 2
+    # 내용 전체(글자 + 간격 + 카드)를 세로 가운데에 둔다
+    font = ImageFont.truetype(FONT, int(170 * s))
+    tb = d.textbbox((0, 0), '공감', font=font)
+    tw, th = tb[2] - tb[0], tb[3] - tb[1]
+    cw, ch = 190 * s, 122 * s
+    gap = 34 * s
+    top = (size - (th + gap + ch)) / 2
+    d.text((cx - tw / 2 - tb[0], top - tb[1]), '공감', font=font, fill=NAVY)
+    y0 = top + th + gap
+    x0 = cx - cw / 2
+    r = 20 * s
+    if card == 'fill':
+        d.rounded_rectangle([x0, y0, x0 + cw, y0 + ch], radius=r, fill=NAVY)
+        d.rectangle([x0, y0 + 30 * s, x0 + cw, y0 + 50 * s], fill=WHITE)
+        d.rounded_rectangle([x0 + 24 * s, y0 + 78 * s, x0 + 84 * s, y0 + 94 * s], radius=6 * s, fill=WHITE)
+    else:
+        w = 14 * s
+        d.rounded_rectangle([x0, y0, x0 + cw, y0 + ch], radius=r, outline=NAVY, width=round(w))
+        d.rectangle([x0 + w, y0 + 36 * s, x0 + cw - w, y0 + 52 * s], fill=NAVY)
+        # 카드 아래 'ㅡ' 표시는 짧게(예전 시안의 절반 길이, 사용자 결정 2.1.1)
+        d.rounded_rectangle([x0 + 30 * s, y0 + 76 * s, x0 + 58 * s, y0 + 90 * s], radius=6 * s, fill=NAVY)
+    return im
+
+
+def on_white(symbol: Image.Image) -> Image.Image:
+    bg = Image.new('RGBA', symbol.size, WHITE)
+    bg.alpha_composite(symbol)
+    return bg
+
+
+def masked(im: Image.Image, shape: str) -> Image.Image:
+    size = im.size[0]
+    m = Image.new('L', im.size, 0)
+    md = ImageDraw.Draw(m)
+    if shape == 'circle':
+        md.ellipse([0, 0, size - 1, size - 1], fill=255)
+    else:
+        md.rounded_rectangle([0, 0, size - 1, size - 1], radius=size * 0.23, fill=255)
+    out = Image.new('RGBA', im.size, (0, 0, 0, 0))
+    out.paste(im, (0, 0), m)
+    return out
+
+
+def preview(out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for card in ('outline', 'fill'):
+        # 홈 화면 아이콘은 적응형 아이콘이라 안전 영역(가운데 66%) 안에 내용이 들어가야 한다 → scale 0.82 로 맞춤
+        full = on_white(draw_symbol(512, scale=SCALE, card=card))
+        sheet = Image.new('RGBA', (512 + 40 + 192 * 2 + 20, 512), (238, 240, 243, 255))
+        sheet.paste(full, (0, 0))
+        small = full.resize((192, 192), Image.LANCZOS)
+        sheet.alpha_composite(masked(small, 'circle'), (552, 60))
+        sheet.alpha_composite(masked(small, 'squircle'), (552 + 212, 60))
+        tiny = full.resize((96, 96), Image.LANCZOS)
+        sheet.alpha_composite(masked(tiny, 'circle'), (552 + 48, 320))
+        sheet.alpha_composite(masked(tiny, 'squircle'), (552 + 212 + 48, 320))
+        sheet.convert('RGB').save(os.path.join(out_dir, f'icon_preview_{card}.png'))
+    print('ok', out_dir)
+
+
+SCALE = 0.82  # 보이는 아이콘(512 또는 72dp) 대비 내용 크기
+DENSITIES = {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}
+RES = os.path.join('android', 'app', 'src', 'main', 'res')
+
+
+def build() -> None:
+    """적응형 전경(108dp, 보이는 영역 72dp 에 맞춤)·옛 런처 아이콘(흰 원)·스토어 512(흰 사각)를 다시 만든다."""
+    for name, k in DENSITIES.items():
+        d = os.path.join(RES, f'mipmap-{name}')
+        fg = round(108 * k)
+        draw_symbol(fg * 4, scale=SCALE * 72 / 108).resize((fg, fg), Image.LANCZOS).save(
+            os.path.join(d, 'ic_launcher_foreground.png'))
+        legacy = round(48 * k)
+        big = masked(on_white(draw_symbol(legacy * 4, scale=SCALE)), 'circle').resize((legacy, legacy), Image.LANCZOS)
+        big.save(os.path.join(d, 'ic_launcher.png'))
+        big.save(os.path.join(d, 'ic_launcher_round.png'))
+    on_white(draw_symbol(512, scale=SCALE)).convert('RGB').save(os.path.join('store', 'playstore_icon_512.png'))
+    print('built')
+
+
+if __name__ == '__main__':
+    if len(sys.argv) >= 3 and sys.argv[1] == 'preview':
+        preview(sys.argv[2])
+    elif len(sys.argv) >= 2 and sys.argv[1] == 'build':
+        build()
+    else:
+        raise SystemExit(__doc__)
