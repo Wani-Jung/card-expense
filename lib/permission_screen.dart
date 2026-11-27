@@ -4,6 +4,7 @@ import 'disclosure.dart';
 import 'expense.dart';
 import 'layout.dart';
 import 'native.dart';
+import 'notice_dialog.dart';
 
 /// 메뉴 > 권한 설정. 항목마다 '앱에서 사용' 스위치(기기에 저장, 기본 켜짐) + 시스템 권한 상태.
 /// 앱으로 돌아올 때마다(onResume) 시스템 권한 상태를 다시 읽는다.
@@ -99,6 +100,7 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
     required bool granted,
     Widget? action,
     Widget? footer,
+    bool alert = false,
   }) =>
       Card(
         margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
@@ -106,7 +108,10 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
           padding: const EdgeInsets.fromLTRB(16, 8, 8, 12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              // 문자 읽기를 쓰는데 권한이 없으면 제목 옆 노란 느낌표 (메뉴 '권한 설정'과 같은 표시, 2.1.1)
+              if (alert) ...[const SizedBox(width: 6), const PermAlertBadge(size: 18)],
+              const Spacer(),
               const Text('앱에서 사용', style: TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
               Switch(value: use, onChanged: onUse),
             ]),
@@ -154,6 +159,7 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
                   use: s.useSms,
                   onUse: _setSms,
                   granted: smsGranted,
+                  alert: s.useSms && p.sms == false,
                   action: smsGranted
                       ? null
                       : p.smsBlocked

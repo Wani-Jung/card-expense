@@ -5,6 +5,19 @@ import 'layout.dart';
 /// 앱 포인트 골드 (아이콘·[확인] 버튼)
 const kGold = Color(0xFFF0A500);
 
+/// 문자 권한이 없을 때 메뉴 '권한 설정'·권한 설정 '문자 읽기'에 붙이는 노란 느낌표 (2.1.1)
+const kPermAlert = kGold;
+
+/// 노란 느낌표 하나 (문자 권한 필요). 툴팁 '문자 권한이 꺼져 있어요'
+class PermAlertBadge extends StatelessWidget {
+  final double size;
+  const PermAlertBadge({super.key, this.size = 20});
+
+  @override
+  Widget build(BuildContext context) =>
+      Tooltip(message: '문자 권한이 꺼져 있어요', child: WarnBadge(size: size, color: kPermAlert));
+}
+
 /// 골드 위 글자
 const kGoldText = Color(0xFF3E2700);
 
@@ -14,14 +27,17 @@ const kCarWarn = Color(0xFFF57C00);
 /// 진한 주황 꽉 찬 원 + 흰 '!' (요약표 차량비 잔여 칸 모서리, 경고 팝업 제목 옆)
 class WarnBadge extends StatelessWidget {
   final double size;
-  const WarnBadge({super.key, this.size = 19});
+
+  /// 원 색. 기본은 진한 주황(차량비 잔여 경고). 권한 안내 표시는 노랑([kPermAlert])
+  final Color color;
+  const WarnBadge({super.key, this.size = 19, this.color = kCarWarn});
 
   @override
   Widget build(BuildContext context) => Container(
     width: size,
     height: size,
     alignment: Alignment.center,
-    decoration: const BoxDecoration(color: kCarWarn, shape: BoxShape.circle),
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     child: Text(
       '!',
       textScaler: TextScaler.noScaling,

@@ -32,6 +32,9 @@ class MenuScreen extends StatefulWidget {
   final Future<void> Function() onPermissions;
   final String Function() permSummary;
 
+  /// 문자 읽기를 쓰는데 문자 권한이 없으면 true → '권한 설정' 오른쪽에 노란 느낌표 (2.1.1)
+  final bool Function() permAlert;
+
   /// 실험실 (안전 OX Quiz·법령 Quiz 4종). 설명은 안의 항목 이름
   final Future<void> Function() onLab;
 
@@ -57,6 +60,7 @@ class MenuScreen extends StatefulWidget {
     required this.cardSummary,
     required this.onPermissions,
     required this.permSummary,
+    this.permAlert = _noAlert,
     required this.onLab,
     required this.onGuide,
     required this.counts,
@@ -68,6 +72,8 @@ class MenuScreen extends StatefulWidget {
     required this.remindBlocked,
     required this.onRemind,
   });
+
+  static bool _noAlert() => false;
 
   @override
   State<MenuScreen> createState() => _MenuScreenState();
@@ -250,7 +256,8 @@ class _MenuScreenState extends State<MenuScreen> {
           line,
           item(Icons.credit_card, '카드 문자 설정', w.cardSummary(), openThen(w.onSettings)),
           line,
-          item(Icons.shield_outlined, '권한 설정', w.permSummary(), openThen(w.onPermissions)),
+          item(Icons.shield_outlined, '권한 설정', w.permSummary(), openThen(w.onPermissions),
+              trailing: w.permAlert() ? const PermAlertBadge() : null),
           line,
           item(Icons.menu_book_outlined, '사전입력사항', '수립 금액 · 카드 문자 설정 · 지난 결제 불러오기', openThen(w.onGuide)),
           line,
