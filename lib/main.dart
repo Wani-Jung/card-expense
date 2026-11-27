@@ -11,7 +11,6 @@ import 'budget.dart';
 import 'cancel_link.dart';
 import 'category_badge.dart';
 import 'check.dart';
-import 'disclosure.dart';
 import 'expense.dart';
 import 'flavor.dart';
 import 'ignored_screen.dart';
@@ -1224,9 +1223,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ].join(' · ');
   }
 
-  /// 메인 권한 배너: '앱에서 사용'이 켜져 있는데 시스템 권한이 꺼진 것만
-  bool get _needListener => widget.store.useListener && !_perms.listener;
-  bool get _needSms => widget.store.useSms && _perms.sms == false;
+  // 메인 권한 배너(요약표 아래 '승인 문자 자동 감지를 위해 아래를 켜주세요')는 2.1.1 에서 없앴다:
+  // 권한은 첫 실행 사전입력 3단계·불러오기·권한 설정에서 안내 화면과 함께 묻고, 상태는 메뉴 '권한 설정' 설명에 나온다.
 
   Future<void> _openSettings() => Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => SettingsScreen(
@@ -1376,7 +1374,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
         const line = Divider(height: 1, thickness: 1);
         final below = <Widget>[
-          if (_needListener || _needSms) _PermissionBanner(listener: _needListener, sms: _needSms),
           if (pending.isNotEmpty) ...[
             _SectionTitle('분류 대기 ${pending.length}건'),
             for (final e in pending)
@@ -1557,43 +1554,6 @@ class _SectionTitle extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
         child: Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       );
-}
-
-class _PermissionBanner extends StatelessWidget {
-  /// 켜야 하는 것
-  final bool listener, sms;
-  const _PermissionBanner({required this.listener, required this.sms});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: kGoldLight,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(keepWords('승인 문자 자동 감지를 위해 아래를 켜주세요'),
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            Text(keepWords('지난 문자는 메시지 앱에서 문자 선택 → 공유 → $kAppName'),
-                style: TextStyle(fontSize: 12, color: Colors.black54)),
-            const SizedBox(height: 8),
-            Wrap(spacing: 8, runSpacing: 4, children: [
-              if (sms)
-                FilledButton.tonal(onPressed: () => requestSmsWithDisclosure(context), child: const Text('문자 권한')),
-              if (listener)
-                FilledButton.tonal(
-                    onPressed: () => openNotificationAccessWithDisclosure(context), child: const Text('알림 접근 켜기')),
-            ]),
-            TextButton(
-              onPressed: Native.openAppSettings,
-              child: const Text('버튼을 눌러도 안 뜨면 → 앱 설정 열기'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// 차량비/운영비 버튼. 추천이 있으면 추천 버튼에 작은 표시([badge])를 달고, 반대 버튼은 연하게([dim]).

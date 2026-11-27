@@ -133,6 +133,22 @@ void main() {
     expect(xs[0] < xs[1] && xs[1] < xs[2], isTrue);
   });
 
+  testWidgets('2.1.1 권한이 꺼져 있어도 메인에 권한 안내 배너가 안 뜸', (tester) async {
+    await pumpHome(tester);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('card_expense/native'),
+      (call) async => call.method == 'permissionStatus' ? {'listener': false, 'sms': false, 'smsBlocked': false} : null,
+    );
+    await tester.pumpWidget(const SizedBox());
+    final store = await Store.open();
+    await tester.pumpWidget(CardExpenseApp(store: store));
+    await tester.pumpAndSettle();
+    expect(find.text('분류 대기 2건'), findsOneWidget);
+    expect(find.textContaining('승인 문자 자동 감지'), findsNothing);
+    expect(find.text('문자 권한'), findsNothing);
+    expect(find.text('알림 접근 켜기'), findsNothing);
+  });
+
   testWidgets('다른 달 미분류가 없으면 한 줄 없음', (tester) async {
     await pumpHome(tester, [items[0], items[1], items[4]]);
     expect(find.text('분류 대기 2건'), findsOneWidget);
