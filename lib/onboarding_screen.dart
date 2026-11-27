@@ -194,7 +194,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _budgetPage() => ListView(
-    padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+    padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
     children: [
       _title(1, '이번 달 수립 금액'),
       _money('전체 (합계)', _total),
@@ -209,7 +209,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   );
 
   Widget _cardPage() => ListView(
-    padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+    padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
     children: [
       _title(2, '카드 문자 설정'),
       const Text('카드번호 끝 4자리', style: _label),
@@ -336,7 +336,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   bool get _fullImportPage => widget.previewImport != null && widget.applyImport != null;
 
   Widget _historyPage() => ListView(
-    padding: EdgeInsets.fromLTRB(24, 24, 24, listBottomPad(context)),
+    padding: EdgeInsets.fromLTRB(24, 8, 24, listBottomPad(context)),
     children: widget.previewImport != null && widget.applyImport != null
         ? _fullImport()
         : [
@@ -396,7 +396,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(24, 8, 24, listBottomPad(context) - 24),
+            // 키보드가 올라와 있으면 하단 버튼(내비게이션 바) 몫의 여백은 필요 없다 → 입력칸이 더 보이게 (2.1.1)
+            padding: EdgeInsets.fromLTRB(
+              24,
+              8,
+              24,
+              MediaQuery.viewInsetsOf(context).bottom > 0 ? 12 : listBottomPad(context) - 24,
+            ),
             child: Row(
               children: [
                 for (var i = 0; i < 3; i++)

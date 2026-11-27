@@ -158,6 +158,15 @@ void main() {
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
     expect(msg, findsNothing);
+    // 팝업 아래 작은 '오픈소스 라이선스' → 라이선스 화면, 뒤로가면 메뉴
+    await tester.tap(credit);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(kLicenseLabel));
+    await tester.pumpAndSettle();
+    expect(find.byType(LicensePage), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('메뉴'), findsOneWidget);
     expect(find.text('안전 OX Quiz · 법령 Quiz 4종'), findsOneWidget);
     expect(find.text('카드 0000 · 발신 1588-1600'), findsOneWidget);
     expect(find.text('알림 감지 권한 필요 · 문자 읽기 권한 필요'), findsOneWidget); // 판 하나(REQ-70): 문자 읽기도 항상

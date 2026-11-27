@@ -66,6 +66,15 @@ enum QuickRange {
   }
 }
 
+/// 고른 빠른 선택 표시 색 (네이비, 퀴즈 선택 칩과 같음)
+const kQuickSelected = Color(0xFF1F3A68);
+
+/// 시작일·종료일이 이 빠른 선택의 기간과 같은지 (달력으로 직접 바꾸면 표시가 꺼짐)
+bool quickSelected(QuickRange q, DateTime from, DateTime to, DateTime now) {
+  final r = q.range(now);
+  return _day(from) == r.from && _day(to) == r.to;
+}
+
 /// 기간이 잘못됐으면 이유, 괜찮으면 null. 1년보다 이른 시작일은 허용.
 String? importRangeError(DateTime from, DateTime to, DateTime now) {
   final today = _day(now);
@@ -312,11 +321,14 @@ class _ImportRangePanelState extends State<ImportRangePanel> {
               if (q != QuickRange.values.first) const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton(
+                  key: ValueKey('quick_${q.name}'),
+                  // 지금 기간이 이 빠른 선택과 같으면 고른 것으로 표시: 네이비 채움 + 흰 글자 (2.1.1, 퀴즈 선택 칩과 같은 색)
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 44),
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    foregroundColor: const Color(0xFF1F1F1F),
-                    side: const BorderSide(color: Color(0xFFDADCE0)),
+                    foregroundColor: quickSelected(q, _from, _to, now) ? Colors.white : const Color(0xFF1F1F1F),
+                    backgroundColor: quickSelected(q, _from, _to, now) ? kQuickSelected : null,
+                    side: BorderSide(color: quickSelected(q, _from, _to, now) ? kQuickSelected : const Color(0xFFDADCE0)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: () {

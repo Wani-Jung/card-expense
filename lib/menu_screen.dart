@@ -24,12 +24,33 @@ class ContactDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Dialog(
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-    child: const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-      child: Text(kContactMessage, textAlign: TextAlign.center, style: TextStyle(fontSize: 17, height: 1.6)),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(28, 32, 28, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(kContactMessage, textAlign: TextAlign.center, style: TextStyle(fontSize: 17, height: 1.6)),
+          const SizedBox(height: 16),
+          // 오픈소스 라이선스 고지 (2.1.1): Flutter 가 앱에 넣어 둔 패키지 라이선스 원문을 보여 주는 기본 화면
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF80868B),
+              textStyle: const TextStyle(fontSize: 12, decoration: TextDecoration.underline),
+            ),
+            onPressed: () {
+              final nav = Navigator.of(context);
+              nav.pop(); // 팝업을 닫고 메뉴 위에 라이선스 화면
+              nav.push(MaterialPageRoute<void>(builder: (_) => const LicensePage(applicationName: kAppName)));
+            },
+            child: const Text(kLicenseLabel),
+          ),
+        ],
+      ),
     ),
   );
 }
+
+const kLicenseLabel = '오픈소스 라이선스';
 
 class MenuScreen extends StatefulWidget {
   final Future<void> Function() onImport, onPaste, onVendors;

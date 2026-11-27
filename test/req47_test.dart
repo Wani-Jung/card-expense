@@ -162,9 +162,9 @@ void main() {
     const removedOps = ['식육식당', '버거킹', '메가커피', '이마트24', '하나로마트'];
     String catOf(String w) => removedOps.contains(w) ? kOps : kCar;
 
-    test('B1 알파문구·드림디포 운영비 기본 키워드, 버전 3', () {
+    test('B1 알파문구·드림디포 운영비 기본 키워드 (버전은 2.1.1 에서 4)', () {
       expect(kDefaultOpsKeywords, containsAll(['알파문구', '드림디포']));
-      expect(kDefaultKeywordsVersion, 3);
+      expect(kDefaultKeywordsVersion, 4);
       expect(VendorBook.initial().recommend('드림디포 홍성점')!.category, kOps);
     });
 
@@ -211,7 +211,7 @@ void main() {
       expect(keys, isNot(contains('셀프주유')));
       expect(book.keywords.firstWhere((k) => k.keyword == '하나로마트').isDefault, isFalse);
       expect(book.removedKeywords.map((k) => k.keyword), isNot(contains('주유소')));
-      expect(book.defaultsVersion, 3);
+      expect(book.defaultsVersion, kDefaultKeywordsVersion);
     });
 
     test('B4 지운 키워드: 직접 등록도 분류와 함께 기억, 골라 다시 넣기, 영구 삭제해도 업데이트로 안 되살아남', () {

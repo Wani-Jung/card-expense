@@ -4,7 +4,11 @@
   python tools/app_icon.py preview <out_dir>   # 시안 미리보기(512, 홈 화면 원형·둥근 사각 잘림)
   python tools/app_icon.py build               # android mipmap·적응형 전경·스토어 512 를 다시 만든다
 
-글꼴은 Windows 의 맑은 고딕 굵게(malgunbd.ttf). 다른 PC 에선 FONT 경로를 바꾼다.
+글꼴은 본고딕(Noto Sans KR, SIL Open Font License 1.1 — 상업적 사용·로고 가능) 가변 글꼴의 Bold(700).
+2.1.1 에서 맑은 고딕 굵게에서 바꿨다(윈도우 번들 글꼴은 로고 용도 라이선스가 애매해서). Windows 11 에 들어 있는
+NotoSansKR-VF.ttf 를 쓰고, 다른 PC 에선 FONT 경로를 Google Fonts 에서 받은 파일로 바꾼다.
+
+  python tools/app_icon.py share               # 공유 카드 로고(assets/icon/gonggam_navy_1024.png)의 '공감' 글자만 같은 글꼴로 다시 그린다
 """
 import os
 import sys
@@ -16,7 +20,15 @@ COLOR = (26, 99, 209, 255)  # #1A63D1 진한 파랑 (2.1.1 사용자 결정: #2F
 WHITE = (255, 255, 255, 255)
 WEIGHT = 1.0  # 카드 굵기 (draw_symbol weight 기본값, 2.1.1 사용자 결정: 카드 선 +4px)
 TEXT_WEIGHT = 0.0  # '공감' 글자 테두리 굵기 (2.1.1 사용자 결정: 글자는 예전 두께 그대로)
-FONT = r'C:\Windows\Fonts\malgunbd.ttf'
+FONT = r'C:\Windows\Fonts\NotoSansKR-VF.ttf'
+FONT_WEIGHT = 700  # Bold
+
+
+def load_font(size: int) -> ImageFont.FreeTypeFont:
+    f = ImageFont.truetype(FONT, size)
+    if FONT_WEIGHT is not None:
+        f.set_variation_by_axes([FONT_WEIGHT])
+    return f
 
 
 def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline', color=None, weight: float = None,
@@ -29,7 +41,7 @@ def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline', color=None
     d = ImageDraw.Draw(im)
     cx = size / 2
     # 내용 전체(글자 + 간격 + 카드)를 세로 가운데에 둔다
-    font = ImageFont.truetype(FONT, int(170 * s))
+    font = load_font(int(170 * s))
     tb = d.textbbox((0, 0), '공감', font=font)
     tw, th = tb[2] - tb[0], tb[3] - tb[1]
     cw, ch = 190 * s, 122 * s
@@ -90,7 +102,7 @@ def preview(out_dir: str) -> None:
     print('ok', out_dir)
 
 
-SCALE = 0.82  # 보이는 아이콘(512 또는 72dp) 대비 내용 크기
+SCALE = 0.90  # 보이는 아이콘(512 또는 72dp) 대비 내용 크기 (2.1.1: 0.82 → 0.90, 글자·카드 10% 키움. 적응형 안전 영역 66dp 안)
 DENSITIES = {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}
 RES = os.path.join('android', 'app', 'src', 'main', 'res')
 
@@ -116,7 +128,7 @@ def weights(out_dir: str) -> None:
     tile, pad = 220, 28
     sheet = Image.new('RGBA', (len(opts) * (tile + pad) + pad, tile + 2 * pad + 40), (60, 60, 64, 255))
     d = ImageDraw.Draw(sheet)
-    lab = ImageFont.truetype(FONT, 22)
+    lab = load_font(22)
     for i, (name, hexc, wt) in enumerate(opts):
         rgb = tuple(int(hexc[j:j + 2], 16) for j in (1, 3, 5)) + (255,)
         im = masked(on_white(draw_symbol(tile * 4, scale=SCALE, color=rgb, weight=wt, text_weight=wt)), 'squircle').resize((tile, tile), Image.LANCZOS)
@@ -126,6 +138,35 @@ def weights(out_dir: str) -> None:
     os.makedirs(out_dir, exist_ok=True)
     sheet.convert('RGB').save(os.path.join(out_dir, 'icon_weights.png'))
     print('ok')
+
+
+SHARE_LOGO = os.path.join('assets', 'icon', 'gonggam_navy_1024.png')
+SHARE_TEXT_BOX = (250, 380, 775, 670)  # 예전 로고에서 '공감' 글자가 있던 자리 (원형 테두리·카드는 그대로 둠)
+
+
+def share_logo(src: str = SHARE_LOGO, out: str = SHARE_LOGO) -> None:
+    """공유 카드 로고: 원형 테두리·카드는 그대로, '공감' 글자 자리만 지우고 같은 높이·가운데에 [FONT] 로 다시 그린다."""
+    im = Image.open(src).convert('RGBA')
+    x0, y0, _, _ = SHARE_TEXT_BOX
+    bb = im.crop(SHARE_TEXT_BOX).getbbox()  # 예전 글자의 실제 영역
+    ox0, oy0, ox1, oy1 = x0 + bb[0], y0 + bb[1], x0 + bb[2], y0 + bb[3]
+    im.paste((0, 0, 0, 0), SHARE_TEXT_BOX)
+    big = 4
+    probe = ImageDraw.Draw(Image.new('L', (1, 1)))
+    size = 60
+    while size < 400:
+        tb = probe.textbbox((0, 0), '공감', font=load_font(size * big))
+        if tb[3] - tb[1] >= (oy1 - oy0) * big:
+            break
+        size += 1
+    font = load_font(size * big)
+    tb = probe.textbbox((0, 0), '공감', font=font)
+    layer = Image.new('RGBA', (im.width * big, im.height * big), (0, 0, 0, 0))
+    cx, cy = (ox0 + ox1) / 2 * big, (oy0 + oy1) / 2 * big
+    ImageDraw.Draw(layer).text((cx - (tb[0] + tb[2]) / 2, cy - (tb[1] + tb[3]) / 2), '공감', font=font, fill=NAVY)
+    im.alpha_composite(layer.resize(im.size, Image.LANCZOS))
+    im.save(out)
+    print('share logo', out)
 
 
 def colors(out_dir: str) -> None:
@@ -143,6 +184,8 @@ def colors(out_dir: str) -> None:
 
 
 if __name__ == '__main__':
+    if len(sys.argv) >= 2 and sys.argv[1] == 'share':
+        share_logo(); sys.exit()
     if len(sys.argv) >= 3 and sys.argv[1] == 'weights':
         weights(sys.argv[2]); sys.exit()
     if len(sys.argv) >= 3 and sys.argv[1] == 'colors':

@@ -182,4 +182,27 @@ void main() {
       expect([for (final k in back.keywords) k.keyword], isNot(contains('스타벅스')));
     });
   });
+
+  group('2.1.1 기본 키워드 v4 (국·탕·찌개류)', () {
+    const added = ['동태탕', '해장국', '순대국', '감자탕', '설렁탕', '곰탕', '추어탕', '삼계탕', '매운탕', '찌개'];
+
+    test('새 설치: 운영비 추천', () {
+      expect(kDefaultKeywordsVersion, 4);
+      final b = VendorBook.initial();
+      for (final w in added) {
+        expect(b.recommend('홍성$w')?.category, kOps, reason: w);
+      }
+      expect(b.recommend('강남동태찜탕')?.category, isNot(kCar)); // 차량비로 잘못 가지 않음
+    });
+
+    test('기존 기기(v3): 새 키워드만 한 번 추가, 지운 기본 키워드는 안 되살림', () {
+      final b = VendorBook({}, [const KeywordRule('식당', kOps, isDefault: true)],
+          defaultsVersion: 3, removedDefaults: {keywordKey('찌개')});
+      expect(b.upgradeDefaults(), isTrue);
+      final keys = b.keywords.map((k) => k.keyword).toSet();
+      expect(keys, containsAll(added.where((w) => w != '찌개')));
+      expect(keys, isNot(contains('찌개')));
+      expect(b.upgradeDefaults(), isFalse);
+    });
+  });
 }

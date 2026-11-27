@@ -169,9 +169,19 @@ void main() {
       expect(find.text('문자 붙여넣기·공유로도 넣을 수 있어요 ›'), findsOneWidget);
       // 빠른 선택
       expect(find.text('지난달'), findsNothing); // 2.1.1: 빠른 선택 3개
+      // 처음엔 기본 기간(이번 달)이 고른 것으로 표시
+      Color? bg(String name) => tester
+          .widget<OutlinedButton>(find.byKey(ValueKey('quick_$name')))
+          .style
+          ?.backgroundColor
+          ?.resolve({});
+      expect(bg('thisMonth'), kQuickSelected);
+      expect(bg('months3'), isNot(kQuickSelected));
       await tester.tap(find.text('최근 3개월'));
       await tester.pumpAndSettle();
       expect(find.text('2026.08.19'), findsOneWidget);
+      expect(bg('months3'), kQuickSelected); // 2.1.1: 누른 버튼이 고른 것으로 표시
+      expect(bg('thisMonth'), isNot(kQuickSelected));
       await tester.tap(find.text('이번 달'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('이 기간 문자 확인'));
