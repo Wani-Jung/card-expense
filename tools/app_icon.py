@@ -12,13 +12,15 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 NAVY = (31, 58, 104, 255)  # #1F3A68 (앱 포인트 네이비, 예전 아이콘 색)
-COLOR = (47, 128, 237, 255)  # #2F80ED 밝은 파랑 (2.1.1 사용자 결정. 예전 아이콘은 NAVY)
+COLOR = (26, 99, 209, 255)  # #1A63D1 진한 파랑 (2.1.1 사용자 결정: #2F80ED 보다 진하게. 예전 아이콘은 NAVY)
 WHITE = (255, 255, 255, 255)
-WEIGHT = 0.0  # 굵기 (draw_symbol weight 기본값)
+WEIGHT = 1.0  # 카드 굵기 (draw_symbol weight 기본값, 2.1.1 사용자 결정: 카드 선 +4px)
+TEXT_WEIGHT = 0.0  # '공감' 글자 테두리 굵기 (2.1.1 사용자 결정: 글자는 예전 두께 그대로)
 FONT = r'C:\Windows\Fonts\malgunbd.ttf'
 
 
-def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline', color=None, weight: float = None) -> Image.Image:
+def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline', color=None, weight: float = None,
+                text_weight: float = None) -> Image.Image:
     """투명 배경 위에 '공감' + 카드. [scale] 은 내용 크기(적응형 아이콘 안전 영역에 맞출 때 줄임)."""
     s = size / 512 * scale
     NAVY = color or COLOR
@@ -33,7 +35,7 @@ def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline', color=None
     cw, ch = 190 * s, 122 * s
     gap = 34 * s
     top = (size - (th + gap + ch)) / 2
-    sw = round(4 * wt * s)
+    sw = round(4 * (TEXT_WEIGHT if text_weight is None else text_weight) * s)
     d.text((cx - tw / 2 - tb[0], top - tb[1]), '공감', font=font, fill=NAVY, stroke_width=sw, stroke_fill=NAVY)
     y0 = top + th + gap
     x0 = cx - cw / 2
@@ -109,7 +111,7 @@ def build() -> None:
 
 
 def weights(out_dir: str) -> None:
-    """색·굵기 비교 (홈 화면 크기 둥근 사각): 지금 / 진하게+두껍게 시안들"""
+    """색·굵기 비교 (홈 화면 크기 둥근 사각): 글자·카드 같이 두껍게 한 시안들 (2.1.1 고를 때 쓴 것)"""
     opts = [('지금', '#2F80ED', 0), ('A', '#1F6FE0', 1), ('B', '#1A63D1', 1), ('C', '#1A63D1', 1.6), ('D', '#1557C0', 1.6)]
     tile, pad = 220, 28
     sheet = Image.new('RGBA', (len(opts) * (tile + pad) + pad, tile + 2 * pad + 40), (60, 60, 64, 255))
@@ -117,7 +119,7 @@ def weights(out_dir: str) -> None:
     lab = ImageFont.truetype(FONT, 22)
     for i, (name, hexc, wt) in enumerate(opts):
         rgb = tuple(int(hexc[j:j + 2], 16) for j in (1, 3, 5)) + (255,)
-        im = masked(on_white(draw_symbol(tile * 4, scale=SCALE, color=rgb, weight=wt)), 'squircle').resize((tile, tile), Image.LANCZOS)
+        im = masked(on_white(draw_symbol(tile * 4, scale=SCALE, color=rgb, weight=wt, text_weight=wt)), 'squircle').resize((tile, tile), Image.LANCZOS)
         x = pad + i * (tile + pad)
         sheet.alpha_composite(im, (x, pad))
         d.text((x + tile / 2, pad + tile + 22), f'{name} {hexc}', font=lab, fill=WHITE, anchor='mm')
