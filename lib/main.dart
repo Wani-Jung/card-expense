@@ -693,8 +693,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final all = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            content: Text("'${e.merchant}' ${bulkIgnored ? '무시·대기' : '대기'} 내역 ${others.length}건도 "
-                "${categoryLabel(cat!)}로 정리할까요?"),
+            content: Text(bulkClassifyMessage(others.length, cat!, ignored: bulkIgnored)),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('이번 건만')),
               FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('모두 정리')),
@@ -2270,6 +2269,10 @@ class PendingCover extends StatelessWidget {
 }
 
 const kPendingCoverText = '미분류 내역이 있어요\n↓ 차량비 / 운영비로 구분해 주세요 ↓';
+
+/// 같은 가맹점 일괄 분류 확인 문구 (2.1.1: 가맹점 이름 없이 두 줄)
+String bulkClassifyMessage(int n, String cat, {bool ignored = false}) =>
+    '동일업체 ${ignored ? '무시·대기 ' : ''}내역 $n건도\n${categoryLabel(cat)}로 분류할까요?';
 
 class _ExpenseTile extends StatelessWidget {
   final Expense e;

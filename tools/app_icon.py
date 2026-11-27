@@ -14,13 +14,15 @@ from PIL import Image, ImageDraw, ImageFont
 NAVY = (31, 58, 104, 255)  # #1F3A68 (앱 포인트 네이비, 예전 아이콘 색)
 COLOR = (47, 128, 237, 255)  # #2F80ED 밝은 파랑 (2.1.1 사용자 결정. 예전 아이콘은 NAVY)
 WHITE = (255, 255, 255, 255)
+WEIGHT = 0.0  # 굵기 (draw_symbol weight 기본값)
 FONT = r'C:\Windows\Fonts\malgunbd.ttf'
 
 
-def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline', color=None) -> Image.Image:
+def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline', color=None, weight: float = None) -> Image.Image:
     """투명 배경 위에 '공감' + 카드. [scale] 은 내용 크기(적응형 아이콘 안전 영역에 맞출 때 줄임)."""
     s = size / 512 * scale
     NAVY = color or COLOR
+    wt = WEIGHT if weight is None else weight  # 0 = 예전 두께, 1 = 글자 테두리 4px·카드 선 +4px (512 기준)
     im = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     cx = size / 2
@@ -31,7 +33,8 @@ def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline', color=None
     cw, ch = 190 * s, 122 * s
     gap = 34 * s
     top = (size - (th + gap + ch)) / 2
-    d.text((cx - tw / 2 - tb[0], top - tb[1]), '공감', font=font, fill=NAVY)
+    sw = round(4 * wt * s)
+    d.text((cx - tw / 2 - tb[0], top - tb[1]), '공감', font=font, fill=NAVY, stroke_width=sw, stroke_fill=NAVY)
     y0 = top + th + gap
     x0 = cx - cw / 2
     r = 20 * s
@@ -40,11 +43,12 @@ def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline', color=None
         d.rectangle([x0, y0 + 30 * s, x0 + cw, y0 + 50 * s], fill=WHITE)
         d.rounded_rectangle([x0 + 24 * s, y0 + 78 * s, x0 + 84 * s, y0 + 94 * s], radius=6 * s, fill=WHITE)
     else:
-        w = 14 * s
+        w = (14 + 4 * wt) * s
+        e = 2 * wt * s  # 띠·'ㅡ'도 같은 만큼 두껍게
         d.rounded_rectangle([x0, y0, x0 + cw, y0 + ch], radius=r, outline=NAVY, width=round(w))
-        d.rectangle([x0 + w, y0 + 36 * s, x0 + cw - w, y0 + 52 * s], fill=NAVY)
+        d.rectangle([x0 + w, y0 + 36 * s - e, x0 + cw - w, y0 + 52 * s + e], fill=NAVY)
         # 카드 아래 'ㅡ' 표시는 짧게(예전 시안의 절반 길이, 사용자 결정 2.1.1)
-        d.rounded_rectangle([x0 + 30 * s, y0 + 76 * s, x0 + 58 * s, y0 + 90 * s], radius=6 * s, fill=NAVY)
+        d.rounded_rectangle([x0 + 30 * s, y0 + 76 * s - e, x0 + 58 * s + e, y0 + 90 * s + e], radius=6 * s, fill=NAVY)
     return im
 
 
@@ -104,6 +108,24 @@ def build() -> None:
     print('built')
 
 
+def weights(out_dir: str) -> None:
+    """색·굵기 비교 (홈 화면 크기 둥근 사각): 지금 / 진하게+두껍게 시안들"""
+    opts = [('지금', '#2F80ED', 0), ('A', '#1F6FE0', 1), ('B', '#1A63D1', 1), ('C', '#1A63D1', 1.6), ('D', '#1557C0', 1.6)]
+    tile, pad = 220, 28
+    sheet = Image.new('RGBA', (len(opts) * (tile + pad) + pad, tile + 2 * pad + 40), (60, 60, 64, 255))
+    d = ImageDraw.Draw(sheet)
+    lab = ImageFont.truetype(FONT, 22)
+    for i, (name, hexc, wt) in enumerate(opts):
+        rgb = tuple(int(hexc[j:j + 2], 16) for j in (1, 3, 5)) + (255,)
+        im = masked(on_white(draw_symbol(tile * 4, scale=SCALE, color=rgb, weight=wt)), 'squircle').resize((tile, tile), Image.LANCZOS)
+        x = pad + i * (tile + pad)
+        sheet.alpha_composite(im, (x, pad))
+        d.text((x + tile / 2, pad + tile + 22), f'{name} {hexc}', font=lab, fill=WHITE, anchor='mm')
+    os.makedirs(out_dir, exist_ok=True)
+    sheet.convert('RGB').save(os.path.join(out_dir, 'icon_weights.png'))
+    print('ok')
+
+
 def colors(out_dir: str) -> None:
     """밝은 파랑 계열 색 비교 (홈 화면 크기 원형)"""
     opts = [('지금', '#1F3A68'), ('1', '#1E6FE0'), ('2', '#2F80ED'), ('3', '#3B9BFF'), ('4', '#1E88E5'), ('5', '#0EA5E9')]
@@ -119,6 +141,8 @@ def colors(out_dir: str) -> None:
 
 
 if __name__ == '__main__':
+    if len(sys.argv) >= 3 and sys.argv[1] == 'weights':
+        weights(sys.argv[2]); sys.exit()
     if len(sys.argv) >= 3 and sys.argv[1] == 'colors':
         colors(sys.argv[2]); sys.exit()
     if len(sys.argv) >= 3 and sys.argv[1] == 'preview':

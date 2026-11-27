@@ -228,7 +228,7 @@ void main() {
 
     await tester.tap(find.text('차량비').first);
     await tester.pumpAndSettle();
-    expect(find.text("'고야커피' 무시·대기 내역 2건도 차량비로 정리할까요?"), findsOneWidget);
+    expect(find.text('동일업체 무시·대기 내역 2건도\n차량비로 분류할까요?'), findsOneWidget);
     await tester.tap(find.text('모두 정리'));
     await tester.pumpAndSettle();
     // 직접 무시 2건 + 대기 1건이 차량비로, 중복으로 무시한 건은 그대로
