@@ -1,4 +1,4 @@
-"""앱 아이콘 그리기 (2.1.1): 흰 배경 + 네이비 '공감' 글자 + 카드 모양. 예전 아이콘의 원형 테두리는 없앴다.
+"""앱 아이콘 그리기 (2.1.1): 흰 배경 + 밝은 파랑(#2F80ED) '공감' 글자 + 카드 모양. 예전 아이콘의 원형 테두리는 없앴다.
 
 사용:
   python tools/app_icon.py preview <out_dir>   # 시안 미리보기(512, 홈 화면 원형·둥근 사각 잘림)
@@ -11,14 +11,16 @@ import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
-NAVY = (31, 58, 104, 255)  # #1F3A68 (앱 포인트 네이비)
+NAVY = (31, 58, 104, 255)  # #1F3A68 (앱 포인트 네이비, 예전 아이콘 색)
+COLOR = (47, 128, 237, 255)  # #2F80ED 밝은 파랑 (2.1.1 사용자 결정. 예전 아이콘은 NAVY)
 WHITE = (255, 255, 255, 255)
 FONT = r'C:\Windows\Fonts\malgunbd.ttf'
 
 
-def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline') -> Image.Image:
+def draw_symbol(size: int, scale: float = 1.0, card: str = 'outline', color=None) -> Image.Image:
     """투명 배경 위에 '공감' + 카드. [scale] 은 내용 크기(적응형 아이콘 안전 영역에 맞출 때 줄임)."""
     s = size / 512 * scale
+    NAVY = color or COLOR
     im = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     cx = size / 2
@@ -102,7 +104,23 @@ def build() -> None:
     print('built')
 
 
+def colors(out_dir: str) -> None:
+    """밝은 파랑 계열 색 비교 (홈 화면 크기 원형)"""
+    opts = [('지금', '#1F3A68'), ('1', '#1E6FE0'), ('2', '#2F80ED'), ('3', '#3B9BFF'), ('4', '#1E88E5'), ('5', '#0EA5E9')]
+    tile, pad = 200, 24
+    sheet = Image.new('RGBA', (len(opts) * (tile + pad) + pad, tile + 2 * pad), (238, 240, 243, 255))
+    for i, (_, hexc) in enumerate(opts):
+        rgb = tuple(int(hexc[j:j + 2], 16) for j in (1, 3, 5)) + (255,)
+        im = masked(on_white(draw_symbol(tile * 4, scale=SCALE, color=rgb)), 'circle').resize((tile, tile), Image.LANCZOS)
+        sheet.alpha_composite(im, (pad + i * (tile + pad), pad))
+    os.makedirs(out_dir, exist_ok=True)
+    sheet.convert('RGB').save(os.path.join(out_dir, 'icon_colors.png'))
+    print('ok', [o[1] for o in opts])
+
+
 if __name__ == '__main__':
+    if len(sys.argv) >= 3 and sys.argv[1] == 'colors':
+        colors(sys.argv[2]); sys.exit()
     if len(sys.argv) >= 3 and sys.argv[1] == 'preview':
         preview(sys.argv[2])
     elif len(sys.argv) >= 2 and sys.argv[1] == 'build':
