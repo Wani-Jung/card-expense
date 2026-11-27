@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 2.1.1: 문자 권한이 없으면 메뉴 '권한 설정' 오른쪽과 권한 설정 화면 '문자 읽기' 제목 옆에 노란 느낌표
+/// 2.1.1: 문자 권한이 없거나 '문자 읽기 · 앱에서 사용'을 꺼 뒀으면 메뉴 '권한 설정' 오른쪽과 권한 설정 화면 '문자 읽기' 제목 옆에 노란 느낌표
 void main() {
   Future<void> pumpHome(WidgetTester tester, {required bool smsGranted, bool useSms = true}) async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -66,8 +66,12 @@ void main() {
     expect(find.byType(PermAlertBadge), findsNothing);
   });
 
-  testWidgets('문자 읽기를 앱에서 꺼 둔 경우(사용자 선택): 표시 없음', (tester) async {
-    await pumpHome(tester, smsGranted: false, useSms: false);
-    expect(find.byType(PermAlertBadge), findsNothing);
+  testWidgets('문자 읽기를 앱에서 꺼 둔 경우도 표시 (권한은 있어도)', (tester) async {
+    await pumpHome(tester, smsGranted: true, useSms: false);
+    expect(find.descendant(of: rowOf('권한 설정'), matching: find.byType(PermAlertBadge)), findsOneWidget);
+    await tester.tap(find.text('권한 설정'));
+    await tester.pumpAndSettle();
+    final card = find.ancestor(of: find.text('문자 읽기'), matching: find.byType(Card)).first;
+    expect(find.descendant(of: card, matching: find.byType(PermAlertBadge)), findsOneWidget);
   });
 }

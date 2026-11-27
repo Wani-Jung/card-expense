@@ -109,7 +109,7 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              // 문자 읽기를 쓰는데 권한이 없으면 제목 옆 노란 느낌표 (메뉴 '권한 설정'과 같은 표시, 2.1.1)
+              // 문자 권한이 없거나 앱에서 사용을 꺼 뒀으면 제목 옆 노란 느낌표 (메뉴 '권한 설정'과 같은 표시, 2.1.1)
               if (alert) ...[const SizedBox(width: 6), const PermAlertBadge(size: 18)],
               const Spacer(),
               const Text('앱에서 사용', style: TextStyle(fontSize: 12, color: Color(0xFF5F6368))),
@@ -159,7 +159,7 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
                   use: s.useSms,
                   onUse: _setSms,
                   granted: smsGranted,
-                  alert: s.useSms && p.sms == false,
+                  alert: !s.useSms || p.sms == false,
                   action: smsGranted
                       ? null
                       : p.smsBlocked

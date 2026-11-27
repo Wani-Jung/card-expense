@@ -8,14 +8,14 @@ const kGold = Color(0xFFF0A500);
 /// 문자 권한이 없을 때 메뉴 '권한 설정'·권한 설정 '문자 읽기'에 붙이는 노란 느낌표 (2.1.1)
 const kPermAlert = kGold;
 
-/// 노란 느낌표 하나 (문자 권한 필요). 툴팁 '문자 권한이 꺼져 있어요'
+/// 노란 느낌표 하나 (문자 읽기가 꺼져 있음: 시스템 권한 없음 또는 앱에서 사용 꺼짐). 툴팁 '문자 읽기가 꺼져 있어요'
 class PermAlertBadge extends StatelessWidget {
   final double size;
   const PermAlertBadge({super.key, this.size = 20});
 
   @override
   Widget build(BuildContext context) =>
-      Tooltip(message: '문자 권한이 꺼져 있어요', child: WarnBadge(size: size, color: kPermAlert));
+      Tooltip(message: '문자 읽기가 꺼져 있어요', child: WarnBadge(size: size, color: kPermAlert));
 }
 
 /// 골드 위 글자

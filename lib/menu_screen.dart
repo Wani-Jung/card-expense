@@ -32,7 +32,7 @@ class MenuScreen extends StatefulWidget {
   final Future<void> Function() onPermissions;
   final String Function() permSummary;
 
-  /// 문자 읽기를 쓰는데 문자 권한이 없으면 true → '권한 설정' 오른쪽에 노란 느낌표 (2.1.1)
+  /// 문자 권한이 없거나 '문자 읽기 · 앱에서 사용'을 꺼 뒀으면 true → '권한 설정' 오른쪽에 노란 느낌표 (2.1.1)
   final bool Function() permAlert;
 
   /// 실험실 (안전 OX Quiz·법령 Quiz 4종). 설명은 안의 항목 이름

@@ -1051,7 +1051,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         cardSummary: () => '카드 ${widget.digits} · 발신 ${widget.sender}',
         onPermissions: _openPermissions,
         permSummary: _permSummary,
-        permAlert: () => widget.store.useSms && _perms.sms == false,
+        permAlert: () => !widget.store.useSms || _perms.sms == false,
         onLab: _openLab,
         onGuide: _openGuide,
         // 메뉴에 그대로 있고, 결과(스낵바·업데이트 창)도 메뉴 위에서
