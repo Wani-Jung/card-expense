@@ -73,7 +73,7 @@ void main() {
   /// 내역 관리 펼치기 (확인 필요가 있으면 이미 펼친 채 시작)
   Future<void> openManage(WidgetTester tester) async {
     if (find.text('미분류 내역').evaluate().isNotEmpty) return;
-    await tester.tap(find.text('내역 관리'));
+    await tester.tap(find.text('결제내역'));
     await tester.pumpAndSettle();
   }
 
@@ -93,18 +93,18 @@ void main() {
     await openMenu(tester);
     // 확인 필요 0건 → 접힌 채 시작
     expect(find.text('미분류 내역'), findsNothing);
-    await tester.tap(find.text('내역 관리'));
+    await tester.tap(find.text('결제내역'));
     await tester.pumpAndSettle();
     expect(find.text('미분류 내역'), findsOneWidget);
     expect(find.text('분류한 내역'), findsOneWidget);
-    // 결제내역 입력을 펼치면 내역 관리는 접힘
-    await tester.tap(find.text('결제내역 입력'));
-    await tester.pumpAndSettle();
+    // 2.1.1: 넣기·내역이 '결제내역' 하나에. 다시 누르면 접힘 → 또 누르면 펼침
     expect(find.text('문자 붙여넣기'), findsOneWidget);
-    expect(find.text('미분류 내역'), findsNothing);
-    await tester.tap(find.text('내역 관리'));
+    await tester.tap(find.text('결제내역'));
     await tester.pumpAndSettle();
     expect(find.text('문자 붙여넣기'), findsNothing);
+    expect(find.text('미분류 내역'), findsNothing);
+    await tester.tap(find.text('결제내역'));
+    await tester.pumpAndSettle();
     // 배지 색: 미분류 1 → 빨강, 확인 필요 0 → 회색, 무시 1·분류한 1 → 연회색(할 일 아님, REQ-67 17), 내역 관리 합계 1 → 빨강
     const red = Color(0xFFD93025), grey = Color(0xFFF1F3F4);
     ListTile tile(String t) => tester.widget<ListTile>(find.ancestor(of: find.text(t), matching: find.byType(ListTile)));
@@ -115,7 +115,7 @@ void main() {
     // 할 일이 아닌 숫자는 연회색 (REQ-67 17)
     expect(badgeColor(tester, row('무시한 내역'), '1건'), grey);
     expect(badgeColor(tester, row('분류한 내역'), '1건'), grey);
-    expect(badgeColor(tester, row('내역 관리'), '1건'), red);
+    expect(badgeColor(tester, row('결제내역'), '1건'), red);
 
     // 미분류 내역에서 분류 → 뒤로가기 → 메뉴, 펼침 유지, 배지 갱신
     await tester.tap(find.text('미분류 내역'));
@@ -129,9 +129,7 @@ void main() {
     expect(badgeColor(tester, row('미분류 내역'), '0건'), grey);
     expect(badgeColor(tester, row('분류한 내역'), '2건'), grey);
 
-    // 문자 붙여넣기도 메뉴 위에 → 뒤로가기 하면 메뉴
-    await tester.tap(find.text('결제내역 입력'));
-    await tester.pumpAndSettle();
+    // 문자 붙여넣기도 메뉴 위에 → 뒤로가기 하면 메뉴 (같은 펼침 안)
     await tester.tap(find.text('문자 붙여넣기'));
     await tester.pumpAndSettle();
     expect(find.text('메뉴'), findsNothing);

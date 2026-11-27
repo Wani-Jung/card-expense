@@ -465,7 +465,6 @@ void main() {
             onPermissions: noop,
             permSummary: () => '',
             onLab: noop,
-            onGuide: noop,
             counts: () => (pending: 0, check: 0, ignored: 0, confirmed: 0),
             onUnclassified: noop,
             onCheck: noop,
@@ -480,7 +479,8 @@ void main() {
       await tester.pumpAndSettle();
       final labY = tester.getTopLeft(find.text('실험실')).dy;
       expect(labY, lessThan(tester.getTopLeft(find.text('개인정보처리방침')).dy));
-      expect(labY, greaterThan(tester.getTopLeft(find.text('사전입력사항')).dy));
+      expect(labY, greaterThan(tester.getTopLeft(find.text('권한 설정')).dy));
+      expect(find.text('사전입력사항'), findsNothing); // 2.1.1 메뉴에서 뺌
       expect(
         find.byWidgetPredicate((w) => w is ListTile && w.title is Text && (w.title! as Text).data == '안전 OX Quiz'),
         findsNothing,

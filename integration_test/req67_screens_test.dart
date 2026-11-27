@@ -77,7 +77,7 @@ void main() {
     // 미분류 내역 버튼 정렬
     await start(pending: true);
     await tap(find.byTooltip('메뉴'));
-    if (find.text('미분류 내역').evaluate().isEmpty) await tap(find.text('내역 관리'));
+    if (find.text('미분류 내역').evaluate().isEmpty) await tap(find.text('결제내역'));
     await shot('06_menu_badges');
     await tap(find.text('미분류 내역'));
     await shot('07_unclassified');
@@ -95,21 +95,14 @@ void main() {
     await tester.pageBack();
     await settle();
 
-    // 문자 붙여넣기
-    await tap(find.text('결제내역 입력'));
+    // 문자 붙여넣기 (결제내역은 위에서 펼친 채)
+    if (find.text('문자 붙여넣기').evaluate().isEmpty) await tap(find.text('결제내역'));
     await tap(find.text('문자 붙여넣기'));
     await shot('10_paste');
     await tester.pageBack();
     await settle();
 
-    // 사전입력사항 1단계 (운영비 자동 안내) → 2단계
-    await tap(find.text('사전입력사항'));
-    await tester.enterText(find.byType(TextField).at(0), '450000');
-    await tester.enterText(find.byType(TextField).at(1), '300000');
-    await shot('11_guide_step1');
-    await tap(find.text('다음'));
-    await shot('12_guide_step2');
-    await tester.pageBack();
+    // 사전입력사항은 2.1.1 에서 메뉴에서 뺌 (첫 실행에만)
     await settle();
 
     // 실험실 (법령 Quiz 부제)

@@ -53,7 +53,6 @@ void main() {
             onPermissions: noop,
             permSummary: () => '',
             onLab: noop,
-            onGuide: noop,
             counts: () => (pending: 0, check: 0, ignored: 0, confirmed: 0),
             onUnclassified: noop,
             onCheck: noop,

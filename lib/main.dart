@@ -987,37 +987,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (a == OnboardingAction.paste) await _openPaste();
   }
 
-  /// 메뉴 > 사전입력사항: 같은 3단계 (지금 값이 들어 있고, 바꾸면 바로 반영)
-  Future<void> _openGuide() async {
-    final nav = Navigator.of(context);
-    OnboardingAction? picked;
-    await nav.push(MaterialPageRoute(
-      builder: (ctx) => OnboardingScreen(
-        unit: _unit,
-        firstRun: false,
-        budget: _budgets.forMonth(DateTime.now()),
-        digits: widget.digits,
-        sender: widget.sender,
-        onBudget: (total, car) async {
-          final month = DateTime.now();
-          setState(() {
-            _budgets.setTotal(month, total);
-            _budgets.setCar(month, car);
-          });
-          await widget.store.saveBudgets(_budgets);
-        },
-        onSettings: widget.onSaveSettings,
-        previewImport: _previewRange,
-        applyImport: (p) => _addParsed(p.report.fresh, fromStore: true),
-        onDone: (a) {
-          picked = a;
-          Navigator.of(ctx).pop();
-        },
-      ),
-    ));
-    await _runGuideAction(picked ?? OnboardingAction.none);
-  }
-
   /// 법령 Quiz 기록 (법령마다 따로)
   late final Map<String, RuralStore> _laws = {
     for (final l in kLawQuizzes) l.group: RuralStore(widget.store.prefs, l),
@@ -1053,7 +1022,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         permSummary: _permSummary,
         permAlert: () => !widget.store.useSms || _perms.sms == false,
         onLab: _openLab,
-        onGuide: _openGuide,
         // 메뉴에 그대로 있고, 결과(스낵바·업데이트 창)도 메뉴 위에서
         onUpdate: isStoreChannel ? _checkStoreUpdate : () => _checkUpdate(manual: true),
         counts: () => (

@@ -4,6 +4,7 @@ import 'package:card_expense/layout.dart';
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/flavor.dart';
 import 'package:card_expense/main.dart';
+import 'package:card_expense/menu_screen.dart';
 import 'package:card_expense/quiz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -111,17 +112,15 @@ void main() {
     expect(find.text(t(prev)), findsOneWidget);
   });
 
-  testWidgets('메뉴: 섹션 없이 9개 한 화면, 내역 관리·결제내역 입력 펼침, 권한 설정', (tester) async {
+  testWidgets('메뉴: 섹션 없이 7개 한 화면, 결제내역 펼침, 권한 설정', (tester) async {
     await pumpHome(tester);
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
     final titles = [
-      '결제내역 입력',
-      '내역 관리',
+      '결제내역',
       '등록 업체·추천 키워드',
       '카드 문자 설정',
       '권한 설정',
-      '사전입력사항',
       '실험실',
       '개인정보처리방침',
       isStoreChannel ? '버전 정보' : '업데이트 확인',
@@ -139,7 +138,7 @@ void main() {
       find.byWidgetPredicate((w) => w is ListTile && w.title is Text && (w.title! as Text).data == '안전 OX Quiz'),
       findsNothing,
     ); // 실험실 안으로 (REQ-47)
-    for (final gone in ['내역 넣기', '정산', '업체 관리', '앱 정보', '이번 달 내역 복사', '현재 버전', '알림 접근 설정', '제작자']) {
+    for (final gone in ['결제내역 입력', '내역 관리', '사전입력사항', '내역 넣기', '정산', '업체 관리', '앱 정보', '이번 달 내역 복사', '현재 버전', '알림 접근 설정', '제작자']) {
       expect(find.text(gone), findsNothing);
     }
     // 스크롤 없이 마지막 항목이 하단 바(48dp) 위에 보임
@@ -149,23 +148,33 @@ void main() {
     expect(tester.getCenter(credit).dx, closeTo(360 / 2, 1));
     expect(find.ancestor(of: credit, matching: find.byType(InkWell)), findsNothing);
     expect(find.ancestor(of: credit, matching: find.byType(ListTile)), findsNothing);
+    // 2.1.1: 누르면 문의 안내 두 줄(가운데), 바깥을 누르면 닫힘
+    await tester.tap(credit);
+    await tester.pumpAndSettle();
+    final msg = find.text(kContactMessage);
+    expect(msg, findsOneWidget);
+    expect(kContactMessage.split('\n'), ['문의사항, 개선요청은', '2210231로 쪽지 부탁드립니다.']);
+    expect(tester.widget<Text>(msg).textAlign, TextAlign.center);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+    expect(msg, findsNothing);
     expect(find.text('안전 OX Quiz · 법령 Quiz 4종'), findsOneWidget);
     expect(find.text('카드 0000 · 발신 1588-1600'), findsOneWidget);
     expect(find.text('알림 감지 권한 필요 · 문자 읽기 권한 필요'), findsOneWidget); // 판 하나(REQ-70): 문자 읽기도 항상
 
-    // 확인 필요 0건이면 내역 관리는 접힌 채 시작
+    // 확인 필요 0건이면 결제내역은 접힌 채 시작
     expect(find.text('미분류 내역'), findsNothing);
-    await tester.tap(find.text('내역 관리'));
+    await tester.tap(find.text('결제내역'));
     await tester.pumpAndSettle();
     expect(find.text('0건'), findsNWidgets(5)); // 합계 + 하위 4개 (확인한 내역 포함)
-    await tester.tap(find.text('결제내역 입력'));
-    await tester.pumpAndSettle();
-    expect(find.text('문자 붙여넣기'), findsOneWidget);
     expect(find.text('문자 캡처화면 업로드'), findsNothing); // REQ-47 캡처 제거
-    // 펼침은 하나만: 결제내역 입력을 펼치면 내역 관리는 접힘 → 다시 펼침
-    expect(find.text('미분류 내역'), findsNothing);
-    await tester.tap(find.text('내역 관리'));
-    await tester.pumpAndSettle();
+    // 2.1.1 순서: 지난 문자 불러오기(굵게) → 문자 붙여넣기 → 미분류 → 확인 필요 → 무시한 → 분류한 → 미분류 알림 받기
+    final order = ['지난 문자 불러오기', '문자 붙여넣기', '미분류 내역', '확인 필요 내역', '무시한 내역', '분류한 내역', '미분류 알림 받기'];
+    final oy = [for (final t in order) tester.getTopLeft(find.text(t)).dy];
+    for (var i = 1; i < oy.length; i++) {
+      expect(oy[i], greaterThan(oy[i - 1]), reason: order[i]);
+    }
+    expect(tester.widget<Text>(find.text('지난 문자 불러오기')).style?.fontWeight, FontWeight.bold);
 
     for (final (t, empty) in [('미분류 내역', '미분류 내역이 없어요'), ('확인 필요 내역', '확인이 필요한 내역이 없어요'), ('무시한 내역', '무시한 내역이 없어요')]) {
       await tester.tap(find.text(t));
@@ -220,7 +229,7 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await tester.tap(find.byTooltip('메뉴'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('내역 관리'));
+    await tester.tap(find.text('결제내역'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('무시한 내역'));
     await tester.pumpAndSettle();
@@ -319,7 +328,7 @@ void main() {
     await tester.pumpAndSettle();
     // 메인으로 돌아가지 않음
     expect(find.text('메뉴'), findsOneWidget);
-    expect(find.text('결제내역 입력'), findsOneWidget);
+    expect(find.text('결제내역'), findsOneWidget);
     // 결과(테스트에서는 네트워크 없음 → 실패)는 메뉴 위 공용 팝업으로 (REQ-64)
     expect(find.text('지금은 확인할 수 없어요'), findsOneWidget);
   }, skip: isStoreChannel); // 스토어판은 '버전 정보' (req43·req64 테스트가 확인)

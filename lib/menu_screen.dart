@@ -8,11 +8,28 @@ import 'native.dart';
 import 'notice_dialog.dart';
 
 /// 우측 상단 톱니 → 메뉴 화면. 섹션 제목 없이 한 목록, 항목 사이엔 얇은 구분선만.
-/// '결제내역 입력'·'내역 관리'는 그 자리에서 펼친다 (펼침 항목은 한 번에 하나만). 접힌 상태는 스크롤 없이 한 화면에.
+/// '결제내역'은 그 자리에서 펼친다 (2.1.1: 예전 '결제내역 입력'·'내역 관리'를 합침, '사전입력사항'은 뺌 — 기능이 모두 다른 항목에 있음).
+/// 접힌 상태는 스크롤 없이 한 화면에.
 /// 모든 항목은 메뉴를 닫지 않고 메뉴 위에 화면을 띄운다 → 뒤로가기 하면 메뉴로. 돌아오면 건수·설명을 다시 읽고
 /// 펼침 상태는 그대로. 업데이트 확인은 메뉴에 머문 채 진행 표시와 결과 창을 띄운다.
 /// 개인정보처리방침 열기 확인 (REQ-67 15)
 const kPrivacyOpenMessage = '개인정보처리방침을\n브라우저로 열어요.';
+
+/// 'Made by wani' 를 누르면 뜨는 문의 안내 (2.1.1). 버튼 없이 두 줄 가운데, 바깥을 누르면 닫힘
+const kContactMessage = '문의사항, 개선요청은\n2210231로 쪽지 부탁드립니다.';
+
+class ContactDialog extends StatelessWidget {
+  const ContactDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    child: const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+      child: Text(kContactMessage, textAlign: TextAlign.center, style: TextStyle(fontSize: 17, height: 1.6)),
+    ),
+  );
+}
 
 class MenuScreen extends StatefulWidget {
   final Future<void> Function() onImport, onPaste, onVendors;
@@ -38,9 +55,6 @@ class MenuScreen extends StatefulWidget {
   /// 실험실 (안전 OX Quiz·법령 Quiz 4종). 설명은 안의 항목 이름
   final Future<void> Function() onLab;
 
-  /// 사전입력사항 3단계 다시 보기
-  final Future<void> Function() onGuide;
-
   /// 내역 관리 건수 (미분류, 확인 필요, 무시한, 확인한 = 차량비·운영비로 분류된 전체). 각 화면에서 돌아오면 다시 센다.
   final ({int pending, int check, int ignored, int confirmed}) Function() counts;
   final Future<void> Function() onUnclassified, onCheck, onIgnored, onConfirmed;
@@ -62,7 +76,6 @@ class MenuScreen extends StatefulWidget {
     required this.permSummary,
     this.permAlert = _noAlert,
     required this.onLab,
-    required this.onGuide,
     required this.counts,
     required this.onUnclassified,
     required this.onCheck,
@@ -80,8 +93,8 @@ class MenuScreen extends StatefulWidget {
 }
 
 class _MenuScreenState extends State<MenuScreen> {
-  /// 펼친 항목 (한 번에 하나만). 기본 접힘, 확인 필요가 1건 이상이면 내역 관리를 펼친 채 시작
-  late String? _expanded = widget.counts().check > 0 ? 'manage' : null;
+  /// 펼친 항목 (지금은 '결제내역' 하나). 기본 접힘, 확인 필요가 1건 이상이면 펼친 채 시작
+  late String? _expanded = widget.counts().check > 0 ? 'records' : null;
   void _toggle(String key) => setState(() => _expanded = _expanded == key ? null : key);
 
   /// 진행 중인 항목 (오른쪽 작은 로딩): 'update' 업데이트 확인
@@ -159,13 +172,15 @@ class _MenuScreenState extends State<MenuScreen> {
       onTap: onTap,
     );
     // 펼친 하위 항목: 들여쓰기 + 약간 작은 글씨 + 아주 연한 회색 배경
-    Widget sub(IconData icon, String title, VoidCallback? onTap, {Widget? trailing, bool onSurface = false}) => ListTile(
+    Widget sub(IconData icon, String title, VoidCallback? onTap,
+            {Widget? trailing, bool onSurface = false, bool bold = false}) =>
+        ListTile(
       tileColor: _subBg,
       dense: true,
       visualDensity: const VisualDensity(vertical: -2),
       contentPadding: const EdgeInsets.only(left: 56, right: 16),
       leading: Icon(icon, size: 20),
-      title: Text(title, style: const TextStyle(fontSize: 14)),
+      title: Text(title, style: TextStyle(fontSize: 14, fontWeight: bold ? FontWeight.bold : null)),
       trailing: trailing,
       enabled: onSurface || onTap != null,
       onTap: onTap,
@@ -181,33 +196,24 @@ class _MenuScreenState extends State<MenuScreen> {
       body: ListView(
         padding: EdgeInsets.only(bottom: listBottomPad(context)),
         children: [
+          // 결제내역 (2.1.1): 넣기(불러오기·붙여넣기) → 내역 화면들 → 미분류 알림 스위치
           item(
-            Icons.add_card,
-            '결제내역 입력',
-            '지난 문자 불러오기 · 붙여넣기',
-            () => _toggle('input'),
-            trailing: chevron(_expanded == 'input'),
-          ),
-          if (_expanded == 'input') ...[
-            sub(Icons.history, '지난 문자 불러오기', importOn ? openThen(w.onImport) : null),
-            sub(Icons.content_paste, '문자 붙여넣기', openThen(w.onPaste)),
-          ],
-          line,
-          item(
-            Icons.fact_check_outlined,
-            '내역 관리',
-            '미분류 · 확인 필요 · 무시한 내역',
-            () => _toggle('manage'),
+            Icons.receipt_long_outlined,
+            '결제내역',
+            '불러오기 · 붙여넣기 · 미분류 · 확인 필요',
+            () => _toggle('records'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 badge(c.pending + c.check, alert: true),
                 const SizedBox(width: 4),
-                chevron(_expanded == 'manage'),
+                chevron(_expanded == 'records'),
               ],
             ),
           ),
-          if (_expanded == 'manage') ...[
+          if (_expanded == 'records') ...[
+            sub(Icons.history, '지난 문자 불러오기', importOn ? openThen(w.onImport) : null, bold: true),
+            sub(Icons.content_paste, '문자 붙여넣기', openThen(w.onPaste)),
             sub(Icons.inbox_outlined, '미분류 내역', openThen(w.onUnclassified), trailing: badge(c.pending, alert: true)),
             sub(Icons.rule, '확인 필요 내역', openThen(w.onCheck), trailing: badge(c.check, alert: true)),
             sub(Icons.visibility_off_outlined, '무시한 내역', openThen(w.onIgnored), trailing: badge(c.ignored)),
@@ -259,8 +265,6 @@ class _MenuScreenState extends State<MenuScreen> {
           item(Icons.shield_outlined, '권한 설정', w.permSummary(), openThen(w.onPermissions),
               trailing: w.permAlert() ? const PermAlertBadge() : null),
           line,
-          item(Icons.menu_book_outlined, '사전입력사항', '수립 금액 · 카드 문자 설정 · 지난 결제 불러오기', openThen(w.onGuide)),
-          line,
           item(
             Icons.science_outlined,
             '실험실',
@@ -286,11 +290,18 @@ class _MenuScreenState extends State<MenuScreen> {
               );
             },
           ),
-          // 크레딧: 목록 항목이 아니라 맨 아래 작은 회색 글씨 (누르는 반응 없음)
-          const Padding(
-            padding: EdgeInsets.only(top: 32, bottom: 8),
+          // 크레딧: 목록 항목이 아니라 맨 아래 작은 글씨. 누르면 문의 안내 팝업 (2.1.1, 바깥을 누르면 닫힘)
+          Padding(
+            padding: const EdgeInsets.only(top: 32, bottom: 8),
             child: Center(
-              child: Text('Made by wani', style: TextStyle(fontSize: 12, color: Colors.black)),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => showDialog<void>(context: context, builder: (_) => const ContactDialog()),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Text('Made by wani', style: TextStyle(fontSize: 12, color: Colors.black)),
+                ),
+              ),
             ),
           ),
         ],

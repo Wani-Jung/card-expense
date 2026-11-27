@@ -400,20 +400,12 @@ void main() {
       expect(find.text('카드 문자 설정'), findsNothing); // 따로 또 묻지 않음
     });
 
-    testWidgets('C4 기존 사용자(카드 설정 있음)는 자동으로 안 뜸, 메뉴 > 사용법에서 다시 보기', (tester) async {
+    testWidgets('C4 기존 사용자(카드 설정 있음)는 자동으로 안 뜸, 메뉴에도 사전입력사항 없음(2.1.1)', (tester) async {
       await pumpApp(tester, {'card_digits': '1234', 'sender_number': '1588-1600'});
       expect(find.text('1 / 3'), findsNothing);
       await tester.tap(find.byTooltip('메뉴'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('사전입력사항'));
-      await tester.pumpAndSettle();
-      expect(find.text('1 / 3'), findsOneWidget);
-      await tester.tap(find.text('다음'));
-      await tester.pumpAndSettle();
-      expect(find.text('1234'), findsOneWidget);
-      await tester.tap(find.text('건너뛰기'));
-      await tester.pumpAndSettle();
-      expect(find.text('메뉴'), findsOneWidget); // 메뉴로 돌아옴
+      expect(find.text('사전입력사항'), findsNothing);
     });
   });
 

@@ -102,8 +102,8 @@ void main() {
     // ④ 확인 필요 내역
     await start(issues: true);
     await tap(find.byTooltip('메뉴'));
-    // 확인 필요 건이 있으면 '내역 관리'는 펼친 채로 열린다
-    if (find.text('확인 필요 내역').evaluate().isEmpty) await tap(find.text('내역 관리'));
+    // 확인 필요 건이 있으면 '결제내역'은 펼친 채로 열린다
+    if (find.text('확인 필요 내역').evaluate().isEmpty) await tap(find.text('결제내역'));
     await tap(find.text('확인 필요 내역'));
     await shot('04_check', '실수 의심 건은 따로 모아서');
 

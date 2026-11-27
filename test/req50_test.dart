@@ -4,6 +4,7 @@ import 'package:card_expense/budget.dart';
 import 'package:card_expense/expense.dart';
 import 'package:card_expense/layout.dart';
 import 'package:card_expense/main.dart';
+import 'package:card_expense/onboarding_screen.dart';
 import 'package:card_expense/quiz.dart';
 import 'package:card_expense/rural_quiz.dart';
 import 'package:card_expense/rural_quiz_screens.dart';
@@ -171,10 +172,19 @@ void main() {
     });
 
     testWidgets('사전입력사항 1단계도 고른 단위', (tester) async {
-      await pumpMonth(tester, total: 100, car: 40, usedCar: 0, usedOps: 0, extra: {'money_unit_v1': 'won'});
-      await tester.tap(find.byTooltip('메뉴'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('사전입력사항'));
+      // 2.1.1: 메뉴에서 빠져 첫 실행에만 뜨므로 화면을 바로 띄워 본다
+      await tester.pumpWidget(MaterialApp(
+        home: OnboardingScreen(
+          firstRun: true,
+          budget: const MonthBudget(total: 1000000, car: 400000),
+          unit: MoneyUnit.won,
+          digits: '',
+          sender: '1588-1600',
+          onBudget: (_, _) async {},
+          onSettings: (_, _) async {},
+          onDone: (_) {},
+        ),
+      ));
       await tester.pumpAndSettle();
       expect(find.widgetWithText(TextField, '1,000,000'), findsOneWidget);
       expect(find.text('원'), findsWidgets);
