@@ -54,8 +54,8 @@ final kDefaultOpsKeywords = _without(kRemovedDefaultKeywords, [
   '국밥',
   '칼국수',
   '냉면',
-  // v4 (2.1.1): 국·탕·찌개류
-  '동태탕',
+  // v4 (2.1.1): 국·탕·찌개류 ('동태탕'은 v5 에서 '동태'로 넓힘: 동태찜·동태찌개도)
+  '동태',
   '해장국',
   '순대국',
   '감자탕',
@@ -76,7 +76,6 @@ final kDefaultOpsKeywords = _without(kRemovedDefaultKeywords, [
   '맥도날드',
   '롯데리아',
   '맘스터치',
-  '서브웨이',
   '도시락',
   '한솥',
   '카페',
@@ -112,7 +111,11 @@ final kDefaultOpsKeywords = _without(kRemovedDefaultKeywords, [
 /// 기본 키워드 세트 버전. 올리면 기존 설치 기기에 새 기본 키워드를 한 번 추가한다.
 /// v3 (REQ-47): 알파문구·드림디포 추가, 더 짧은 기본 키워드에 덮여 추천이 안 바뀌는 기본 키워드 정리.
 /// v4 (2.1.1): 운영비 국·탕·찌개류 10개(동태탕·해장국·순대국·감자탕·설렁탕·곰탕·추어탕·삼계탕·매운탕·찌개).
-const kDefaultKeywordsVersion = 4;
+/// v5 (2.1.1, 사용자 결정): '동태탕' → '동태', '서브웨이' 뺌. 기존 기기에서도 기본 키워드로 남아 있으면 지운다([kDroppedDefaultsV5]).
+const kDefaultKeywordsVersion = 5;
+
+/// v5 에서 기본 목록에서 뺀 키워드. 기존 기기 목록에 '기본'으로 남아 있으면 지운다(직접 등록은 그대로, '지운 키워드'에도 안 나옴)
+const kDroppedDefaultsV5 = ['동태탕', '서브웨이'];
 
 /// v3 에서 기본 목록에서 뺀 키워드: 같은 분류의 더 짧은 기본 키워드에 포함돼 추천 결과가 같다
 /// ('주유소' ⊂ '주유', 'SK에너지' ⊂ '에너지' …). '알파문구'는 '문구'에 덮이지만 요청대로 기본에 넣었다.
@@ -263,6 +266,10 @@ class VendorBook {
   bool upgradeDefaults() {
     if (defaultsVersion >= kDefaultKeywordsVersion) return false;
     if (defaultsVersion < 3) _dropCoveredDefaults();
+    if (defaultsVersion < 5) {
+      final drop = {for (final w in kDroppedDefaultsV5) keywordKey(w)};
+      keywords.removeWhere((k) => k.isDefault && drop.contains(k.key));
+    }
     final have = {for (final k in keywords) keywordKey(k.keyword)};
     final old = defaultsVersion <= 1 ? {for (final k in kDefaultCarKeywordsV1) keywordKey(k)} : <String>{};
     for (final r in defaultKeywordRules()) {

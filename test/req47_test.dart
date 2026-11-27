@@ -164,7 +164,7 @@ void main() {
 
     test('B1 알파문구·드림디포 운영비 기본 키워드 (버전은 2.1.1 에서 4)', () {
       expect(kDefaultOpsKeywords, containsAll(['알파문구', '드림디포']));
-      expect(kDefaultKeywordsVersion, 4);
+      expect(kDefaultKeywordsVersion, 5);
       expect(VendorBook.initial().recommend('드림디포 홍성점')!.category, kOps);
     });
 

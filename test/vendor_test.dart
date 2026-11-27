@@ -183,16 +183,34 @@ void main() {
     });
   });
 
-  group('2.1.1 기본 키워드 v4 (국·탕·찌개류)', () {
-    const added = ['동태탕', '해장국', '순대국', '감자탕', '설렁탕', '곰탕', '추어탕', '삼계탕', '매운탕', '찌개'];
+  group('2.1.1 기본 키워드 v4·v5 (국·탕·찌개류, 동태, 서브웨이 뺌)', () {
+    const added = ['동태', '해장국', '순대국', '감자탕', '설렁탕', '곰탕', '추어탕', '삼계탕', '매운탕', '찌개'];
 
     test('새 설치: 운영비 추천', () {
-      expect(kDefaultKeywordsVersion, 4);
+      expect(kDefaultKeywordsVersion, 5);
       final b = VendorBook.initial();
       for (final w in added) {
         expect(b.recommend('홍성$w')?.category, kOps, reason: w);
       }
-      expect(b.recommend('강남동태찜탕')?.category, isNot(kCar)); // 차량비로 잘못 가지 않음
+      expect(b.recommend('강남동태찜탕')?.category, kOps); // v5: '동태'로 동태찜도
+      expect(b.keywords.map((k) => k.keyword), isNot(contains('서브웨이')));
+      expect(b.keywords.map((k) => k.keyword), isNot(contains('동태탕')));
+    });
+
+    test('기존 기기(v4, 내부 테스트 852): 기본 동태탕·서브웨이는 지우고 동태 추가, 직접 등록 서브웨이는 그대로', () {
+      final b = VendorBook({}, [
+        const KeywordRule('동태탕', kOps, isDefault: true),
+        const KeywordRule('서브웨이', kOps, isDefault: true),
+        const KeywordRule('식당', kOps, isDefault: true),
+      ], defaultsVersion: 4);
+      expect(b.upgradeDefaults(), isTrue);
+      final keys = b.keywords.map((k) => k.keyword).toSet();
+      expect(keys, contains('동태'));
+      expect(keys, isNot(contains('동태탕')));
+      expect(keys, isNot(contains('서브웨이')));
+      expect(b.removedKeywords.map((k) => k.keyword), isNot(contains('서브웨이'))); // 사용자가 지운 게 아님
+      final mine = VendorBook({}, [const KeywordRule('서브웨이', kOps)], defaultsVersion: 4)..upgradeDefaults();
+      expect(mine.keywords.map((k) => k.keyword), contains('서브웨이'));
     });
 
     test('기존 기기(v3): 새 키워드만 한 번 추가, 지운 기본 키워드는 안 되살림', () {

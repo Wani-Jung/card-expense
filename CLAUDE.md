@@ -107,8 +107,8 @@ NH기업카드 승인 문자를 읽어 건별로 차량비/운영비를 분류�
   - [이대로 맞아요] 는 `check_ok_v1`(규칙|id, 중복은 쌍 키 `dupPairKey` = dup|id|id. v1.12 의 duplicate|id 도 인정)에 기억. 메인 표 위 '확인이 필요한 내역 N건 ›' 은 닫으면 `check_banner_closed_v1`, 새 건이 생기면 다시 보임
   - 메뉴에서 연 화면은 HomeScreen `_changes`(setState 마다 증가)를 듣고 다시 그린다. 분류는 메인 `_classify` 를 그대로 써서 일괄 정리 팝업·되돌리기가 같다
 - `lib/vendor.dart` — 차량비/운영비 추천. 우선순위: 자동 등록 업체(가맹점 이름 일치) > 직접 등록 키워드 > 기본 키워드(`kDefaultCarKeywords`·`kDefaultOpsKeywords`, 첫 실행 때 목록에 들어가고 지울 수 있음). 키워드는 대소문자·공백·하이픈 무시, 영문·숫자 3자 이하(LPG 등)는 가맹점 이름 앞부분 일치만
-  - 기본 키워드 세트 버전 `kDefaultKeywordsVersion`(지금 4). 올리면 기존 기기에 새로 생긴 기본 키워드만 1회 추가(`upgradeDefaults`, `loadVendors` 에서). 지운 기본 키워드는 `removedDefaults` 로 기억해 되살리지 않음
-  - v4 (2.1.1): 운영비 국·탕·찌개류 10개(동태탕·해장국·순대국·감자탕·설렁탕·곰탕·추어탕·삼계탕·매운탕·찌개).
+  - 기본 키워드 세트 버전 `kDefaultKeywordsVersion`(지금 5). 올리면 기존 기기에 새로 생긴 기본 키워드만 1회 추가(`upgradeDefaults`, `loadVendors` 에서). 지운 기본 키워드는 `removedDefaults` 로 기억해 되살리지 않음
+  - v4·v5 (2.1.1): 운영비 국·탕·찌개류 10개(동태·해장국·순대국·감자탕·설렁탕·곰탕·추어탕·삼계탕·매운탕·찌개). v5 에서 '동태탕'→'동태', '서브웨이' 뺌 — 기존 기기에서도 '기본'으로 남은 동태탕·서브웨이는 지움(`kDroppedDefaultsV5`, 직접 등록은 그대로).
   - v3 (REQ-47): 운영비 '알파문구'·'드림디포' 추가. 같은 분류의 더 짧은 기본 키워드에 덮이는 기본 키워드 21개(`kRemovedDefaultKeywords`)를 기본 목록에서 빼고, 기존 기기에서도 덮는 키워드가 남아 있을 때만 정리(`_dropCoveredDefaults`, 직접 등록은 그대로). 단 한 이름에 차량비·운영비 키워드가 같이 있으면(예: '하나로마트 주유소') 추천이 바뀔 수 있다
   - 키워드 켜기/끄기: `KeywordRule.enabled`(기본 true, 꺼졌을 때만 json 에 `enabled:false`, `vendor_book_v1` 안). 업데이트로 기본 키워드가 추가돼도 기존 항목의 꺼짐은 유지. 지운 목록에는 켜진 상태로 남김
   - 지운 키워드: 기본은 `removedDefaults`(키), 직접 등록은 `removedCustom`(분류와 함께), [영구 삭제]는 `purged`(목록에서만 숨김, 기본은 계속 안 되살림). `removedKeywords`/`restoreRemoved`/`purgeRemoved`/`addKeyword`
