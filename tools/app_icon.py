@@ -8,6 +8,7 @@
 2.1.1 에서 맑은 고딕 굵게에서 바꿨다(윈도우 번들 글꼴은 로고 용도 라이선스가 애매해서). Windows 11 에 들어 있는
 NotoSansKR-VF.ttf 를 쓰고, 다른 PC 에선 FONT 경로를 Google Fonts 에서 받은 파일로 바꾼다.
 
+  python tools/app_icon.py feature             # 스토어 대표 이미지 store/feature_1024x500.png 를 새 아이콘으로 다시 그린다
   python tools/app_icon.py share               # 공유 카드 로고(assets/icon/gonggam_navy_1024.png)의 '공감' 글자만 같은 글꼴로 다시 그린다
 """
 import os
@@ -169,6 +170,44 @@ def share_logo(src: str = SHARE_LOGO, out: str = SHARE_LOGO) -> None:
     print('share logo', out)
 
 
+FEATURE = os.path.join('store', 'feature_1024x500.png')
+
+
+def load_font_w(size: int, weight: int) -> ImageFont.FreeTypeFont:
+    f = ImageFont.truetype(FONT, size)
+    f.set_variation_by_axes([weight])
+    return f
+
+
+def feature(out: str = FEATURE) -> None:
+    """스토어 대표 이미지 1024x500 (2.1.2): 예전 배치 그대로(연한 바탕·오른쪽 큰 원 두 개·왼쪽 흰 둥근 타일 + 오른쪽 제목·두 줄 설명),
+    타일 안은 새 앱 아이콘 기호(진한 파랑), 글꼴은 본고딕."""
+    k = 2  # 2배로 그려서 줄임(가장자리 매끈하게)
+    W, H = 1024 * k, 500 * k
+    im = Image.new('RGBA', (W, H), (243, 246, 251, 255))
+    d = ImageDraw.Draw(im)
+    d.ellipse([620 * k, -130 * k, 1100 * k, 350 * k], fill=(225, 232, 244, 255))
+    d.ellipse([760 * k, 250 * k, 1180 * k, 670 * k], fill=(211, 223, 240, 255))
+    # 타일 그림자 + 흰 둥근 사각
+    tile = (80 * k, 90 * k, 398 * k, 408 * k)
+    shadow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).rounded_rectangle([tile[0], tile[1] + 8 * k, tile[2], tile[3] + 8 * k], radius=72 * k, fill=(31, 58, 104, 40))
+    from PIL import ImageFilter
+    im.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(14 * k)))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle(tile, radius=72 * k, fill=WHITE)
+    size = tile[2] - tile[0]
+    sym = draw_symbol(size * 2, scale=SCALE * 0.82).resize((size, size), Image.LANCZOS)
+    im.alpha_composite(sym, (tile[0], tile[1]))
+    # 글자
+    d.text((450 * k, 225 * k), '공감카드 관리', font=load_font_w(70 * k, 800), fill=NAVY, anchor='ls')
+    sub = load_font_w(30 * k, 500)
+    d.text((452 * k, 307 * k), '카드 승인 문자를 모아', font=sub, fill=(60, 75, 102, 255), anchor='ls')
+    d.text((452 * k, 355 * k), '차량비·운영비로 자동 정리', font=sub, fill=(60, 75, 102, 255), anchor='ls')
+    im.resize((1024, 500), Image.LANCZOS).convert('RGB').save(out)
+    print('feature', out)
+
+
 def colors(out_dir: str) -> None:
     """밝은 파랑 계열 색 비교 (홈 화면 크기 원형)"""
     opts = [('지금', '#1F3A68'), ('1', '#1E6FE0'), ('2', '#2F80ED'), ('3', '#3B9BFF'), ('4', '#1E88E5'), ('5', '#0EA5E9')]
@@ -184,6 +223,8 @@ def colors(out_dir: str) -> None:
 
 
 if __name__ == '__main__':
+    if len(sys.argv) >= 2 and sys.argv[1] == 'feature':
+        feature(sys.argv[2] if len(sys.argv) >= 3 else FEATURE); sys.exit()
     if len(sys.argv) >= 2 and sys.argv[1] == 'share':
         share_logo(); sys.exit()
     if len(sys.argv) >= 3 and sys.argv[1] == 'weights':
