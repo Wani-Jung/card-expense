@@ -177,4 +177,21 @@ void main() {
     expect(find.byType(PendingCover), findsNothing);
     expect(find.text('수립').hitTestable(), findsOneWidget);
   });
+
+  testWidgets('2.1.2 미분류 내역 화면도 메인과 같은 한 줄 카드(버튼이 가맹점과 같은 줄, 오른쪽)', (tester) async {
+    await pumpHome(tester);
+    await tester.tap(other(2));
+    await tester.pumpAndSettle();
+    final name = find.text(keepWords('다식당'));
+    expect(name, findsOneWidget);
+    final card = find.ancestor(of: name, matching: find.byType(Card)).first;
+    final car = find.descendant(of: card, matching: find.text('차량비'));
+    final ignore = find.descendant(of: card, matching: find.text('무시'));
+    expect(car, findsOneWidget);
+    expect(ignore, findsOneWidget);
+    // 버튼은 가맹점 오른쪽, 카드 세로 가운데 근처 (예전엔 가맹점 줄 아래에 따로)
+    expect(tester.getCenter(car).dx, greaterThan(tester.getCenter(name).dx));
+    expect((tester.getCenter(car).dy - tester.getCenter(card).dy).abs(), lessThan(12));
+    expect(tester.getCenter(ignore).dx, greaterThan(tester.getCenter(car).dx));
+  });
 }

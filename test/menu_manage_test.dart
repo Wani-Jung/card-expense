@@ -257,7 +257,7 @@ void main() {
     await tester.tap(find.text('보기'));
     await tester.pumpAndSettle();
     expect(find.textContaining('미분류 내역 ('), findsOneWidget);
-    expect(find.textContaining('취소가게'), findsNWidgets(2));
+    expect(find.text(keepWords('취소가게')), findsNWidgets(2)); // 2.1.2: 메인과 같은 한 줄 카드
   });
 
   testWidgets('미분류 내역: 이번 달 이전 미분류 n건 한꺼번에 무시 → 확인창 → 무시한 내역으로 → 5초 [되돌리기] (REQ-69 C)', (tester) async {
@@ -271,17 +271,17 @@ void main() {
     await openManage(tester);
     await tester.tap(find.text('미분류 내역'));
     await tester.pumpAndSettle();
-    expect(find.text('이번 달 이전 미분류 2건 한꺼번에 무시'), findsOneWidget);
+    expect(find.text('미분류 2건 한꺼번에 무시'), findsOneWidget);
 
     // 취소면 아무것도 안 바뀜
-    await tester.tap(find.text('이번 달 이전 미분류 2건 한꺼번에 무시'));
+    await tester.tap(find.text('미분류 2건 한꺼번에 무시'));
     await tester.pumpAndSettle();
     expect(find.text('이번 달 이전 미분류 2건을 무시할까요?'), findsOneWidget);
     await tester.tap(find.text('취소'));
     await tester.pumpAndSettle();
     expect(stored()['o1']!['category'], isNull);
 
-    await tester.tap(find.text('이번 달 이전 미분류 2건 한꺼번에 무시'));
+    await tester.tap(find.text('미분류 2건 한꺼번에 무시'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('모두 무시'));
     await tester.pumpAndSettle();
@@ -290,7 +290,7 @@ void main() {
     expect(stored()['o1']!['ignoreReason'], kIgnoreManual); // 무시한 내역에서 되살릴 수 있는 '직접 무시'
     expect(stored()['n1']!['category'], isNull); // 이번 달 건은 그대로
     expect(stored()['c1']!['category'], kCar);
-    expect(find.text('이번 달 이전 미분류 2건 한꺼번에 무시'), findsNothing);
+    expect(find.text('미분류 2건 한꺼번에 무시'), findsNothing);
     expect(find.text('2건을 무시한 내역으로 옮겼어요'), findsOneWidget);
 
     await tester.tap(find.text('되돌리기'));
@@ -298,6 +298,6 @@ void main() {
     expect(stored()['o1']!['category'], isNull);
     expect(stored()['o2']!['category'], isNull);
     expect(stored()['o1']!.containsKey('ignoreReason'), isFalse);
-    expect(find.text('이번 달 이전 미분류 2건 한꺼번에 무시'), findsOneWidget);
+    expect(find.text('미분류 2건 한꺼번에 무시'), findsOneWidget);
   });
 }

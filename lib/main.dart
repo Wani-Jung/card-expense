@@ -1053,6 +1053,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onClassify: (e, cat) => _classify(e, cat, askBulk: cat != kIgnored),
           button: _smallButton,
           onIgnoreOld: _ignoreOldPending,
+          // 2.1.2: 메인 분류 대기와 같은 한 줄 카드
+          card: (e) => _PendingCard(
+            e: e,
+            rec: _vendors.recommend(e.merchant),
+            onCar: () => _classify(e, kCar, askBulk: true),
+            onOps: () => _classify(e, kOps, askBulk: true),
+            onIgnore: () => _classify(e, kIgnored),
+          ),
         ),
       ));
 
@@ -1267,6 +1275,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
+        // 2.1.2: 메인 앱바를 조금 낮게 (기본 56) → 제목과 월 줄 사이가 덜 비어 보이게
+        toolbarHeight: 48,
         centerTitle: true,
         title: Text.rich(TextSpan(children: [
           const TextSpan(text: kAppName),
@@ -1356,7 +1366,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
           ],
           if (otherPending > 0) _OtherPendingLine(count: otherPending, onTap: _openUnclassified),
-          if (pending.isNotEmpty || otherPending > 0) const SizedBox(height: 12),
+          // 2.1.2: 다른 달 줄과 내역 사이 여백 줄임 (예전 12)
+          if (pending.isNotEmpty || otherPending > 0) const SizedBox(height: 2),
           if (showCheck)
             _CheckBanner(
               count: issues.length,
@@ -1384,7 +1395,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           return RefreshIndicator(
             onRefresh: _onResume,
             child: ListView(
-              padding: EdgeInsets.fromLTRB(12, 8, 12, listBottomPad(context)),
+              padding: EdgeInsets.fromLTRB(12, 0, 12, listBottomPad(context)),
               children: [fixed, const SizedBox(height: 6), line, const SizedBox(height: 8), ...below],
             ),
           );
@@ -1392,7 +1403,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // 틀고정: 아래 목록은 휴대폰 하단 버튼(내비게이션 바) 위에서 끝난다 → 버튼 뒤로 카드가 깔리지 않게 (2.1.1)
         final navBar = MediaQuery.of(context).viewPadding.bottom;
         return Column(children: [
-          Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 6), child: fixed),
+          // 2.1.2: 앱바와 월 줄 사이 여백 줄임 (예전 위 8)
+          Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 6), child: fixed),
           line,
           Expanded(
             child: Padding(
@@ -1509,7 +1521,7 @@ class _OtherPendingLine extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(6),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
+            padding: const EdgeInsets.fromLTRB(4, 6, 8, 2),
             child: Text('${otherPendingLabel(count)} ›', style: const TextStyle(fontSize: 13, color: Color(0xFF5F6368))),
           ),
         ),

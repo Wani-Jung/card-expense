@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:card_expense/challenge_card.dart';
 import 'package:card_expense/expense.dart';
+import 'package:card_expense/layout.dart';
 import 'package:card_expense/main.dart';
 import 'package:card_expense/quiz.dart';
 import 'package:card_expense/review_screens.dart';
@@ -191,7 +192,7 @@ void main() {
       openTarget = 'unclassified';
       await pumpHome(tester, basePrefs([item('a', null, DateTime(2026, 1, 5))], {'notif_asked_v1': true}));
       expect(find.byType(UnclassifiedScreen), findsOneWidget);
-      expect(find.textContaining('가게a'), findsOneWidget);
+      expect(find.text(keepWords('가게a')), findsOneWidget); // 2.1.2: 한 줄 카드(가맹점 keepWords)
     });
 
     testWidgets('앱이 떠 있을 때: 메뉴를 닫고 미분류 내역 화면으로 (하나만)', (tester) async {

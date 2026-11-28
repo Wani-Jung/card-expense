@@ -77,7 +77,8 @@ List<Expense> pendingBeforeMonth(List<Expense> items, DateTime now) {
 String otherPendingLabel(int n) => '다른 달 미분류 $n건';
 
 /// 한꺼번에 무시 버튼 글자·확인창 문구 (REQ-69 C)
-String ignoreOldLabel(int n) => '이번 달 이전 미분류 $n건 한꺼번에 무시';
+/// 2.1.2: 버튼은 짧게 '미분류 n건 한꺼번에 무시'(대상은 그대로 이번 달 이전 건, 확인창 제목에 범위를 적음)
+String ignoreOldLabel(int n) => '미분류 $n건 한꺼번에 무시';
 String ignoreOldTitle(int n) => '이번 달 이전 미분류 $n건을 무시할까요?';
 const kIgnoreOldBody = '지우지 않고 무시한 내역으로 옮겨요.\n무시한 내역에서 언제든 되살릴 수 있어요.';
 
@@ -94,6 +95,9 @@ class UnclassifiedScreen extends StatelessWidget {
   final Future<void> Function()? onIgnoreOld;
   final DateTime Function()? clock;
 
+  /// 2.1.2: 메인 분류 대기와 같은 한 줄 카드(엄지가 닿기 쉬운 오른쪽 버튼). 없으면 예전 모양(문구 줄 + 아래 버튼)
+  final Widget Function(Expense e)? card;
+
   const UnclassifiedScreen({
     super.key,
     required this.items,
@@ -103,6 +107,7 @@ class UnclassifiedScreen extends StatelessWidget {
     required this.button,
     this.onIgnoreOld,
     this.clock,
+    this.card,
   });
 
   @override
@@ -135,6 +140,9 @@ class UnclassifiedScreen extends StatelessWidget {
                       for (final (i, e) in list.indexed) ...[
                         if (i == 0 || !list[i - 1].inMonth(e.dateTime))
                           MonthDivider('${e.dateTime.year}년 ${e.dateTime.month}월'),
+                        if (card != null)
+                          Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: card!(e))
+                        else ...[
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 10, 12, 12),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -151,6 +159,7 @@ class UnclassifiedScreen extends StatelessWidget {
                           ]),
                         ),
                         const Divider(height: 1, indent: 16, endIndent: 16),
+                        ],
                       ],
                     ],
                   ),
