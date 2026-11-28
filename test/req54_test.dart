@@ -166,7 +166,8 @@ void main() {
       expect(find.text('2026.11.01'), findsOneWidget);
       expect(find.text('2026.11.19'), findsOneWidget);
       expect(find.text('지금 문자 붙여넣기'), findsNothing); // 붙여넣기 안내 대신
-      expect(find.text('문자 붙여넣기·공유로도 넣을 수 있어요 ›'), findsOneWidget);
+      expect(find.text('문자 붙여넣기·공유로도 넣을 수 있어요 ›'), findsNothing); // 2.1.2: 링크 뺌
+      expect(find.textContaining('문자함에 남아 있는'), findsNothing); // 2.1.2: 제목 아래 설명 뺌
       // 빠른 선택
       expect(find.text('지난달'), findsNothing); // 2.1.1: 빠른 선택 3개
       // 처음엔 기본 기간(이번 달)이 고른 것으로 표시

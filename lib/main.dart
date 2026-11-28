@@ -1055,6 +1055,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onIgnoreOld: _ignoreOldPending,
           // 2.1.2: 메인 분류 대기와 같은 한 줄 카드
           card: (e) => _PendingCard(
+            key: ValueKey('pending_${e.id}'),
             e: e,
             rec: _vendors.recommend(e.merchant),
             onCar: () => _classify(e, kCar, askBulk: true),
@@ -1358,6 +1359,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             _SectionTitle('분류 대기 ${pending.length}건'),
             for (final e in pending)
               _PendingCard(
+                key: ValueKey('pending_${e.id}'),
                 e: e,
                 rec: _vendors.recommend(e.merchant),
                 onCar: () => _classify(e, kCar, askBulk: true),
@@ -1650,11 +1652,12 @@ class _RawBox extends StatelessWidget {
       );
 }
 
-class _PendingCard extends StatelessWidget {
+class _PendingCard extends StatefulWidget {
   final Expense e;
   final Recommendation? rec;
   final VoidCallback onCar, onOps, onIgnore;
   const _PendingCard({
+    super.key,
     required this.e,
     required this.rec,
     required this.onCar,
@@ -1662,44 +1665,75 @@ class _PendingCard extends StatelessWidget {
     required this.onIgnore,
   });
 
-  /// 한 줄 카드 (2.1.1): [가맹점 / 금액·일시] [차량비] [운영비] [무시]. 문자 원문은 안 보여 준다
-  /// (원문은 내역 편집 시트·미분류 내역 화면에서 볼 수 있음). 추천 표시는 버튼 위 말풍선.
+  @override
+  State<_PendingCard> createState() => _PendingCardState();
+}
+
+/// 한 줄 카드 (2.1.1): [가맹점 / 금액·일시] [차량비] [운영비] [무시]. 문자 원문은 안 보여 준다
+/// (원문은 내역 편집 시트에서 볼 수 있음). 추천 표시는 버튼 위 말풍선.
+/// 2.1.2: 왼쪽 글자 부분을 누르면 세 줄(가맹점 / 금액 / 날짜·시각)로 펼쳐져 잘린 글자가 다 보이고, 다시 누르면 접힌다.
+class _PendingCardState extends State<_PendingCard> {
+  bool _open = false;
+
   @override
   Widget build(BuildContext context) {
+    final e = widget.e;
+    final amount = TextSpan(
+      text: e.isCancel ? '취소 ${won(e.signedAmount)}' : won(e.amount),
+      style: TextStyle(fontWeight: FontWeight.bold, color: e.isCancel ? Colors.red : kText),
+    );
+    const sub = TextStyle(color: Colors.black54);
+    final info = _open
+        ? Column(
+            key: const ValueKey('pending_open'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(e.merchant, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 2),
+              Text.rich(amount, style: const TextStyle(fontSize: 13)),
+              const SizedBox(height: 2),
+              Text(fmtShortDateTime(e.dateTime), style: sub.copyWith(fontSize: 13)),
+            ],
+          )
+        : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            merchantText(e.merchant, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 2),
+            Text.rich(
+              TextSpan(children: [amount, TextSpan(text: '  ${fmtShortDateTime(e.dateTime)}', style: sub)]),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ]);
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 12, 4, 8),
         child: Row(children: [
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              merchantText(e.merchant, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 2),
-              Text.rich(
-                TextSpan(children: [
-                  TextSpan(
-                    text: e.isCancel ? '취소 ${won(e.signedAmount)}' : won(e.amount),
-                    style: TextStyle(fontWeight: FontWeight.bold, color: e.isCancel ? Colors.red : kText),
-                  ),
-                  TextSpan(text: '  ${fmtShortDateTime(e.dateTime)}', style: const TextStyle(color: Colors.black54)),
-                ]),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13),
+            child: GestureDetector(
+              key: ValueKey('pending_info_${e.id}'),
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _open = !_open),
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 150),
+                alignment: Alignment.topLeft,
+                child: info,
               ),
-            ]),
+            ),
           ),
           const SizedBox(width: 6),
-          SizedBox(width: 64, child: _CategoryButton.of(kCar, rec, onCar, compact: true)),
+          SizedBox(width: 64, child: _CategoryButton.of(kCar, widget.rec, widget.onCar, compact: true)),
           const SizedBox(width: 6),
-          SizedBox(width: 64, child: _CategoryButton.of(kOps, rec, onOps, compact: true)),
+          SizedBox(width: 64, child: _CategoryButton.of(kOps, widget.rec, widget.onOps, compact: true)),
           TextButton(
             style: TextButton.styleFrom(
               minimumSize: const Size(44, 40),
               padding: const EdgeInsets.symmetric(horizontal: 8),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            onPressed: onIgnore,
+            onPressed: widget.onIgnore,
             child: const Text('무시'),
           ),
         ]),

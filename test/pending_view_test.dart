@@ -194,4 +194,26 @@ void main() {
     expect((tester.getCenter(car).dy - tester.getCenter(card).dy).abs(), lessThan(12));
     expect(tester.getCenter(ignore).dx, greaterThan(tester.getCenter(car).dx));
   });
+
+  testWidgets('2.1.2 분류 대기 카드 왼쪽을 누르면 세 줄(가맹점/금액/날짜)로 펼침, 다시 누르면 접힘', (tester) async {
+    // item() 은 금액 10000 고정이라 금액만 바꿈
+    final long = {...item('z', '아주아주긴이름의홍성현대셀프주유소본점', DateTime(now.year, now.month, 1, 13, 24)), 'amount': 94000};
+    await pumpHome(tester, [long]);
+    final info = find.byKey(const ValueKey('pending_info_z'));
+    expect(info, findsOneWidget);
+    final closedH = tester.getSize(info).height;
+    // 접힘: 금액·날짜가 한 줄
+    expect(find.textContaining('94,000원'), findsOneWidget);
+    await tester.tap(info);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('pending_open')), findsOneWidget);
+    expect(find.text('94,000원'), findsOneWidget); // 금액 줄 따로
+    expect(find.text(fmtShortDateTime(DateTime(now.year, now.month, 1, 13, 24))), findsOneWidget); // 날짜 줄 따로
+    expect(find.text('아주아주긴이름의홍성현대셀프주유소본점'), findsOneWidget); // 가맹점 전체
+    expect(tester.getSize(info).height, greaterThan(closedH));
+    await tester.tap(info);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('pending_open')), findsNothing);
+    expect(tester.getSize(info).height, closeTo(closedH, 0.5));
+  });
 }

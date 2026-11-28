@@ -286,7 +286,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   /// 3단계: 이 화면에서 바로 기간 지정 불러오기 (기본 이번 달 1일 ~ 오늘, REQ-54)
   List<Widget> _fullImport() => [
-    _title(3, '지난 결제 불러오기', '문자함에 남아 있는 카드 승인 문자를 기간을 골라 한 번에 가져올 수 있어요. 앞으로 오는 문자는 자동으로 들어와요.'),
+    // 2.1.2: 제목 아래 설명 없앰 (불러오기에 집중)
+    _title(3, '지난 결제 불러오기'),
     if (_importDone != null) ...[
       Row(
         children: [
@@ -318,19 +319,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ),
       const SizedBox(height: 10),
       ..._pasteGuide(),
-    ] else ...[
-      const SizedBox(height: 20),
-      Center(
-        child: TextButton(
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF1F3A68),
-            textStyle: const TextStyle(fontSize: 13, decoration: TextDecoration.underline),
-          ),
-          onPressed: _cardValid || _settingsSaved ? () => _finishWith(OnboardingAction.paste) : null,
-          child: const Text('문자 붙여넣기·공유로도 넣을 수 있어요 ›'),
-        ),
-      ),
     ],
+    // 2.1.2: '문자 붙여넣기·공유로도 넣을 수 있어요 ›' 링크는 뺐다 (불러오다 말고 누르게 돼서. 붙여넣기는 메뉴 > 결제내역에 있음).
+    // 문자 권한을 못 받았을 때의 붙여넣기·공유 안내(위)는 그대로 둔다 — 그때는 다른 방법이 없으므로
   ];
 
   bool get _fullImportPage => widget.previewImport != null && widget.applyImport != null;
@@ -340,7 +331,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     children: widget.previewImport != null && widget.applyImport != null
         ? _fullImport()
         : [
-            _title(3, '지난 결제 불러오기', '문자함에 남아 있는 카드 승인 문자를 기간을 골라 한 번에 가져올 수 있어요. 앞으로 오는 문자는 자동으로 들어와요.'),
+            _title(3, '지난 결제 불러오기'),
             FilledButton.icon(
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
               icon: const Icon(Icons.history),
