@@ -2,14 +2,13 @@
 
 사용:
   python tools/app_icon.py preview <out_dir>   # 시안 미리보기(512, 홈 화면 원형·둥근 사각 잘림)
-  python tools/app_icon.py build               # android mipmap·적응형 전경·스토어 512 를 다시 만든다
+  python tools/app_icon.py build               # android mipmap·적응형 전경·스토어 512·앱 안 로고(assets/icon/app_logo_1024.png)를 다시 만든다
 
 글꼴은 본고딕(Noto Sans KR, SIL Open Font License 1.1 — 상업적 사용·로고 가능) 가변 글꼴의 Bold(700).
 2.1.1 에서 맑은 고딕 굵게에서 바꿨다(윈도우 번들 글꼴은 로고 용도 라이선스가 애매해서). Windows 11 에 들어 있는
 NotoSansKR-VF.ttf 를 쓰고, 다른 PC 에선 FONT 경로를 Google Fonts 에서 받은 파일로 바꾼다.
 
   python tools/app_icon.py feature             # 스토어 대표 이미지 store/feature_1024x500.png 를 새 아이콘으로 다시 그린다
-  python tools/app_icon.py share               # 공유 카드 로고(assets/icon/gonggam_navy_1024.png)의 '공감' 글자만 같은 글꼴로 다시 그린다
 """
 import os
 import sys
@@ -103,6 +102,7 @@ def preview(out_dir: str) -> None:
     print('ok', out_dir)
 
 
+APP_LOGO = os.path.join('assets', 'icon', 'app_logo_1024.png')  # 앱 안 로고 = 앱 아이콘과 같은 그림
 SCALE = 0.90  # 보이는 아이콘(512 또는 72dp) 대비 내용 크기 (2.1.1: 0.82 → 0.90, 글자·카드 10% 키움. 적응형 안전 영역 66dp 안)
 DENSITIES = {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}
 RES = os.path.join('android', 'app', 'src', 'main', 'res')
@@ -120,6 +120,8 @@ def build() -> None:
         big.save(os.path.join(d, 'ic_launcher.png'))
         big.save(os.path.join(d, 'ic_launcher_round.png'))
     on_white(draw_symbol(512, scale=SCALE)).convert('RGB').save(os.path.join('store', 'playstore_icon_512.png'))
+    # 앱 안 로고(챌린지 결과 카드 등, lib/challenge_card.dart kShareCardLogo)도 같은 그림으로 — 아이콘을 바꾸면 여기도 같이 바뀐다 (2.1.2)
+    on_white(draw_symbol(1024, scale=SCALE)).convert('RGB').save(APP_LOGO)
     print('built')
 
 
@@ -139,35 +141,6 @@ def weights(out_dir: str) -> None:
     os.makedirs(out_dir, exist_ok=True)
     sheet.convert('RGB').save(os.path.join(out_dir, 'icon_weights.png'))
     print('ok')
-
-
-SHARE_LOGO = os.path.join('assets', 'icon', 'gonggam_navy_1024.png')
-SHARE_TEXT_BOX = (250, 380, 775, 670)  # 예전 로고에서 '공감' 글자가 있던 자리 (원형 테두리·카드는 그대로 둠)
-
-
-def share_logo(src: str = SHARE_LOGO, out: str = SHARE_LOGO) -> None:
-    """공유 카드 로고: 원형 테두리·카드는 그대로, '공감' 글자 자리만 지우고 같은 높이·가운데에 [FONT] 로 다시 그린다."""
-    im = Image.open(src).convert('RGBA')
-    x0, y0, _, _ = SHARE_TEXT_BOX
-    bb = im.crop(SHARE_TEXT_BOX).getbbox()  # 예전 글자의 실제 영역
-    ox0, oy0, ox1, oy1 = x0 + bb[0], y0 + bb[1], x0 + bb[2], y0 + bb[3]
-    im.paste((0, 0, 0, 0), SHARE_TEXT_BOX)
-    big = 4
-    probe = ImageDraw.Draw(Image.new('L', (1, 1)))
-    size = 60
-    while size < 400:
-        tb = probe.textbbox((0, 0), '공감', font=load_font(size * big))
-        if tb[3] - tb[1] >= (oy1 - oy0) * big:
-            break
-        size += 1
-    font = load_font(size * big)
-    tb = probe.textbbox((0, 0), '공감', font=font)
-    layer = Image.new('RGBA', (im.width * big, im.height * big), (0, 0, 0, 0))
-    cx, cy = (ox0 + ox1) / 2 * big, (oy0 + oy1) / 2 * big
-    ImageDraw.Draw(layer).text((cx - (tb[0] + tb[2]) / 2, cy - (tb[1] + tb[3]) / 2), '공감', font=font, fill=NAVY)
-    im.alpha_composite(layer.resize(im.size, Image.LANCZOS))
-    im.save(out)
-    print('share logo', out)
 
 
 FEATURE = os.path.join('store', 'feature_1024x500.png')
@@ -225,8 +198,6 @@ def colors(out_dir: str) -> None:
 if __name__ == '__main__':
     if len(sys.argv) >= 2 and sys.argv[1] == 'feature':
         feature(sys.argv[2] if len(sys.argv) >= 3 else FEATURE); sys.exit()
-    if len(sys.argv) >= 2 and sys.argv[1] == 'share':
-        share_logo(); sys.exit()
     if len(sys.argv) >= 3 and sys.argv[1] == 'weights':
         weights(sys.argv[2]); sys.exit()
     if len(sys.argv) >= 3 and sys.argv[1] == 'colors':

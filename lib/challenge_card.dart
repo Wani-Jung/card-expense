@@ -7,7 +7,8 @@ import 'quiz_sheet.dart';
 
 /// 결과 카드 상단 왼쪽 이미지. 지금은 앱 아이콘. 나중에 공식 로고를 받으면 assets/brand/ 에 넣고 이 상수만 바꾼다
 /// (pubspec.yaml assets 에도 추가). 기관 로고는 아직 넣지 않는다.
-const kShareCardLogo = 'assets/icon/gonggam_navy_1024.png';
+/// 2.1.2: 앱 아이콘과 같은 그림(`python tools/app_icon.py build` 가 같이 만든다). 예전 원형 로고 파일은 지움
+const kShareCardLogo = 'assets/icon/app_logo_1024.png';
 
 const _navyLight = Color(0xFFA9BBD6);
 const _grey = Color(0xFF80868B);

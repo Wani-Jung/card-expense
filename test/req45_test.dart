@@ -221,8 +221,9 @@ void main() {
   });
 
   group('새 로고', () {
-    test('결과 카드 로고 = 네이비 공감, 파일·pubspec 등록, 옛 로고 삭제', () {
-      expect(kShareCardLogo, 'assets/icon/gonggam_navy_1024.png');
+    test('결과 카드 로고 = 앱 아이콘과 같은 그림(2.1.2), 파일·pubspec 등록, 옛 로고 삭제', () {
+      expect(kShareCardLogo, 'assets/icon/app_logo_1024.png');
+      expect(File('assets/icon/gonggam_navy_1024.png').existsSync(), isFalse); // 2.1.2 예전 원형 로고 지움
       expect(File(kShareCardLogo).existsSync(), isTrue);
       final pubspec = File('pubspec.yaml').readAsStringSync();
       expect(pubspec, contains('- $kShareCardLogo'));
@@ -257,7 +258,7 @@ void main() {
             _ => '$p',
           },
       ];
-      expect(names, contains('assets/icon/gonggam_navy_1024.png'));
+      expect(names, contains(kShareCardLogo));
       const gold = Color(0xFFF0A500);
       for (final c in tester.widgetList<Container>(find.byType(Container))) {
         final d = c.decoration;
